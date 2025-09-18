@@ -28,12 +28,15 @@ return new class extends Migration
             $table->timestamp('last_rating_change')->nullable();
             $table->boolean('is_staff')->default(false);
             $table->boolean('is_superuser')->default(false);
+            $table->boolean('is_admin')->default(false)->after('is_superuser');
+            $table->string('password')->nullable()->after('is_admin');
             $table->rememberToken();
             $table->timestamps();
 
             // Indexes for performance
             $table->index(['is_staff']);
             $table->index(['is_superuser']);
+            $table->index(['is_admin']);
             $table->index(['subdivision']);
             $table->index(['rating']);
         });

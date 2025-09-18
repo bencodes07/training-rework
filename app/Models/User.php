@@ -25,6 +25,8 @@ class User extends Authenticatable
         'last_rating_change',
         'is_staff',
         'is_superuser',
+        'is_admin',
+        'password',
     ];
 
     /**
@@ -33,6 +35,7 @@ class User extends Authenticatable
      * @var array<int, string>
      */
     protected $hidden = [
+        'password',
         'remember_token',
     ];
 
@@ -45,9 +48,11 @@ class User extends Authenticatable
         'last_rating_change' => 'datetime',
         'is_staff' => 'boolean',
         'is_superuser' => 'boolean',
+        'is_admin' => 'boolean',
         'rating' => 'integer',
         'vatsim_id' => 'integer',
         'email_verified_at' => 'datetime',
+        'password' => 'hashed',
     ];
 
     /**
@@ -128,11 +133,34 @@ class User extends Authenticatable
     }
 
     /**
-     * Get the username attribute (for compatibility with Django)
-     * In Django, username was the VATSIM ID
+     * Check if user is an admin account (for development/emergency access)
      */
-    public function getUsernameAttribute(): int
+    public function isAdmin(): bool
     {
-        return $this->vatsim_id;
+        return $this->is_admin === true;
+    }
+
+    /**
+     * Check if user is a VATSIM user (has vatsim_id)
+     */
+    public function isVatsimUser(): bool
+    {
+        return !empty($this->vatsim_id);
+    }
+
+    /**
+     * Scope to get only admin accounts
+     */
+    public function scopeAdmins($query)
+    {
+        return $query->where('is_admin', true);
+    }
+
+    /**
+     * Scope to get only VATSIM users
+     */
+    public function scopeVatsimUsers($query)
+    {
+        return $query->whereNotNull('vatsim_id');
     }
 }
