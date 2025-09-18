@@ -1,18 +1,47 @@
 import { NavFooter } from '@/components/nav-footer';
-import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
-import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
-import { dashboard } from '@/routes';
+import {
+    Sidebar,
+    SidebarContent,
+    SidebarFooter,
+    SidebarGroup,
+    SidebarGroupLabel,
+    SidebarHeader,
+    SidebarMenu,
+    SidebarMenuButton,
+    SidebarMenuItem,
+} from '@/components/ui/sidebar';
+import { courses, dashboard, endorsements } from '@/routes';
 import { type NavItem } from '@/types';
-import { Link } from '@inertiajs/react';
-import { BookOpen, Folder, LayoutGrid } from 'lucide-react';
+import { Link, usePage } from '@inertiajs/react';
+import { BookOpen, BookOpenIcon, CircleCheck, Folder, LayoutGrid } from 'lucide-react';
 import AppLogo from './app-logo';
 
-const mainNavItems: NavItem[] = [
+const navSections = [
     {
-        title: 'Dashboard',
-        href: dashboard(),
-        icon: LayoutGrid,
+        label: 'Platform',
+        items: [
+            {
+                title: 'Dashboard',
+                href: dashboard(),
+                icon: LayoutGrid,
+            },
+        ],
+    },
+    {
+        label: 'Training',
+        items: [
+            {
+                title: 'Courses',
+                href: courses(),
+                icon: BookOpenIcon,
+            },
+            {
+                title: 'Endorsements',
+                href: endorsements(),
+                icon: CircleCheck,
+            },
+        ],
     },
 ];
 
@@ -28,6 +57,32 @@ const footerNavItems: NavItem[] = [
         icon: BookOpen,
     },
 ];
+
+function NavSection({ section }: { section: (typeof navSections)[0] }) {
+    const page = usePage();
+
+    return (
+        <SidebarGroup className="px-2 py-0">
+            <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
+            <SidebarMenu>
+                {section.items.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                        <SidebarMenuButton
+                            asChild
+                            isActive={page.url.startsWith(typeof item.href === 'string' ? item.href : item.href.url)}
+                            tooltip={{ children: item.title }}
+                        >
+                            <Link href={item.href} prefetch>
+                                {item.icon && <item.icon />}
+                                <span>{item.title}</span>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                ))}
+            </SidebarMenu>
+        </SidebarGroup>
+    );
+}
 
 export function AppSidebar() {
     return (
@@ -45,7 +100,9 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={mainNavItems} />
+                {navSections.map((section) => (
+                    <NavSection key={section.label} section={section} />
+                ))}
             </SidebarContent>
 
             <SidebarFooter>
