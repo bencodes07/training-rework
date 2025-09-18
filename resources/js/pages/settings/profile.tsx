@@ -1,120 +1,224 @@
-import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
-import { send } from '@/routes/verification';
-import { type BreadcrumbItem, type SharedData } from '@/types';
-import { Transition } from '@headlessui/react';
-import { Form, Head, Link, usePage } from '@inertiajs/react';
-
-import DeleteUser from '@/components/delete-user';
-import HeadingSmall from '@/components/heading-small';
-import InputError from '@/components/input-error';
+import { Head, useForm, usePage } from '@inertiajs/react';
+import { FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import AppLayout from '@/layouts/app-layout';
-import SettingsLayout from '@/layouts/settings/layout';
-import { edit } from '@/routes/profile';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Trash2, Shield, User } from 'lucide-react';
 
-const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Profile settings',
-        href: edit().url,
-    },
-];
+interface User {
+    id: number;
+    vatsim_id?: number;
+    name: string;
+    first_name?: string;
+    last_name?: string;
+    email: string;
+    rating?: number;
+    subdivision?: string;
+    is_staff: boolean;
+    is_superuser: boolean;
+    is_admin?: boolean;
+    is_vatsim_user: boolean;
+    roles?: string[];
+}
 
-export default function Profile({ mustVerifyEmail, status }: { mustVerifyEmail: boolean; status?: string }) {
-    const { auth } = usePage<SharedData>().props;
+interface ProfileProps {
+    status?: string;
+}
+
+export default function Profile({ status }: ProfileProps) {
+    const { auth } = usePage().props as any;
+    const user: User = auth.user;
+
+    const { data, setData, patch, errors, processing, recentlySuccessful } = useForm({
+        name: user.name || '',
+        email: user.email || '',
+    });
+
+    const { delete: destroy, processing: processingDelete } = useForm();
+
+    const submit = (e: FormEvent) => {
+        e.preventDefault();
+        patch('/settings/profile');
+    };
+
+    const deleteAccount = () => {
+        if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+            destroy('/settings/profile', {
+                preserveScroll: true,
+            });
+        }
+    };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Profile settings" />
+        <>
+            <Head title="Profile Settings" />
 
-            <SettingsLayout>
-                <div className="space-y-6">
-                    <HeadingSmall title="Profile information" description="Update your name and email address" />
+            <div className="py-12">
+                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+                    {/* User Type Indicator */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                {user.is_admin ? (
+                                    <>
+                                        <Shield className="w-5 h-5 text-red-600" />
+                                        Administrator Account
+                                    </>
+                                ) : (
+                                    <>
+                                        <User className="w-5 h-5 text-blue-600" />
+                                        VATSIM Account
+                                    </>
+                                )}
+                            </CardTitle>
+                            <CardDescription>
+                                {user.is_admin 
+                                    ? 'This is an administrator account with full system access.'
+                                    : `Connected to VATSIM ID: ${user.vatsim_id || 'Unknown'}`
+                                }
+                            </CardDescription>
+                        </CardHeader>
+                        {user.is_vatsim_user && (
+                            <CardContent>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <Label className="font-medium">Rating</Label>
+                                        <p className="text-gray-600">{user.rating || 'Unknown'}</p>
+                                    </div>
+                                    <div>
+                                        <Label className="font-medium">Subdivision</Label>
+                                        <p className="text-gray-600">{user.subdivision || 'None'}</p>
+                                    </div>
+                                    {user.roles && user.roles.length > 0 && (
+                                        <div className="md:col-span-2">
+                                            <Label className="font-medium">Roles</Label>
+                                            <div className="flex flex-wrap gap-2 mt-1">
+                                                {user.roles.map((role) => (
+                                                    <span
+                                                        key={role}
+                                                        className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs"
+                                                    >
+                                                        {role}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </CardContent>
+                        )}
+                    </Card>
 
-                    <Form
-                        {...ProfileController.update.form()}
-                        options={{
-                            preserveScroll: true,
-                        }}
-                        className="space-y-6"
-                    >
-                        {({ processing, recentlySuccessful, errors }) => (
-                            <>
-                                <div className="grid gap-2">
+                    {/* Profile Information */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Profile Information</CardTitle>
+                            <CardDescription>
+                                Update your account's profile information and email address.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {status && (
+                                <Alert className="mb-4">
+                                    <AlertDescription>{status}</AlertDescription>
+                                </Alert>
+                            )}
+
+                            <form onSubmit={submit} className="space-y-6">
+                                <div className="space-y-2">
                                     <Label htmlFor="name">Name</Label>
-
                                     <Input
                                         id="name"
-                                        className="mt-1 block w-full"
-                                        defaultValue={auth.user.name}
-                                        name="name"
+                                        type="text"
+                                        value={data.name}
+                                        onChange={(e) => setData('name', e.target.value)}
                                         required
                                         autoComplete="name"
-                                        placeholder="Full name"
                                     />
-
-                                    <InputError className="mt-2" message={errors.name} />
+                                    {errors.name && (
+                                        <p className="text-sm text-red-600">{errors.name}</p>
+                                    )}
                                 </div>
 
-                                <div className="grid gap-2">
-                                    <Label htmlFor="email">Email address</Label>
-
+                                <div className="space-y-2">
+                                    <Label htmlFor="email">Email</Label>
                                     <Input
                                         id="email"
                                         type="email"
-                                        className="mt-1 block w-full"
-                                        defaultValue={auth.user.email}
-                                        name="email"
+                                        value={data.email}
+                                        onChange={(e) => setData('email', e.target.value)}
                                         required
-                                        autoComplete="username"
-                                        placeholder="Email address"
+                                        autoComplete="email"
                                     />
-
-                                    <InputError className="mt-2" message={errors.email} />
+                                    {errors.email && (
+                                        <p className="text-sm text-red-600">{errors.email}</p>
+                                    )}
                                 </div>
-
-                                {mustVerifyEmail && auth.user.email_verified_at === null && (
-                                    <div>
-                                        <p className="-mt-4 text-sm text-muted-foreground">
-                                            Your email address is unverified.{' '}
-                                            <Link
-                                                href={send()}
-                                                as="button"
-                                                className="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
-                                            >
-                                                Click here to resend the verification email.
-                                            </Link>
-                                        </p>
-
-                                        {status === 'verification-link-sent' && (
-                                            <div className="mt-2 text-sm font-medium text-green-600">
-                                                A new verification link has been sent to your email address.
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
 
                                 <div className="flex items-center gap-4">
-                                    <Button disabled={processing} data-test="update-profile-button">Save</Button>
+                                    <Button type="submit" disabled={processing}>
+                                        Save Changes
+                                    </Button>
 
-                                    <Transition
-                                        show={recentlySuccessful}
-                                        enter="transition ease-in-out"
-                                        enterFrom="opacity-0"
-                                        leave="transition ease-in-out"
-                                        leaveTo="opacity-0"
-                                    >
-                                        <p className="text-sm text-neutral-600">Saved</p>
-                                    </Transition>
+                                    {recentlySuccessful && (
+                                        <p className="text-sm text-green-600">Saved successfully!</p>
+                                    )}
                                 </div>
-                            </>
-                        )}
-                    </Form>
-                </div>
+                            </form>
+                        </CardContent>
+                    </Card>
 
-                <DeleteUser />
-            </SettingsLayout>
-        </AppLayout>
+                    {/* Delete Account Section - Only for VATSIM users */}
+                    {!user.is_admin && (
+                        <Card className="border-red-200">
+                            <CardHeader>
+                                <CardTitle className="text-red-600 flex items-center gap-2">
+                                    <Trash2 className="w-5 h-5" />
+                                    Delete Account
+                                </CardTitle>
+                                <CardDescription>
+                                    Permanently delete your account and all of its data.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Alert variant="destructive">
+                                    <AlertDescription>
+                                        <strong>Warning:</strong> Once your account is deleted, all of its resources and data will be permanently deleted. 
+                                        Before deleting your account, please download any data or information that you wish to retain.
+                                    </AlertDescription>
+                                </Alert>
+
+                                <div className="mt-4">
+                                    <Button
+                                        variant="destructive"
+                                        onClick={deleteAccount}
+                                        disabled={processingDelete}
+                                    >
+                                        {processingDelete ? 'Deleting Account...' : 'Delete Account'}
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* Admin Account Notice */}
+                    {user.is_admin && (
+                        <Card className="border-yellow-200 bg-yellow-50">
+                            <CardContent className="pt-6">
+                                <div className="flex items-center gap-2 text-yellow-800">
+                                    <Shield className="w-5 h-5" />
+                                    <p className="text-sm">
+                                        <strong>Administrator accounts cannot be deleted through the interface.</strong> 
+                                        Contact a system administrator if you need to remove this account.
+                                    </p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+                </div>
+            </div>
+        </>
     );
 }
