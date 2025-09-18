@@ -61,8 +61,15 @@ class CreateAdminCommand extends Command
         }
 
         // Create admin user
+        $fakeVatsimId = 9000000 + rand(100000, 999999); // Generate 7-digit ID starting with 9
+
+        // Ensure it's unique in the database
+        while (User::where('vatsim_id', $fakeVatsimId)->exists()) {
+            $fakeVatsimId = 9000000 + rand(100000, 999999);
+        }
+
         $admin = User::create([
-            'vatsim_id' => null, // Explicitly set to null for admin accounts
+            'vatsim_id' => $fakeVatsimId, // Fake VATSIM ID for admin accounts
             'email' => $email,
             'first_name' => explode(' ', $name)[0],
             'last_name' => implode(' ', array_slice(explode(' ', $name), 1)) ?: 'Admin',
