@@ -62,6 +62,7 @@ class CreateAdminCommand extends Command
 
         // Create admin user
         $admin = User::create([
+            'vatsim_id' => null, // Explicitly set to null for admin accounts
             'email' => $email,
             'first_name' => explode(' ', $name)[0],
             'last_name' => implode(' ', array_slice(explode(' ', $name), 1)) ?: 'Admin',
@@ -70,7 +71,7 @@ class CreateAdminCommand extends Command
             'is_staff' => true,
             'is_superuser' => true,
             'email_verified_at' => now(),
-            'rating' => 0, // Not applicable for admin accounts
+            'rating' => 0, // Default rating for admin accounts
         ]);
 
         $this->info('Admin account created successfully!');
