@@ -39,8 +39,8 @@ return [
         'client_id' => env('VATSIM_CLIENT_ID'),
         'client_secret' => env('VATSIM_CLIENT_SECRET'),
         'redirect_uri' => env('VATSIM_REDIRECT_URI', env('APP_URL') . '/auth/vatsim/callback'),
-        'auth_url' => env('VATSIM_AUTH_URL', 'https://auth.vatsim.net/oauth/authorize'),
-        'token_url' => env('VATSIM_TOKEN_URL', 'https://auth.vatsim.net/oauth/token'),
-        'api_base_url' => env('VATSIM_API_BASE_URL', 'https://auth.vatsim.net/api'),
+        'auth_url' => env('VATSIM_AUTH_URL', 'https://auth-dev.vatsim.net/oauth/authorize'),
+        'token_url' => env('VATSIM_TOKEN_URL', 'https://auth-dev.vatsim.net/oauth/token'),
+        'api_base_url' => env('VATSIM_API_BASE_URL', 'https://auth-dev.vatsim.net/api'),
     ],
 ];
