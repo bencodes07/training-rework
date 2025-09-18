@@ -1,88 +1,170 @@
-import AuthenticatedSessionController from '@/actions/App/Http/Controllers/Auth/AuthenticatedSessionController';
-import InputError from '@/components/input-error';
-import TextLink from '@/components/text-link';
+import { Link, Head, useForm } from '@inertiajs/react';
+import { FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import AuthLayout from '@/layouts/auth-layout';
-import { register } from '@/routes';
-import { request } from '@/routes/password';
-import { Form, Head } from '@inertiajs/react';
-import { LoaderCircle } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
+import { route } from 'ziggy-js';
 
 interface LoginProps {
+    canResetPassword?: boolean;
     status?: string;
-    canResetPassword: boolean;
 }
 
-export default function Login({ status, canResetPassword }: LoginProps) {
+export default function Login({ canResetPassword, status }: LoginProps) {
+    const { data, setData, post, processing, errors, reset } = useForm({
+        email: '',
+        password: '',
+        remember: false,
+    });
+
+    const submit = (e: FormEvent) => {
+        e.preventDefault();
+
+        post(route('login.store'), {
+            onFinish: () => reset('password'),
+        });
+    };
+
+    const handleVatsimLogin = () => {
+        window.location.href = route('auth.vatsim');
+    };
+
     return (
-        <AuthLayout title="Log in to your account" description="Enter your email and password below to log in">
+        <>
             <Head title="Log in" />
 
-            <Form {...AuthenticatedSessionController.store.form()} resetOnSuccess={['password']} className="flex flex-col gap-6">
-                {({ processing, errors }) => (
-                    <>
-                        <div className="grid gap-6">
-                            <div className="grid gap-2">
-                                <Label htmlFor="email">Email address</Label>
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+                <Card className="w-full max-w-md">
+                    <CardHeader className="space-y-1">
+                        <CardTitle className="text-2xl font-bold text-center">
+                            Sign in to your account
+                        </CardTitle>
+                        <CardDescription className="text-center">
+                            Access the VATGER Training System
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        {status && (
+                            <Alert>
+                                <AlertDescription>{status}</AlertDescription>
+                            </Alert>
+                        )}
+
+                        {errors.oauth && (
+                            <Alert variant="destructive">
+                                <AlertDescription>{errors.oauth}</AlertDescription>
+                            </Alert>
+                        )}
+
+                        {/* VATSIM OAuth Button */}
+                        <Button
+                            type="button"
+                            onClick={handleVatsimLogin}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                            size="lg"
+                        >
+                            <svg 
+                                className="w-5 h-5 mr-2" 
+                                viewBox="0 0 24 24" 
+                                fill="currentColor"
+                            >
+                                <path d="M12 2L13.09 8.26L22 9L13.09 9.74L12 16L10.91 9.74L2 9L10.91 8.26L12 2Z"/>
+                            </svg>
+                            Sign in with VATSIM
+                        </Button>
+
+                        <div className="relative">
+                            <div className="absolute inset-0 flex items-center">
+                                <Separator />
+                            </div>
+                            <div className="relative flex justify-center text-xs uppercase">
+                                <span className="bg-background px-2 text-muted-foreground">
+                                    Or continue with email
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Traditional Login Form */}
+                        <form onSubmit={submit} className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="email">Email</Label>
                                 <Input
                                     id="email"
                                     type="email"
                                     name="email"
-                                    required
+                                    value={data.email}
+                                    className="block w-full"
+                                    autoComplete="username"
                                     autoFocus
-                                    tabIndex={1}
-                                    autoComplete="email"
-                                    placeholder="email@example.com"
+                                    onChange={(e) => setData('email', e.target.value)}
                                 />
-                                <InputError message={errors.email} />
+                                {errors.email && (
+                                    <p className="text-sm text-red-600">{errors.email}</p>
+                                )}
                             </div>
 
-                            <div className="grid gap-2">
-                                <div className="flex items-center">
-                                    <Label htmlFor="password">Password</Label>
-                                    {canResetPassword && (
-                                        <TextLink href={request()} className="ml-auto text-sm" tabIndex={5}>
-                                            Forgot password?
-                                        </TextLink>
-                                    )}
-                                </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="password">Password</Label>
                                 <Input
                                     id="password"
                                     type="password"
                                     name="password"
-                                    required
-                                    tabIndex={2}
+                                    value={data.password}
+                                    className="block w-full"
                                     autoComplete="current-password"
-                                    placeholder="Password"
+                                    onChange={(e) => setData('password', e.target.value)}
                                 />
-                                <InputError message={errors.password} />
+                                {errors.password && (
+                                    <p className="text-sm text-red-600">{errors.password}</p>
+                                )}
                             </div>
 
-                            <div className="flex items-center space-x-3">
-                                <Checkbox id="remember" name="remember" tabIndex={3} />
-                                <Label htmlFor="remember">Remember me</Label>
+                            <div className="flex items-center">
+                                <input
+                                    id="remember"
+                                    type="checkbox"
+                                    name="remember"
+                                    checked={data.remember}
+                                    onChange={(e) => setData('remember', e.target.checked)}
+                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                />
+                                <Label htmlFor="remember" className="ml-2 block text-sm text-gray-900">
+                                    Remember me
+                                </Label>
                             </div>
 
-                            <Button type="submit" className="mt-4 w-full" tabIndex={4} disabled={processing} data-test="login-button">
-                                {processing && <LoaderCircle className="h-4 w-4 animate-spin" />}
-                                Log in
+                            <Button
+                                type="submit"
+                                className="w-full"
+                                disabled={processing}
+                            >
+                                {processing ? 'Signing in...' : 'Sign in'}
                             </Button>
-                        </div>
 
-                        <div className="text-center text-sm text-muted-foreground">
-                            Don't have an account?{' '}
-                            <TextLink href={register()} tabIndex={5}>
-                                Sign up
-                            </TextLink>
-                        </div>
-                    </>
-                )}
-            </Form>
-
-            {status && <div className="mb-4 text-center text-sm font-medium text-green-600">{status}</div>}
-        </AuthLayout>
+                            <div className="flex items-center justify-between text-sm">
+                                {canResetPassword && (
+                                    <Link
+                                        href={route('password.request')}
+                                        className="text-blue-600 hover:text-blue-500"
+                                    >
+                                        Forgot your password?
+                                    </Link>
+                                )}
+                                
+                                <Link
+                                    href={route('register')}
+                                    className="text-blue-600 hover:text-blue-500"
+                                >
+                                    Need an account?
+                                </Link>
+                            </div>
+                        </form>
+                    </CardContent>
+                </Card>
+            </div>
+        </>
     );
 }

@@ -11,14 +11,31 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Drop the existing users table since we need to change the structure significantly
+        Schema::dropIfExists('password_reset_tokens');
+        Schema::dropIfExists('sessions');
+        Schema::dropIfExists('users');
+
         Schema::create('users', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->string('email')->unique();
+            $table->integer('vatsim_id')->unique()->index();
+            $table->string('first_name');
+            $table->string('last_name');
+            $table->string('email')->nullable()->unique();
             $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
+            $table->string('subdivision', 10)->nullable();
+            $table->integer('rating');
+            $table->timestamp('last_rating_change')->nullable();
+            $table->boolean('is_staff')->default(false);
+            $table->boolean('is_superuser')->default(false);
             $table->rememberToken();
             $table->timestamps();
+
+            // Indexes for performance
+            $table->index(['is_staff']);
+            $table->index(['is_superuser']);
+            $table->index(['subdivision']);
+            $table->index(['rating']);
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {

@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
+use App\Http\Controllers\Auth\VatsimOAuthController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
@@ -22,6 +23,13 @@ Route::middleware('guest')->group(function () {
 
     Route::post('login', [AuthenticatedSessionController::class, 'store'])
         ->name('login.store');
+
+    // VATSIM OAuth routes
+    Route::get('auth/vatsim', [VatsimOAuthController::class, 'redirect'])
+        ->name('auth.vatsim');
+
+    Route::get('auth/vatsim/callback', [VatsimOAuthController::class, 'callback'])
+        ->name('auth.vatsim.callback');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
         ->name('password.request');
