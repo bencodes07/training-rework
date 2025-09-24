@@ -1,14 +1,15 @@
+import ActiveSoloEndorsements from '@/components/endorsements/active-solo-endorsements';
+import SoloEndorsementsTable from '@/components/endorsements/solo-endorsements-table';
+import Tier1EndorsementsTable from '@/components/endorsements/tier-1-endorsements-table';
+import Tier2EndorsementsTable from '@/components/endorsements/tier-2-endorsements-table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import AppLayout from '@/layouts/app-layout';
 import { endorsements } from '@/routes';
 import { Endorsement, type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/react';
-import { AlertCircle, Calendar, CheckCircle, Clock, Radio, Shield, TowerControl } from 'lucide-react';
+import { AlertCircle, CheckCircle, Radio, Shield, TowerControl } from 'lucide-react';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -98,7 +99,7 @@ const soloEndorsements: Endorsement[] = [
     },
 ];
 
-function getStatusBadge(status: string) {
+export function getStatusBadge(status: string) {
     switch (status) {
         case 'active':
             return (
@@ -123,7 +124,7 @@ function getStatusBadge(status: string) {
     }
 }
 
-function getPositionIcon(type: string) {
+export function getPositionIcon(type: string) {
     switch (type) {
         case 'GNDDEL':
             return <Radio className="h-4 w-4" />;
@@ -138,215 +139,12 @@ function getPositionIcon(type: string) {
     }
 }
 
-function ActivityProgress({ current, status }: { current: number; status: string }) {
-    const percentage = Math.min((current / 3) * 100, 100);
-
-    let progressColor = 'bg-green-500';
-    if (status === 'warning') progressColor = 'bg-yellow-500';
-    if (status === 'removal') progressColor = 'bg-red-500';
-
-    return (
-        <TooltipProvider>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <div className="max-w-40">
-                        <div className="mb-1 flex justify-between text-xs">
-                            <span>{current}h</span>
-                            <span>of</span>
-                            <span>3h</span>
-                        </div>
-                        <Progress value={percentage} className={`h-2`} colorClass={progressColor} />
-                    </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                    <p>
-                        {current} of 3 hours in the last 180 days ({percentage.toFixed(1)}%)
-                    </p>
-                </TooltipContent>
-            </Tooltip>
-        </TooltipProvider>
-    );
-}
-
-function ActiveSoloEndorsements() {
-    const activeSolos = soloEndorsements.filter((e) => e.status === 'active');
-
-    if (activeSolos.length === 0) {
-        return null;
-    }
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <div className="rounded-full bg-primary/10 p-2 dark:bg-primary/20">
-                        <CheckCircle className="h-5 w-5 text-primary dark:text-primary" />
-                    </div>
-                    Active Solo Endorsements
-                </CardTitle>
-                <CardDescription>
-                    You have {activeSolos.length} active solo endorsement{activeSolos.length > 1 ? 's' : ''} from your mentor
-                    {activeSolos.length > 1 ? 's' : ''}.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="grid gap-3">
-                    {activeSolos.map((endorsement) => (
-                        <div key={endorsement.position} className="flex items-center justify-between rounded-lg border p-3">
-                            <div className="flex items-center gap-3">
-                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary dark:bg-blue-900 dark:text-blue-400">
-                                    {getPositionIcon(endorsement.type)}
-                                </div>
-                                <div>
-                                    <div className="font-medium">{endorsement.position}</div>
-                                    <div className="text-sm text-muted-foreground">{endorsement.fullName}</div>
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <div className="text-sm font-medium">{endorsement.mentor}</div>
-                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                    <Clock className="h-3 w-3" />
-                                    Expires {new Date(endorsement.expiresAt!).toLocaleDateString()}
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
-function Tier1EndorsementsTable() {
-    return (
-        <div className="rounded-md border">
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Position</TableHead>
-                        <TableHead>Activity Progress</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Last Activity</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {tier1Endorsements.map((endorsement) => (
-                        <TableRow key={endorsement.position} className="h-18">
-                            <TableCell>
-                                <div className="flex items-center gap-3">
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-                                        {getPositionIcon(endorsement.type)}
-                                    </div>
-                                    <div>
-                                        <div className="font-medium">{endorsement.position}</div>
-                                        <div className="text-sm text-muted-foreground">{endorsement.fullName}</div>
-                                    </div>
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                <ActivityProgress current={endorsement.activity!} status={endorsement.status} />
-                            </TableCell>
-                            <TableCell>{getStatusBadge(endorsement.status)}</TableCell>
-                            <TableCell>
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                    <Calendar className="h-4 w-4" />
-                                    {new Date(endorsement.lastActivity!).toLocaleDateString()}
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-        </div>
-    );
-}
-
-function Tier2EndorsementsTable() {
-    return (
-        <div className="rounded-md border">
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Position</TableHead>
-                        <TableHead>Status</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {tier2Endorsements.map((endorsement) => (
-                        <TableRow key={endorsement.position}>
-                            <TableCell>
-                                <div className="flex items-center gap-3">
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 text-purple-600">
-                                        {getPositionIcon(endorsement.type)}
-                                    </div>
-                                    <div>
-                                        <div className="font-medium">{endorsement.position}</div>
-                                        <div className="text-sm text-muted-foreground">{endorsement.fullName}</div>
-                                    </div>
-                                </div>
-                            </TableCell>
-                            <TableCell>{getStatusBadge(endorsement.status)}</TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-        </div>
-    );
-}
-
-function SoloEndorsementsTable() {
-    return (
-        <div className="rounded-md border">
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Position</TableHead>
-                        <TableHead>Mentor</TableHead>
-                        <TableHead>Expires</TableHead>
-                        <TableHead>Status</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {soloEndorsements.map((endorsement) => (
-                        <TableRow key={endorsement.position}>
-                            <TableCell>
-                                <div className="flex items-center gap-3">
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100 text-orange-600">
-                                        {getPositionIcon(endorsement.type)}
-                                    </div>
-                                    <div>
-                                        <div className="font-medium">{endorsement.position}</div>
-                                        <div className="text-sm text-muted-foreground">{endorsement.fullName}</div>
-                                    </div>
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                <div>
-                                    <div className="font-medium">{endorsement.mentor}</div>
-                                    <div className="text-sm text-muted-foreground">ID: 1234567</div>
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                    <Clock className="h-4 w-4" />
-                                    {new Date(endorsement.expiresAt!).toLocaleDateString()}
-                                </div>
-                            </TableCell>
-                            <TableCell>{getStatusBadge(endorsement.status)}</TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-        </div>
-    );
-}
-
 export default function EndorsementsDashboard() {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Endorsements" />
             <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
-                <ActiveSoloEndorsements />
+                <ActiveSoloEndorsements endorsements={soloEndorsements} />
 
                 <Tabs defaultValue="tier1" className="w-full">
                     <TabsList className="grid w-full grid-cols-3">
@@ -374,27 +172,24 @@ export default function EndorsementsDashboard() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <Tier1EndorsementsTable />
+                                <Tier1EndorsementsTable endorsements={tier1Endorsements} />
                             </CardContent>
                         </Card>
                     </TabsContent>
 
-                    <TabsContent value="tier2" className="space-y-4">
+                    <TabsContent value="tier2" className="mt-1 space-y-4">
                         <Card>
                             <CardHeader>
                                 <CardTitle>Tier 2 Endorsements</CardTitle>
-                                <CardDescription>
-                                    Advanced position endorsements with higher activity requirements. These positions typically require additional
-                                    training and experience.
-                                </CardDescription>
+                                <CardDescription>Position independent endorsements</CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <Tier2EndorsementsTable />
+                                <Tier2EndorsementsTable endorsements={tier2Endorsements} />
                             </CardContent>
                         </Card>
                     </TabsContent>
 
-                    <TabsContent value="solo" className="space-y-4">
+                    <TabsContent value="solo" className="mt-1 space-y-4">
                         <Card>
                             <CardHeader>
                                 <CardTitle>Solo Endorsements</CardTitle>
@@ -404,7 +199,7 @@ export default function EndorsementsDashboard() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <SoloEndorsementsTable />
+                                <SoloEndorsementsTable endorsements={soloEndorsements} />
                             </CardContent>
                         </Card>
                     </TabsContent>
