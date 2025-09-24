@@ -16,8 +16,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return Inertia::render('training/courses');
     })->name('courses');
 
-    Route::get('endorsements', function () { // Trainee endorsements page
-        return Inertia::render('training/endorsements');
+    Route::get('endorsements/my-endorsements', function () { // Trainee endorsements page
+        return Inertia::render('endorsements/trainee');
     })->name('endorsements');
 });
 

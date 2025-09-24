@@ -1,5 +1,5 @@
-import { NavFooter } from '@/components/nav-footer';
-import { NavUser } from '@/components/nav-user';
+import { NavFooter } from '@/components/layout/nav-footer';
+import { NavUser } from '@/components/layout/nav-user';
 import {
     Sidebar,
     SidebarContent,
@@ -14,7 +14,7 @@ import {
 import { courses, dashboard, endorsements } from '@/routes';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, BookOpenIcon, CircleCheck, Folder, LayoutGrid } from 'lucide-react';
+import { BookOpenIcon, CircleCheck, Globe, LayoutGrid, Send } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const navSections = [
@@ -47,14 +47,14 @@ const navSections = [
 
 const footerNavItems: NavItem[] = [
     {
-        title: 'Repository',
-        href: 'https://github.com/laravel/react-starter-kit',
-        icon: Folder,
+        title: 'Homepage',
+        href: 'https://vatsim-germany.org',
+        icon: Globe,
     },
     {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#react',
-        icon: BookOpen,
+        title: 'Forum',
+        href: 'https://board.vatsim-germany.org',
+        icon: Send,
     },
 ];
 
