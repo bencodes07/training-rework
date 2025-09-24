@@ -43,4 +43,12 @@ return [
         'token_url' => env('VATSIM_TOKEN_URL', 'https://auth-dev.vatsim.net/oauth/token'),
         'api_base_url' => env('VATSIM_API_BASE_URL', 'https://auth-dev.vatsim.net/api'),
     ],
+
+    'vateud' => [
+        'token' => env('VATEUD_TOKEN'),
+        'use_mock' => env('VATEUD_USE_MOCK', false),
+        'min_activity_minutes' => (int) env('VATEUD_MIN_ACTIVITY_MINUTES', 180),
+        'removal_warning_days' => (int) env('VATEUD_REMOVAL_WARNING_DAYS', 31),
+        'min_endorsement_age_days' => (int) env('VATEUD_MIN_ENDORSEMENT_AGE_DAYS', 180),
+    ],
 ];

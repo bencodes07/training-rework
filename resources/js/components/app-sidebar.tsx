@@ -11,7 +11,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { courses, dashboard, endorsements } from '@/routes';
+import { courses, dashboard } from '@/routes';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import { BookOpenIcon, CircleCheck, Globe, LayoutGrid, Send } from 'lucide-react';
@@ -38,7 +38,7 @@ const navSections = [
             },
             {
                 title: 'Endorsements',
-                href: endorsements(),
+                href: route('endorsements'),
                 icon: CircleCheck,
             },
         ],

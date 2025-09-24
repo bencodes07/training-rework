@@ -163,4 +163,74 @@ class User extends Authenticatable
     {
         return $query->whereNotNull('vatsim_id');
     }
+
+    /**
+     * Get user's endorsement activities
+     */
+    public function endorsementActivities()
+    {
+        return $this->hasMany(EndorsementActivity::class, 'vatsim_id', 'vatsim_id');
+    }
+
+    /**
+     * Check if user has any active Tier 1 endorsements
+     */
+    public function hasActiveTier1Endorsements(): bool
+    {
+        if (!$this->isVatsimUser()) {
+            return false;
+        }
+
+        return $this->endorsementActivities()
+            ->where('activity_minutes', '>=', config('services.vateud.min_activity_minutes', 180))
+            ->exists();
+    }
+
+    /**
+     * Get user's endorsement summary
+     */
+    public function getEndorsementSummary(): array
+    {
+        if (!$this->isVatsimUser()) {
+            return [
+                'tier1_count' => 0,
+                'tier2_count' => 0,
+                'solo_count' => 0,
+                'low_activity_count' => 0,
+            ];
+        }
+
+        $tier1Count = $this->endorsementActivities()->count();
+        $minRequiredMinutes = config('services.vateud.min_activity_minutes', 180);
+        $lowActivityCount = $this->endorsementActivities()
+            ->where('activity_minutes', '<', $minRequiredMinutes)
+            ->count();
+
+        // Note: Tier 2 and Solo counts would need to be fetched from VatEUD
+        // This is a simplified version for the model
+        return [
+            'tier1_count' => $tier1Count,
+            'tier2_count' => 0, // Would need VatEUD service call
+            'solo_count' => 0,  // Would need VatEUD service call
+            'low_activity_count' => $lowActivityCount,
+        ];
+    }
+
+    /**
+     * Check if user needs attention for endorsements (low activity, removal warnings, etc.)
+     */
+    public function needsEndorsementAttention(): bool
+    {
+        if (!$this->isVatsimUser()) {
+            return false;
+        }
+
+        return $this->endorsementActivities()
+            ->where(function ($query) {
+                $minRequiredMinutes = config('services.vateud.min_activity_minutes', 180);
+                $query->where('activity_minutes', '<', $minRequiredMinutes)
+                    ->orWhereNotNull('removal_date');
+            })
+            ->exists();
+    }
 }

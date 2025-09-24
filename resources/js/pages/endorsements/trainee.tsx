@@ -6,98 +6,23 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AppLayout from '@/layouts/app-layout';
-import { endorsements } from '@/routes';
 import { Endorsement, type BreadcrumbItem } from '@/types';
-import { Head } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import { AlertCircle, CheckCircle, Radio, Shield, TowerControl } from 'lucide-react';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Endorsements',
-        href: endorsements().url,
+        href: route('endorsements'),
     },
 ];
 
-const tier1Endorsements: Endorsement[] = [
-    {
-        position: 'EDGG_KTG_CTR',
-        fullName: 'Sektor Kitzingen',
-        activity: 1,
-        status: 'removal',
-        lastActivity: '2024-10-15',
-        type: 'CTR',
-    },
-    {
-        position: 'EDDF_APP',
-        fullName: 'Frankfurt Approach',
-        activity: 1.5,
-        status: 'warning',
-        lastActivity: '2024-11-28',
-        type: 'APP',
-    },
-    {
-        position: 'EDDF_TWR',
-        fullName: 'Frankfurt Tower',
-        activity: 32,
-        status: 'active',
-        lastActivity: '2024-12-10',
-        type: 'TWR',
-    },
-    {
-        position: 'EDDF_GNDDEL',
-        fullName: 'Frankfurt Ground/Delivery',
-        activity: 45,
-        status: 'active',
-        lastActivity: '2024-12-15',
-        type: 'GNDDEL',
-    },
-    {
-        position: 'EDDL_APP',
-        fullName: 'Düsseldorf Approach',
-        activity: 142,
-        status: 'active',
-        lastActivity: '2025-09-20',
-        type: 'APP',
-    },
-    {
-        position: 'EDDL_TWR',
-        fullName: 'Düsseldorf Tower',
-        activity: 145,
-        status: 'active',
-        lastActivity: '2025-09-20',
-        type: 'TWR',
-    },
-    {
-        position: 'EDDL_GNDDEL',
-        fullName: 'Düsseldorf Ground/Delivery',
-        activity: 154,
-        status: 'active',
-        lastActivity: '2025-09-20',
-        type: 'GNDDEL',
-    },
-];
-
-const tier2Endorsements: Endorsement[] = [
-    {
-        position: 'EDXX_AFIS',
-        fullName: 'AFIS Tower',
-        status: 'active',
-        lastActivity: '2024-12-12',
-        type: 'TWR',
-    },
-];
-
-const soloEndorsements: Endorsement[] = [
-    {
-        position: 'EDDH_TWR',
-        fullName: 'Hamburg Tower',
-        mentor: 'John Doe',
-        status: 'active',
-        lastActivity: '',
-        type: 'TWR',
-        expiresAt: '2025-12-01',
-    },
-];
+interface EndorsementsPageProps {
+    tier1Endorsements: Endorsement[];
+    tier2Endorsements: Endorsement[];
+    soloEndorsements: Endorsement[];
+    isVatsimUser: boolean;
+}
 
 export function getStatusBadge(status: string) {
     switch (status) {
@@ -117,6 +42,12 @@ export function getStatusBadge(status: string) {
             return (
                 <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
                     In Removal
+                </Badge>
+            );
+        case 'available':
+            return (
+                <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+                    Available
                 </Badge>
             );
         default:
@@ -140,12 +71,41 @@ export function getPositionIcon(type: string) {
 }
 
 export default function EndorsementsDashboard() {
+    const { tier1Endorsements, tier2Endorsements, soloEndorsements, isVatsimUser } = usePage<EndorsementsPageProps>().props;
+
+    // Filter active solo endorsements
+    const activeSolos = soloEndorsements.filter((e) => e.status === 'active');
+
+    if (!isVatsimUser) {
+        return (
+            <AppLayout breadcrumbs={breadcrumbs}>
+                <Head title="Endorsements" />
+                <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
+                    <Card className="border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-900/20">
+                        <CardContent className="flex items-center gap-4 pt-6">
+                            <AlertCircle className="h-8 w-8 text-yellow-600 dark:text-yellow-400" />
+                            <div>
+                                <h3 className="font-semibold text-yellow-800 dark:text-yellow-200">VATSIM Account Required</h3>
+                                <p className="mt-1 text-sm text-yellow-700 dark:text-yellow-300">
+                                    Endorsements are only available to users with VATSIM accounts. Please log in with your VATSIM credentials to view
+                                    your endorsements.
+                                </p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </AppLayout>
+        );
+    }
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Endorsements" />
             <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
-                <ActiveSoloEndorsements endorsements={soloEndorsements} />
+                {/* Active Solo Endorsements */}
+                {activeSolos.length > 0 && <ActiveSoloEndorsements endorsements={activeSolos} />}
 
+                {/* Main Endorsement Tabs */}
                 <Tabs defaultValue="tier1" className="w-full">
                     <TabsList className="grid w-full grid-cols-3">
                         <TabsTrigger value="tier1" className="flex items-center gap-2">
@@ -172,7 +132,17 @@ export default function EndorsementsDashboard() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <Tier1EndorsementsTable endorsements={tier1Endorsements} />
+                                {tier1Endorsements.length > 0 ? (
+                                    <Tier1EndorsementsTable endorsements={tier1Endorsements} />
+                                ) : (
+                                    <div className="py-8 text-center">
+                                        <Shield className="mx-auto h-12 w-12 text-muted-foreground" />
+                                        <h3 className="mt-2 text-sm font-medium text-foreground">No Tier 1 Endorsements</h3>
+                                        <p className="mt-1 text-sm text-muted-foreground">
+                                            You don't have any Tier 1 endorsements yet. Complete your training to receive endorsements.
+                                        </p>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                     </TabsContent>
@@ -181,10 +151,20 @@ export default function EndorsementsDashboard() {
                         <Card>
                             <CardHeader>
                                 <CardTitle>Tier 2 Endorsements</CardTitle>
-                                <CardDescription>Position independent endorsements</CardDescription>
+                                <CardDescription>Position independent endorsements that require Moodle course completion.</CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <Tier2EndorsementsTable endorsements={tier2Endorsements} />
+                                {tier2Endorsements.length > 0 ? (
+                                    <Tier2EndorsementsTable endorsements={tier2Endorsements} />
+                                ) : (
+                                    <div className="py-8 text-center">
+                                        <Shield className="mx-auto h-12 w-12 text-muted-foreground" />
+                                        <h3 className="mt-2 text-sm font-medium text-foreground">No Tier 2 Endorsements Available</h3>
+                                        <p className="mt-1 text-sm text-muted-foreground">
+                                            No Tier 2 endorsements are currently available or you have already obtained all available endorsements.
+                                        </p>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                     </TabsContent>
@@ -199,12 +179,23 @@ export default function EndorsementsDashboard() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <SoloEndorsementsTable endorsements={soloEndorsements} />
+                                {soloEndorsements.length > 0 ? (
+                                    <SoloEndorsementsTable endorsements={soloEndorsements} />
+                                ) : (
+                                    <div className="py-8 text-center">
+                                        <CheckCircle className="mx-auto h-12 w-12 text-muted-foreground" />
+                                        <h3 className="mt-2 text-sm font-medium text-foreground">No Solo Endorsements</h3>
+                                        <p className="mt-1 text-sm text-muted-foreground">
+                                            You don't have any active solo endorsements. Your mentor will issue solo endorsements during training.
+                                        </p>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                     </TabsContent>
                 </Tabs>
 
+                {/* Activity Requirements Info */}
                 <Card className="border-primary/20 bg-primary/10 dark:border-primary/40 dark:bg-primary/20">
                     <CardContent>
                         <div className="flex items-start gap-4">
@@ -214,8 +205,8 @@ export default function EndorsementsDashboard() {
                             <div>
                                 <h3 className="font-semibold text-blue-900 dark:text-blue-100">Activity Requirements</h3>
                                 <p className="mt-1 text-sm text-blue-800 dark:text-blue-200">
-                                    Maintain minimum activity hours to keep your endorsements active. Low activity endorsements may be subject to
-                                    removal if requirements aren't met.
+                                    Maintain minimum activity hours to keep your Tier 1 endorsements active. Low activity endorsements may be subject
+                                    to removal if requirements aren't met within the grace period.
                                 </p>
                             </div>
                         </div>

@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Services\VatsimConnectService;
 use Illuminate\Support\ServiceProvider;
+use App\Policies\EndorsementPolicy;
+use Illuminate\Support\Facades\Gate;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -23,6 +25,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        Gate::define('mentor', [EndorsementPolicy::class, 'mentor']);
+        Gate::define('endorsements.manage', [EndorsementPolicy::class, 'viewManagement']);
+        Gate::define('endorsements.remove-tier1', [EndorsementPolicy::class, 'removeTier1']);
+        Gate::define('endorsements.request-tier2', [EndorsementPolicy::class, 'requestTier2']);
+        Gate::define('endorsements.view-own', [EndorsementPolicy::class, 'viewOwn']);
+
     }
 }
