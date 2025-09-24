@@ -40,3 +40,15 @@ export interface User {
     updated_at: string;
     [key: string]: unknown; // This allows for additional properties...
 }
+
+export type Endorsement = {
+    position: string;
+    fullName: string;
+    activity?: number;
+    requiredActivity?: number;
+    status: 'active' | 'removal' | 'warning';
+    lastActivity?: string;
+    type: 'GNDDEL' | 'TWR' | 'APP' | 'CTR';
+    expiresAt?: string;
+    mentor?: string;
+};
