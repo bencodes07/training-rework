@@ -16,13 +16,13 @@ export function UserInfo({ showEmail = false }: { user: User; showEmail?: boolea
                 <AvatarImage src={user.avatar} alt={user.name} />
                 {user.is_admin ? (
                     <>
-                        <AvatarFallback className="rounded-full border border-red-500 bg-neutral-200 text-black dark:border-red-500 dark:bg-neutral-700 dark:text-white">
+                        <AvatarFallback className="rounded-full bg-red-200 text-black dark:bg-red-800/70 dark:text-white">
                             {getInitials(user.name)}
                         </AvatarFallback>
                     </>
                 ) : (
                     <>
-                        <AvatarFallback className="rounded-full text-black dark:border dark:bg-neutral-700 dark:text-white">
+                        <AvatarFallback className="rounded-full bg-neutral-200 text-black dark:bg-neutral-700 dark:text-white">
                             {getInitials(user.name)}
                         </AvatarFallback>
                     </>

@@ -14,7 +14,7 @@ export default function Tier2EndorsementsTable({ endorsements }: { endorsements:
               </TableHeader>
               <TableBody>
                   {endorsements.map((endorsement) => (
-                      <TableRow key={endorsement.position}>
+                      <TableRow key={endorsement.position} className="h-18">
                           <TableCell>
                               <div className="flex items-center gap-3">
                                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 text-purple-600">

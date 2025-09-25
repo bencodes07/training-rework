@@ -37,7 +37,7 @@ export default function Tier1EndorsementsTable({ endorsements }: { endorsements:
                           <TableCell>
                               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                   <Calendar className="h-4 w-4" />
-                                  {new Date(endorsement.lastActivity!).toLocaleDateString()}
+                                  {new Date(endorsement.lastActivity!).toLocaleDateString('de')}
                               </div>
                           </TableCell>
                       </TableRow>

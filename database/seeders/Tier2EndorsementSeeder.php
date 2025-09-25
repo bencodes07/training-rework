@@ -16,14 +16,8 @@ class Tier2EndorsementSeeder extends Seeder
             [
                 'name' => 'AFIS Tower Endorsement',
                 'position' => 'EDXX_AFIS',
-                'moodle_course_id' => 123, // Replace with actual Moodle course ID
+                'moodle_course_id' => 123,
             ],
-            [
-                'name' => 'Special Procedures',
-                'position' => 'EDXX_SPECIAL',
-                'moodle_course_id' => 124, // Replace with actual Moodle course ID
-            ],
-            // Add more tier 2 endorsements as needed
         ];
 
         foreach ($tier2Endorsements as $endorsement) {

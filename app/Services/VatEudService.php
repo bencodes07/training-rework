@@ -358,14 +358,41 @@ class VatEudService
     {
         return [
             [
-                'id' => 1,
-                'user_cid' => 1601613,
-                'instructor_cid' => 1439797,
-                'position' => 'EDDH_TWR',
-                'expires_at' => '2025-12-01T00:00:00.000000Z',
-                'created_at' => '2025-01-01T12:00:00.000000Z',
-                'updated_at' => '2025-01-01T12:00:00.000000Z',
+                "id" => 1903,
+                "user_cid" => 1749937,
+                "instructor_cid" => 1601613,
+                "position" => "EDDL_TWR",
+                "expiry" => "2025-10-09T23:59:00.000000Z",
+                "max_days" => 90,
+                "facility" => 9,
+                "created_at" => "2025-09-10T20:38:32.000000Z",
+                "updated_at" => "2025-09-10T20:38:32.000000Z",
+                "position_days" => 14
             ],
+            [
+                "id" => 1915,
+                "user_cid" => 1772662,
+                "instructor_cid" => 1312976,
+                "position" => "EDDB_TWR",
+                "expiry" => "2025-10-10T23:59:00.000000Z",
+                "max_days" => 88,
+                "facility" => 9,
+                "created_at" => "2025-09-17T06:58:22.000000Z",
+                "updated_at" => "2025-09-17T06:58:22.000000Z",
+                "position_days" => 10
+            ],
+            [
+                "id" => 1919,
+                "user_cid" => 1601613,
+                "instructor_cid" => 1523643,
+                "position" => "EDDH_TWR",
+                "expiry" => "2025-10-12T23:59:00.000000Z",
+                "max_days" => 53,
+                "facility" => 9,
+                "created_at" => "2025-09-17T20:40:47.000000Z",
+                "updated_at" => "2025-09-17T20:40:47.000000Z",
+                "position_days" => 44
+            ]
         ];
     }
 }

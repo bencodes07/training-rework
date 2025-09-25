@@ -17,18 +17,14 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-interface EndorsementsPageProps {
-    tier1Endorsements: Endorsement[];
-    tier2Endorsements: Endorsement[];
-    soloEndorsements: Endorsement[];
-    isVatsimUser: boolean;
-}
-
 export function getStatusBadge(status: string) {
     switch (status) {
         case 'active':
             return (
-                <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
+                <Badge
+                    variant="outline"
+                    className="border-green-200 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-900 dark:text-green-300"
+                >
                     Active
                 </Badge>
             );
@@ -71,9 +67,13 @@ export function getPositionIcon(type: string) {
 }
 
 export default function EndorsementsDashboard() {
-    const { tier1Endorsements, tier2Endorsements, soloEndorsements, isVatsimUser } = usePage<EndorsementsPageProps>().props;
+    const { tier1Endorsements, tier2Endorsements, soloEndorsements, isVatsimUser } = usePage<{
+        tier1Endorsements: Endorsement[];
+        tier2Endorsements: Endorsement[];
+        soloEndorsements: Endorsement[];
+        isVatsimUser: boolean;
+    }>().props;
 
-    // Filter active solo endorsements
     const activeSolos = soloEndorsements.filter((e) => e.status === 'active');
 
     if (!isVatsimUser) {
