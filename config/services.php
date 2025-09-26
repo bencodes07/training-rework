@@ -51,4 +51,16 @@ return [
         'removal_warning_days' => (int) env('VATEUD_REMOVAL_WARNING_DAYS', 31),
         'min_endorsement_age_days' => (int) env('VATEUD_MIN_ENDORSEMENT_AGE_DAYS', 180),
     ],
+
+    'training' => [
+        'min_hours' => (int) env('TRAINING_MIN_HOURS', 25),
+        'min_activity' => (int) env('TRAINING_MIN_ACTIVITY', 10),
+        'display_activity' => (int) env('TRAINING_DISPLAY_ACTIVITY', 8),
+        's3_rating_change_days' => (int) env('TRAINING_S3_RATING_CHANGE_DAYS', 90),
+    ],
+
+    'vatger' => [
+        'api_key' => env('VATGER_API_KEY'),
+        'api_url' => env('VATGER_API_URL', 'http://vatsim-germany.org/api'),
+    ],
 ];

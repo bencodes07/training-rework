@@ -11,7 +11,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { courses, dashboard } from '@/routes';
+import { dashboard } from '@/routes';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import { BookOpenIcon, CircleCheck, Globe, LayoutGrid, Send } from 'lucide-react';
@@ -33,7 +33,7 @@ const navSections = [
         items: [
             {
                 title: 'Courses',
-                href: courses(),
+                href: route('courses.index'),
                 icon: BookOpenIcon,
             },
             {

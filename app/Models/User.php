@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
+
 class User extends Authenticatable
 {
     use HasFactory, Notifiable;
@@ -232,5 +233,45 @@ class User extends Authenticatable
                     ->orWhereNotNull('removal_date');
             })
             ->exists();
+    }
+
+    /**
+     * Get courses where user is an active trainee
+     */
+    public function activeCourses()
+    {
+        return $this->belongsToMany(Course::class, 'course_trainees');
+    }
+
+    /**
+     * Get courses where user is a mentor
+     */
+    public function mentorCourses()
+    {
+        return $this->belongsToMany(Course::class, 'course_mentors');
+    }
+
+    /**
+     * Get active rating courses only
+     */
+    public function activeRatingCourses()
+    {
+        return $this->activeCourses()->where('type', 'RTG');
+    }
+
+    /**
+     * Get waiting list entries for this user
+     */
+    public function waitingListEntries()
+    {
+        return $this->hasMany(WaitingListEntry::class);
+    }
+
+    /**
+     * Get familiarisations for this user
+     */
+    public function familiarisations()
+    {
+        return $this->hasMany(Familiarisation::class);
     }
 }

@@ -15,6 +15,10 @@ const breadcrumbs: BreadcrumbItem[] = [
         title: 'Endorsements',
         href: route('endorsements'),
     },
+    {
+        title: 'My Endorsements',
+        href: route('endorsements'),
+    },
 ];
 
 export function getStatusBadge(status: string) {
