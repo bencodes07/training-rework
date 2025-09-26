@@ -254,6 +254,11 @@ class EndorsementController extends Controller
                 continue;
             }
 
+            // Use actual last activity date instead of sync timestamp
+            $lastActivityDate = $activity->last_activity_date
+                ? $activity->last_activity_date->format('Y-m-d')
+                : 'Never';
+
             $result[] = [
                 'position' => $endorsement['position'],
                 'fullName' => $this->getPositionFullName($endorsement['position']),
@@ -262,7 +267,7 @@ class EndorsementController extends Controller
                 'activityHours' => $activity->activity_hours,
                 'status' => $activity->status,
                 'progress' => $activity->progress,
-                'lastActivity' => $activity->last_updated->format('Y-m-d'),
+                'lastActivity' => $lastActivityDate,
                 'removalDate' => $activity->removal_date?->format('Y-m-d'),
             ];
         }

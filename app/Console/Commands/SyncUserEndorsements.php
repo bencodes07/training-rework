@@ -72,24 +72,28 @@ class SyncUserEndorsements extends Command
     }
 
     /**
-     * Sync endorsements for a specific user from VatEUD
+     * Sync endorsements for a specific user from VatEUD (Tier 1 only)
      */
     protected function syncUserEndorsementsFromVatEUD(int $vatsimId): void
     {
-        $this->line("Fetching current endorsements from VatEUD...");
-        
+        $this->line("Fetching current Tier 1 endorsements from VatEUD...");
+
+        // Only fetch Tier 1 endorsements since they require activity tracking
         $tier1Endorsements = $this->vatEudService->getTier1Endorsements();
         $userEndorsements = collect($tier1Endorsements)->where('user_cid', $vatsimId);
 
-        $this->line("Found {$userEndorsements->count()} current endorsement(s) in VatEUD for this user");
+        $this->line("Found {$userEndorsements->count()} current Tier 1 endorsement(s) in VatEUD for this user");
 
         foreach ($userEndorsements as $endorsement) {
             $this->syncEndorsement($endorsement);
         }
+
+        // Note: Tier 2 and Solo endorsements are fetched directly from VatEUD API when needed
+        // They don't require local storage or activity tracking
     }
 
     /**
-     * Sync individual endorsement
+     * Sync individual Tier 1 endorsement
      */
     protected function syncEndorsement(array $endorsement): void
     {
@@ -116,7 +120,7 @@ class SyncUserEndorsements extends Command
     }
 
     /**
-     * Update activity for a specific endorsement
+     * Update activity for a specific endorsement - UPDATED to handle last activity date
      */
     protected function updateEndorsementActivity(EndorsementActivity $endorsementActivity): void
     {
@@ -128,11 +132,16 @@ class SyncUserEndorsements extends Command
                 'position' => $endorsementActivity->position,
             ];
 
-            $activityMinutes = $this->activityService->getEndorsementActivity($endorsementData);
+            // Get both activity minutes and last activity date
+            $activityResult = $this->activityService->getEndorsementActivity($endorsementData);
+            $activityMinutes = $activityResult['minutes'] ?? 0;
+            $lastActivityDate = $activityResult['last_activity_date'] ?? null;
+
             $minRequiredMinutes = config('services.vateud.min_activity_minutes', 180);
 
             // Update activity
             $endorsementActivity->activity_minutes = $activityMinutes;
+            $endorsementActivity->last_activity_date = $lastActivityDate;
             $endorsementActivity->last_updated = now();
 
             // Handle removal logic
@@ -153,7 +162,9 @@ class SyncUserEndorsements extends Command
             $status = $activityMinutes >= $minRequiredMinutes ? 'active' : 
                      ($activityMinutes >= $minRequiredMinutes * 0.5 ? 'warning' : 'low');
 
-            $this->info("✓ {$endorsementActivity->position}: {$activityMinutes} minutes ({$hours}h) - {$status}");
+            $lastActivityStr = $lastActivityDate ? $lastActivityDate->format('Y-m-d') : 'Never';
+
+            $this->info("✓ {$endorsementActivity->position}: {$activityMinutes} minutes ({$hours}h) - {$status} - Last active: {$lastActivityStr}");
 
         } catch (\Exception $e) {
             $this->error("✗ Failed to update {$endorsementActivity->position}: " . $e->getMessage());

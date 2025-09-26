@@ -25,9 +25,9 @@ class VatsimActivityService
     ];
 
     /**
-     * Get activity hours for a specific endorsement
+     * Get activity data for a specific endorsement - UPDATED to return both minutes and last activity date
      */
-    public function getEndorsementActivity(array $endorsement): float
+    public function getEndorsementActivity(array $endorsement): array
     {
         $vatsimId = $endorsement['user_cid'];
         $position = $endorsement['position'];
@@ -38,10 +38,10 @@ class VatsimActivityService
         while ($attempt < $maxRetries) {
             try {
                 $connections = $this->getVatsimConnections($vatsimId);
-                $activityMinutes = $this->calculateActivity($endorsement, $connections);
-                
-                // If we get a result (even 0), return it
-                return $activityMinutes;
+                $result = $this->calculateActivity($endorsement, $connections);
+
+                // Return both minutes and last activity date
+                return $result;
                 
             } catch (\Exception $e) {
                 $attempt++;
@@ -64,12 +64,18 @@ class VatsimActivityService
                         'position' => $position,
                         'final_error' => $e->getMessage()
                     ]);
-                    return 0.0;
+                    return [
+                        'minutes' => 0.0,
+                        'last_activity_date' => null
+                    ];
                 }
             }
         }
-        
-        return 0.0;
+
+        return [
+            'minutes' => 0.0,
+            'last_activity_date' => null
+        ];
     }
 
     /**
@@ -132,12 +138,13 @@ class VatsimActivityService
     }
 
     /**
-     * Calculate activity based on endorsement and connections
+     * Calculate activity based on endorsement and connections - UPDATED to track last activity date
      */
-    protected function calculateActivity(array $endorsement, array $connections): float
+    protected function calculateActivity(array $endorsement, array $connections): array
     {
         $activityMinutes = 0;
         $position = $endorsement['position'];
+        $lastActivityDate = null;
         
         Log::debug('Starting activity calculation', [
             'position' => $position,
@@ -155,11 +162,18 @@ class VatsimActivityService
                     ($position === 'EDWW_W_CTR' && $callsign === 'EDWW_CTR')) {
                     $minutes = floatval($connection['minutes_on_callsign'] ?? 0);
                     $activityMinutes += $minutes;
-                    
+
+                    // Update last activity date
+                    $connectionDate = $this->parseConnectionDate($connection);
+                    if ($connectionDate && ($lastActivityDate === null || $connectionDate->greaterThan($lastActivityDate))) {
+                        $lastActivityDate = $connectionDate;
+                    }
+
                     Log::debug('CTR match found', [
                         'position' => $position,
                         'callsign' => $callsign,
-                        'minutes' => $minutes
+                        'minutes' => $minutes,
+                        'date' => $connectionDate?->format('Y-m-d')
                     ]);
                 }
             }
@@ -197,11 +211,18 @@ class VatsimActivityService
                     
                     if ($matchesCtr || $matchesSuffix) {
                         $activityMinutes += $minutes;
-                        
+
+                        // Update last activity date
+                        $connectionDate = $this->parseConnectionDate($connection);
+                        if ($connectionDate && ($lastActivityDate === null || $connectionDate->greaterThan($lastActivityDate))) {
+                            $lastActivityDate = $connectionDate;
+                        }
+
                         Log::debug('Connection match found', [
                             'position' => $position,
                             'callsign' => $callsign,
                             'minutes' => $minutes,
+                            'date' => $connectionDate?->format('Y-m-d'),
                             'matches_ctr' => $matchesCtr,
                             'matches_suffix' => $matchesSuffix,
                             'total_so_far' => $activityMinutes
@@ -213,10 +234,46 @@ class VatsimActivityService
         
         Log::debug('Activity calculation complete', [
             'position' => $position,
-            'final_minutes' => $activityMinutes
+            'final_minutes' => $activityMinutes,
+            'last_activity_date' => $lastActivityDate?->format('Y-m-d')
         ]);
-        
-        return $activityMinutes;
+
+        return [
+            'minutes' => $activityMinutes,
+            'last_activity_date' => $lastActivityDate
+        ];
+    }
+
+    /**
+     * Parse connection date from VATSIM API response
+     */
+    protected function parseConnectionDate(array $connection): ?Carbon
+    {
+        // Try to get the date from the connection data
+        // The VATSIM API typically includes 'start' timestamp
+        if (isset($connection['start'])) {
+            try {
+                return Carbon::parse($connection['start']);
+            } catch (\Exception $e) {
+                Log::warning('Failed to parse connection start date', [
+                    'start' => $connection['start'],
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        // Fallback: try other date fields that might be present
+        foreach (['end', 'created_at', 'date'] as $dateField) {
+            if (isset($connection[$dateField])) {
+                try {
+                    return Carbon::parse($connection[$dateField]);
+                } catch (\Exception $e) {
+                    // Continue to next field
+                }
+            }
+        }
+
+        return null;
     }
 
     /**

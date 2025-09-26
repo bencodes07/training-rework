@@ -49,7 +49,7 @@ class SyncEndorsementActivities extends Command
             // First, sync with VatEUD to get current endorsements
             $this->syncWithVatEud();
 
-            // Then update activity data
+            // Then update activity data - ONLY FOR TIER 1 (which require activity)
             if ($this->option('force')) {
                 $this->updateAllActivities();
             } else {
@@ -69,12 +69,13 @@ class SyncEndorsementActivities extends Command
     }
 
     /**
-     * Sync current endorsements from VatEUD
+     * Sync current endorsements from VatEUD - FIXED: Only sync Tier 1 for activity tracking
      */
     protected function syncWithVatEud(): void
     {
-        $this->info('Fetching endorsements from VatEUD...');
-        
+        $this->info('Fetching Tier 1 endorsements from VatEUD for activity tracking...');
+
+        // Only sync Tier 1 endorsements since they require activity tracking
         $tier1Endorsements = $this->vatEudService->getTier1Endorsements();
         
         $this->info('Found ' . count($tier1Endorsements) . ' Tier 1 endorsements');
@@ -83,12 +84,15 @@ class SyncEndorsementActivities extends Command
             $this->syncEndorsement($endorsement);
         }
 
-        // Clean up endorsements that no longer exist in VatEUD
+        // Clean up endorsements that no longer exist in VatEUD (Tier 1 only)
         $this->cleanupRemovedEndorsements($tier1Endorsements);
+
+        // Note: Tier 2 and Solo endorsements are fetched directly from VatEUD API when needed
+        // They don't require activity tracking or local storage
     }
 
     /**
-     * Sync individual endorsement
+     * Sync individual Tier 1 endorsement for activity tracking
      */
     protected function syncEndorsement(array $endorsement): void
     {
@@ -113,7 +117,7 @@ class SyncEndorsementActivities extends Command
     }
 
     /**
-     * Clean up endorsements that no longer exist in VatEUD
+     * Clean up endorsements that no longer exist in VatEUD (Tier 1 only)
      */
     protected function cleanupRemovedEndorsements(array $currentEndorsements): void
     {
@@ -122,12 +126,12 @@ class SyncEndorsementActivities extends Command
         $removedCount = EndorsementActivity::whereNotIn('endorsement_id', $currentIds)->delete();
         
         if ($removedCount > 0) {
-            $this->info("Cleaned up {$removedCount} removed endorsements");
+            $this->info("Cleaned up {$removedCount} removed Tier 1 endorsements");
         }
     }
 
     /**
-     * Update activities for endorsements that need updating
+     * Update activities for endorsements that need updating (Tier 1 only)
      */
     protected function updateStaleActivities(): void
     {
@@ -138,11 +142,11 @@ class SyncEndorsementActivities extends Command
             ->get();
 
         if ($endorsements->isEmpty()) {
-            $this->info('No endorsements need updating');
+            $this->info('No Tier 1 endorsements need updating');
             return;
         }
 
-        $this->info("Updating activity for {$endorsements->count()} endorsement(s)...");
+        $this->info("Updating activity for {$endorsements->count()} Tier 1 endorsement(s)...");
 
         foreach ($endorsements as $endorsementActivity) {
             $this->updateEndorsementActivity($endorsementActivity);
@@ -150,17 +154,17 @@ class SyncEndorsementActivities extends Command
     }
 
     /**
-     * Update all endorsement activities
+     * Update all endorsement activities (Tier 1 only)
      */
     protected function updateAllActivities(): void
     {
         $batchSize = (int) $this->option('batch-size');
-        $this->info("Force updating all endorsement activities in batches of {$batchSize}...");
+        $this->info("Force updating all Tier 1 endorsement activities in batches of {$batchSize}...");
         
         $totalCount = EndorsementActivity::count();
         $processedCount = 0;
-        
-        $this->info("Total endorsements to process: {$totalCount}");
+
+        $this->info("Total Tier 1 endorsements to process: {$totalCount}");
         
         EndorsementActivity::chunk($batchSize, function ($endorsements) use (&$processedCount, $totalCount) {
             $this->info("Processing batch starting at endorsement " . ($processedCount + 1));
@@ -179,12 +183,12 @@ class SyncEndorsementActivities extends Command
             $this->info("Batch complete. Waiting 2 seconds before next batch...");
             sleep(2);
         });
-        
-        $this->info("Completed updating {$processedCount} endorsements.");
+
+        $this->info("Completed updating {$processedCount} Tier 1 endorsements.");
     }
 
     /**
-     * Update activity for a specific endorsement
+     * Update activity for a specific Tier 1 endorsement - UPDATED to handle last activity date
      */
     protected function updateEndorsementActivity(EndorsementActivity $endorsementActivity): void
     {
@@ -194,11 +198,16 @@ class SyncEndorsementActivities extends Command
                 'position' => $endorsementActivity->position,
             ];
 
-            $activityMinutes = $this->activityService->getEndorsementActivity($endorsementData);
+            // Get both activity minutes and last activity date
+            $activityResult = $this->activityService->getEndorsementActivity($endorsementData);
+            $activityMinutes = $activityResult['minutes'] ?? 0;
+            $lastActivityDate = $activityResult['last_activity_date'] ?? null;
+
             $minRequiredMinutes = config('services.vateud.min_activity_minutes', 180);
 
             // Update activity
             $endorsementActivity->activity_minutes = $activityMinutes;
+            $endorsementActivity->last_activity_date = $lastActivityDate;
             $endorsementActivity->last_updated = now();
 
             // Handle removal logic
@@ -218,7 +227,8 @@ class SyncEndorsementActivities extends Command
 
             $endorsementActivity->save();
 
-            $this->line("Updated {$endorsementActivity->position} for user {$endorsementActivity->vatsim_id}: {$activityMinutes} minutes");
+            $lastActivityStr = $lastActivityDate ? $lastActivityDate->format('Y-m-d') : 'Never';
+            $this->line("Updated {$endorsementActivity->position} for user {$endorsementActivity->vatsim_id}: {$activityMinutes} minutes, last active: {$lastActivityStr}");
 
         } catch (\Exception $e) {
             $this->error("Failed to update endorsement {$endorsementActivity->id}: " . $e->getMessage());

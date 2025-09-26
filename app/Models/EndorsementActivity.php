@@ -16,6 +16,7 @@ class EndorsementActivity extends Model
         'position',
         'activity_minutes',
         'last_updated',
+        'last_activity_date', // NEW: Actual last activity date from VATSIM
         'removal_date',
         'removal_notified',
         'created_at_vateud',
@@ -24,6 +25,7 @@ class EndorsementActivity extends Model
     protected $casts = [
         'activity_minutes' => 'float',
         'last_updated' => 'datetime',
+        'last_activity_date' => 'date', // NEW: Cast as date
         'removal_date' => 'date',
         'removal_notified' => 'boolean',
         'created_at_vateud' => 'datetime',
