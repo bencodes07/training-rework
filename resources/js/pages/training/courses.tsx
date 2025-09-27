@@ -5,13 +5,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertCircle, BookOpen, Search, Filter, Grid3X3, List, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { BreadcrumbItem } from '@/types';
-import { Head } from '@inertiajs/react';
-import { cn } from '@/lib/utils';
-import { router } from '@inertiajs/react';
+import { AlertCircle, BookOpen, Filter, Grid3X3, List, Search, X } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
 import SortableCoursesTable from '@/components/courses/courses-table';
+import { Head } from '@inertiajs/react';
+import { BreadcrumbItem } from '@/types';
+import { cn } from '@/lib/utils';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -47,29 +46,36 @@ interface PageProps {
     error?: string;
 }
 
-export default function Courses({ courses = [], isVatsimUser, error }: PageProps) {
+export default function Courses({ courses: initialCourses = [], isVatsimUser, error }: PageProps) {
+    const [courses, setCourses] = useState(initialCourses);
     const [searchTerm, setSearchTerm] = useState('');
     const [typeFilter, setTypeFilter] = useState('all');
     const [firFilter, setFirFilter] = useState('all');
     const [activeTab, setActiveTab] = useState('all');
-    const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+    const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
     const [showFilters, setShowFilters] = useState(false);
-    const [loadingCourses, setLoadingCourses] = useState<Set<number>>(new Set());
+
+    // Handle course updates from child components
+    const handleCourseUpdate = useCallback((courseId: number, updates: Partial<Course>) => {
+        setCourses((prev) => prev.map((course) => (course.id === courseId ? { ...course, ...updates } : course)));
+    }, []);
 
     const filteredCourses = useMemo(() => {
-        if (!Array.isArray(courses)) return [];
-
         return courses.filter((course) => {
+            // Search filter
             const matchesSearch =
                 !searchTerm ||
                 course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                course.trainee_display_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 course.airport_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 course.airport_icao.toLowerCase().includes(searchTerm.toLowerCase());
 
+            // Type filter
             const matchesType = typeFilter === 'all' || course.type === typeFilter;
+
+            // FIR filter (based on mentor group)
             const matchesFir = firFilter === 'all' || (course.mentor_group && course.mentor_group.includes(firFilter));
 
+            // Tab filter
             const matchesTab =
                 activeTab === 'all' ||
                 (activeTab === 'waiting' && course.is_on_waiting_list) ||
@@ -78,35 +84,6 @@ export default function Courses({ courses = [], isVatsimUser, error }: PageProps
             return matchesSearch && matchesType && matchesFir && matchesTab;
         });
     }, [courses, searchTerm, typeFilter, firFilter, activeTab]);
-
-    const handleCourseToggle = async (courseId: number) => {
-        if (loadingCourses.has(courseId)) return;
-
-        setLoadingCourses((prev) => new Set(prev.add(courseId)));
-
-        try {
-            await router.post(
-                `/courses/${courseId}/waiting-list`,
-                {},
-                {
-                    preserveState: true,
-                    onFinish: () =>
-                        setLoadingCourses((prev) => {
-                            const newSet = new Set(prev);
-                            newSet.delete(courseId);
-                            return newSet;
-                        }),
-                },
-            );
-        } catch (error) {
-            console.error('Error:', error);
-            setLoadingCourses((prev) => {
-                const newSet = new Set(prev);
-                newSet.delete(courseId);
-                return newSet;
-            });
-        }
-    };
 
     const clearFilters = () => {
         setSearchTerm('');
@@ -143,7 +120,7 @@ export default function Courses({ courses = [], isVatsimUser, error }: PageProps
                     </div>
                 )}
 
-                {/* Compact Filter Bar */}
+                {/* Filters and View Toggle */}
                 <div className="flex flex-wrap items-center gap-3">
                     {/* Search */}
                     <div className="relative min-w-[300px] flex-1">
@@ -167,7 +144,7 @@ export default function Courses({ courses = [], isVatsimUser, error }: PageProps
 
                     {/* View Mode Toggle */}
                     <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
-                        <Button variant={viewMode === 'cards' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('cards')}>
+                        <Button variant={viewMode === 'grid' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('grid')}>
                             <Grid3X3 className="h-4 w-4" />
                         </Button>
                         <Button variant={viewMode === 'table' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('table')}>
@@ -229,7 +206,7 @@ export default function Courses({ courses = [], isVatsimUser, error }: PageProps
                     </div>
                 )}
 
-                {/* Results */}
+                {/* Course Display */}
                 {filteredCourses.length === 0 ? (
                     <Card className="py-12 text-center">
                         <CardContent>
@@ -238,29 +215,14 @@ export default function Courses({ courses = [], isVatsimUser, error }: PageProps
                             <p className="text-muted-foreground">Try adjusting your filters or search criteria.</p>
                         </CardContent>
                     </Card>
+                ) : viewMode === 'grid' ? (
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                        {filteredCourses.map((course) => (
+                            <CourseCard key={course.id} course={course} onCourseUpdate={handleCourseUpdate} />
+                        ))}
+                    </div>
                 ) : (
-                    <>
-                        {/* Card View */}
-                        {viewMode === 'cards' && (
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                {filteredCourses.map((course) => (
-                                    <CourseCard
-                                        key={course.id}
-                                        course={course}
-                                        onToggleWaitingList={handleCourseToggle}
-                                        isLoading={loadingCourses.has(course.id)}
-                                    />
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Table View */}
-                        {viewMode === 'table' && (
-                            <div className="rounded-md border">
-                                <SortableCoursesTable courses={filteredCourses} onToggleWaitingList={handleCourseToggle} />
-                            </div>
-                        )}
-                    </>
+                    <SortableCoursesTable courses={filteredCourses} onCourseUpdate={handleCourseUpdate} />
                 )}
             </div>
         </AppLayout>

@@ -4,13 +4,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { Course } from '@/pages/training/courses';
-import { router } from '@inertiajs/react';
 import { ArrowUpDown, ArrowUp, ArrowDown, Clock, MapPin, AlertCircle, CheckCircle, Play } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { toast } from 'sonner';
 
 interface SortableCoursesTableProps {
     courses: Course[];
-    onToggleWaitingList?: (courseId: number) => void;
+    onCourseUpdate?: (courseId: number, updates: Partial<Course>) => void;
 }
 
 type SortField = 'name' | 'airport_name' | 'type' | 'position' | 'rating' | 'mentor_group' | 'waiting_list_position';
@@ -18,19 +18,31 @@ type SortDirection = 'asc' | 'desc';
 
 const getTypeColor = (type: string) => {
     switch (type) {
-        case 'RTG': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
-        case 'EDMT': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300';
-        case 'FAM': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
-        case 'GST': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
-        case 'RST': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
-        default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
+        case 'RTG':
+            return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
+        case 'EDMT':
+            return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300';
+        case 'FAM':
+            return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
+        case 'GST':
+            return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
+        case 'RST':
+            return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
+        default:
+            return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
     }
 };
 
-export default function SortableCoursesTable({ courses, onToggleWaitingList }: SortableCoursesTableProps) {
+export default function SortableCoursesTable({ courses: initialCourses, onCourseUpdate }: SortableCoursesTableProps) {
+    const [courses, setCourses] = useState(initialCourses);
     const [sortField, setSortField] = useState<SortField>('name');
     const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
     const [loadingCourses, setLoadingCourses] = useState<Set<number>>(new Set());
+
+    // Update local state when props change
+    useEffect(() => {
+        setCourses(initialCourses);
+    }, [initialCourses]);
 
     const handleSort = (field: SortField) => {
         if (sortField === field) {
@@ -59,11 +71,12 @@ export default function SortableCoursesTable({ courses, onToggleWaitingList }: S
                     aValue = a.type;
                     bValue = b.type;
                     break;
-                case 'position':
-                    { const posOrder = { 'GND': 1, 'TWR': 2, 'APP': 3, 'CTR': 4 };
+                case 'position': {
+                    const posOrder = { GND: 1, TWR: 2, APP: 3, CTR: 4 };
                     aValue = posOrder[a.position as keyof typeof posOrder] || 99;
                     bValue = posOrder[b.position as keyof typeof posOrder] || 99;
-                    break; }
+                    break;
+                }
                 case 'rating':
                     aValue = a.min_rating;
                     bValue = b.min_rating;
@@ -73,8 +86,8 @@ export default function SortableCoursesTable({ courses, onToggleWaitingList }: S
                     bValue = b.mentor_group?.toLowerCase() || '';
                     break;
                 case 'waiting_list_position':
-                    aValue = a.is_on_waiting_list ? (a.waiting_list_position || 999) : 999;
-                    bValue = b.is_on_waiting_list ? (b.waiting_list_position || 999) : 999;
+                    aValue = a.is_on_waiting_list ? a.waiting_list_position || 999 : 999;
+                    bValue = b.is_on_waiting_list ? b.waiting_list_position || 999 : 999;
                     break;
                 default:
                     aValue = a.name.toLowerCase();
@@ -82,9 +95,7 @@ export default function SortableCoursesTable({ courses, onToggleWaitingList }: S
             }
 
             if (typeof aValue === 'string' && typeof bValue === 'string') {
-                return sortDirection === 'asc' 
-                    ? aValue.localeCompare(bValue)
-                    : bValue.localeCompare(aValue);
+                return sortDirection === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
             }
 
             if (sortDirection === 'asc') {
@@ -97,28 +108,90 @@ export default function SortableCoursesTable({ courses, onToggleWaitingList }: S
 
     const handleToggleWaitingList = async (course: Course) => {
         if (loadingCourses.has(course.id)) return;
-        
-        setLoadingCourses(prev => new Set(prev).add(course.id));
+
+        const wasOnWaitingList = course.is_on_waiting_list;
+
+        // Optimistic update
+        const optimisticUpdates: Partial<Course> = {
+            is_on_waiting_list: !wasOnWaitingList,
+            waiting_list_position: !wasOnWaitingList ? 1 : undefined,
+        };
+
+        setCourses((prev) => prev.map((c) => (c.id === course.id ? { ...c, ...optimisticUpdates } : c)));
+        onCourseUpdate?.(course.id, optimisticUpdates);
+
+        setLoadingCourses((prev) => new Set(prev).add(course.id));
+
+        // Show immediate feedback
+        toast.success(wasOnWaitingList ? 'Left waiting list' : 'Joined waiting list');
+
         try {
-            await router.post(`/courses/${course.id}/waiting-list`, {}, {
-                preserveState: true,
-                onSuccess: () => {
-                    onToggleWaitingList?.(course.id);
+            const response = await fetch(`/courses/${course.id}/waiting-list`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                 },
-                onError: (errors) => {
-                    console.error('Error toggling waiting list:', errors);
-                },
-                onFinish: () => {
-                    setLoadingCourses(prev => {
-                        const newSet = new Set(prev);
-                        newSet.delete(course.id);
-                        return newSet;
-                    });
-                },
+                credentials: 'same-origin',
             });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Update with actual server response
+                const serverUpdates: Partial<Course> = {
+                    is_on_waiting_list: data.action === 'joined',
+                    waiting_list_position: data.position || undefined,
+                };
+
+                setCourses((prev) => prev.map((c) => (c.id === course.id ? { ...c, ...serverUpdates } : c)));
+                onCourseUpdate?.(course.id, serverUpdates);
+
+                if (data.action === 'joined' && data.position) {
+                    toast.success('Queue position confirmed');
+                }
+            } else {
+                // Revert on failure
+                setCourses((prev) =>
+                    prev.map((c) =>
+                        c.id === course.id
+                            ? {
+                                  ...c,
+                                  is_on_waiting_list: wasOnWaitingList,
+                                  waiting_list_position: course.waiting_list_position,
+                              }
+                            : c,
+                    ),
+                );
+                onCourseUpdate?.(course.id, {
+                    is_on_waiting_list: wasOnWaitingList,
+                    waiting_list_position: course.waiting_list_position,
+                });
+
+                toast.error('Action failed');
+            }
         } catch (error) {
-            console.error('Error:', error);
-            setLoadingCourses(prev => {
+            // Revert on error
+            setCourses((prev) =>
+                prev.map((c) =>
+                    c.id === course.id
+                        ? {
+                              ...c,
+                              is_on_waiting_list: wasOnWaitingList,
+                              waiting_list_position: course.waiting_list_position,
+                          }
+                        : c,
+                ),
+            );
+            onCourseUpdate?.(course.id, {
+                is_on_waiting_list: wasOnWaitingList,
+                waiting_list_position: course.waiting_list_position,
+            });
+
+            console.error('Error toggling waiting list:', error);
+            toast.error('Connection error');
+        } finally {
+            setLoadingCourses((prev) => {
                 const newSet = new Set(prev);
                 newSet.delete(course.id);
                 return newSet;
@@ -127,10 +200,7 @@ export default function SortableCoursesTable({ courses, onToggleWaitingList }: S
     };
 
     const SortableHeader = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
-        <TableHead 
-            className="cursor-pointer hover:bg-muted/50 select-none"
-            onClick={() => handleSort(field)}
-        >
+        <TableHead className="cursor-pointer select-none hover:bg-muted/50" onClick={() => handleSort(field)}>
             <div className="flex items-center gap-2">
                 {children}
                 {sortField === field ? (
@@ -162,21 +232,18 @@ export default function SortableCoursesTable({ courses, onToggleWaitingList }: S
                 <TableBody>
                     {sortedCourses.map((course) => {
                         const isLoading = loadingCourses.has(course.id);
-                        
+
                         return (
-                            <TableRow 
+                            <TableRow
                                 key={course.id}
-                                className={cn(
-                                    "transition-colors",
-                                    course.is_on_waiting_list && "bg-blue-50 dark:bg-blue-950/20"
-                                )}
+                                className={cn('transition-colors', course.is_on_waiting_list && 'bg-blue-50 dark:bg-blue-950/20')}
                             >
-                                <TableCell className="font-medium pl-4">
+                                <TableCell className="pl-4 font-medium">
                                     <div>
                                         <div className="font-semibold">{course.name}</div>
                                     </div>
                                 </TableCell>
-                                
+
                                 <TableCell>
                                     <div className="flex items-center gap-2">
                                         <MapPin className="h-4 w-4 text-muted-foreground" />
@@ -186,31 +253,25 @@ export default function SortableCoursesTable({ courses, onToggleWaitingList }: S
                                         </div>
                                     </div>
                                 </TableCell>
-                                
+
                                 <TableCell>
-                                    <Badge className={getTypeColor(course.type)}>
-                                        {course.type_display}
-                                    </Badge>
+                                    <Badge className={getTypeColor(course.type)}>{course.type_display}</Badge>
                                 </TableCell>
-                                
+
                                 <TableCell>
-                                    <Badge variant="outline" className={"bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"}>
+                                    <Badge variant="outline" className={'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300'}>
                                         {course.position_display}
                                     </Badge>
                                 </TableCell>
-                                
+
                                 <TableCell>
                                     {course.is_on_waiting_list ? (
                                         <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
                                             <Clock className="h-4 w-4" />
                                             <div>
-                                                <div className="font-medium text-sm">
-                                                    Position #{course.waiting_list_position}
-                                                </div>
+                                                <div className="text-sm font-medium">Position #{course.waiting_list_position}</div>
                                                 {course.waiting_list_activity !== undefined && (
-                                                    <div className="text-xs text-muted-foreground">
-                                                        {course.waiting_list_activity}h activity
-                                                    </div>
+                                                    <div className="text-xs text-muted-foreground">{course.waiting_list_activity}h activity</div>
                                                 )}
                                             </div>
                                         </div>
@@ -218,8 +279,8 @@ export default function SortableCoursesTable({ courses, onToggleWaitingList }: S
                                         <span className="text-sm text-muted-foreground">Not in queue</span>
                                     )}
                                 </TableCell>
-                                
-                                <TableCell className='w-42 pr-4'>
+
+                                <TableCell className="w-42 pr-4">
                                     <TooltipProvider>
                                         <Tooltip>
                                             <TooltipTrigger asChild>
@@ -227,12 +288,12 @@ export default function SortableCoursesTable({ courses, onToggleWaitingList }: S
                                                     <Button
                                                         onClick={() => handleToggleWaitingList(course)}
                                                         disabled={isLoading || (!course.can_join && !course.is_on_waiting_list)}
-                                                        variant={course.is_on_waiting_list ? "destructive" : "default"}
+                                                        variant={course.is_on_waiting_list ? 'destructive' : 'default'}
                                                         size="sm"
-                                                        className='w-full'
+                                                        className="w-full"
                                                     >
                                                         {isLoading ? (
-                                                            "Loading..."
+                                                            'Loading...'
                                                         ) : course.is_on_waiting_list ? (
                                                             <>
                                                                 <CheckCircle className="h-4 w-4" />
@@ -251,7 +312,7 @@ export default function SortableCoursesTable({ courses, onToggleWaitingList }: S
                                                 <TooltipContent>
                                                     <div className="flex items-center gap-2">
                                                         <AlertCircle className="h-4 w-4" />
-                                                        {course.join_error || "Cannot join this course"}
+                                                        {course.join_error || 'Cannot join this course'}
                                                     </div>
                                                 </TooltipContent>
                                             )}
@@ -263,9 +324,9 @@ export default function SortableCoursesTable({ courses, onToggleWaitingList }: S
                     })}
                 </TableBody>
             </Table>
-            
+
             {sortedCourses.length === 0 && (
-                <div className="text-center py-8">
+                <div className="py-8 text-center">
                     <div className="text-muted-foreground">No courses found matching your criteria</div>
                 </div>
             )}
