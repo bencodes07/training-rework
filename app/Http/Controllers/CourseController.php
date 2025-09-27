@@ -47,7 +47,7 @@ class CourseController extends Controller
         }
 
         try {
-            if (!$user->is_admin || !$user->is_superuser) {
+            if ($user->is_admin || $user->is_superuser) {
                 $courses = Course::with(['mentorGroup', 'familiarisationSector'])->get();
                 $filteredCourses = $courses;
             } else {
@@ -171,9 +171,7 @@ class CourseController extends Controller
     {
         return $courses->filter(function ($course) use ($user) {
             if ($user->subdivision === 'GER') {
-                if ($course->type === 'GST') return false;
-                
-                // Show RST courses only if not on roster
+
                 try {
                     $isOnRoster = $this->validationService->isUserOnRoster($user->vatsim_id);
                     
@@ -203,84 +201,5 @@ class CourseController extends Controller
 
             return true;
         });
-    }
-}
-
-// Alternative: Create a dedicated RosterService if you prefer more separation
-// app/Services/RosterService.php
-
-namespace App\Services;
-
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
-
-class RosterService
-{
-    /**
-     * Get roster from VatEUD with caching
-     */
-    public function getRoster(): array
-    {
-        return Cache::remember('vateud:roster', now()->addMinutes(60), function () {
-            try {
-                $response = Http::withHeaders([
-                    'X-API-KEY' => config('services.vateud.token'),
-                    'Accept' => 'application/json',
-                    'User-Agent' => 'VATGER Training System',
-                ])->get('https://core.vateud.net/api/facility/roster');
-
-                if ($response->successful()) {
-                    $data = $response->json();
-                    return $data['data']['controllers'] ?? [];
-                }
-            } catch (\Exception $e) {
-                Log::error('Failed to fetch roster from VatEUD', ['error' => $e->getMessage()]);
-            }
-
-            return [];
-        });
-    }
-
-    /**
-     * Check if user is on the roster
-     */
-    public function isUserOnRoster(int $vatsimId): bool
-    {
-        try {
-            $roster = $this->getRoster();
-            return in_array($vatsimId, $roster);
-        } catch (\Exception $e) {
-            Log::warning('Failed to check roster status', [
-                'vatsim_id' => $vatsimId,
-                'error' => $e->getMessage()
-            ]);
-            return false;
-        }
-    }
-
-    /**
-     * Remove user from roster (for GDPR compliance)
-     */
-    public function removeFromRoster(int $vatsimId): bool
-    {
-        try {
-            $response = Http::withHeaders([
-                'X-API-KEY' => config('services.vateud.token'),
-                'Accept' => 'application/json',
-                'User-Agent' => 'VATGER Training System',
-            ])->delete("https://core.vateud.net/api/facility/visitors/{$vatsimId}/delete");
-
-            // Clear the roster cache
-            Cache::forget('vateud:roster');
-
-            return $response->successful();
-        } catch (\Exception $e) {
-            Log::error('Failed to remove user from roster', [
-                'vatsim_id' => $vatsimId,
-                'error' => $e->getMessage()
-            ]);
-            return false;
-        }
     }
 }
