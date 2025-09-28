@@ -64,6 +64,10 @@ class CourseController extends Controller
                 ->where('user_id', $user->id)
                 ->get();
 
+            // Check if user has an active RTG course (either in training or on waiting list)
+            $userHasActiveRtgCourse = $user->activeRatingCourses()->exists() ||
+                $waitingListEntries->whereIn('course.type', ['RTG'])->isNotEmpty();
+
             // Format courses for frontend
             $formattedCourses = $filteredCourses->map(function ($course) use ($user, $waitingListEntries) {
                 $entry = $waitingListEntries->firstWhere('course_id', $course->id);
@@ -93,12 +97,7 @@ class CourseController extends Controller
             return Inertia::render('training/courses', [
                 'courses' => $formattedCourses,
                 'isVatsimUser' => true,
-                'statistics' => [
-                    'total_courses' => $courses->count(),
-                    'rtg_courses' => $courses->where('type', 'RTG')->count(),
-                    'edmt_courses' => $courses->where('type', 'EDMT')->count(),
-                    'user_waiting_lists' => $waitingListEntries->count(),
-                ],
+                'userHasActiveRtgCourse' => $userHasActiveRtgCourse,
             ]);
 
         } catch (\Exception $e) {
@@ -113,12 +112,16 @@ class CourseController extends Controller
     /**
      * Join or leave a waiting list
      */
-    public function toggleWaitingList(Request $request, Course $course): JsonResponse
+    public function toggleWaitingList(Request $request, Course $course): \Illuminate\Http\RedirectResponse
     {
         $user = $request->user();
 
         if (!$user->isVatsimUser()) {
-            return response()->json(['error' => 'VATSIM account required'], 403);
+            return back()->with('flash', [
+                'success' => false,
+                'message' => 'VATSIM account required',
+                'action' => 'error'
+            ]);
         }
 
         try {
@@ -129,38 +132,55 @@ class CourseController extends Controller
             if ($entry) {
                 // Leave waiting list
                 [$success, $message] = $this->waitingListService->leaveWaitingList($course, $user);
-                
-                return response()->json([
+
+                return back()->with('flash', [
                     'success' => $success,
                     'message' => $message,
-                    'action' => 'left',
-                ], $success ? 200 : 400);
+                    'action' => $success ? 'left' : 'error',
+                ]);
             } else {
                 // Join waiting list
                 [$success, $message] = $this->waitingListService->joinWaitingList($course, $user);
                 
                 if ($success) {
+                    // Refresh the entry to get the exact position
                     $newEntry = WaitingListEntry::where('user_id', $user->id)
                         ->where('course_id', $course->id)
                         ->first();
-                        
-                    return response()->json([
+
+                    \Log::info('New waiting list entry created', [
+                        'user_id' => $user->id,
+                        'course_id' => $course->id,
+                        'position' => $newEntry?->position_in_queue,
+                        'entry_exists' => $newEntry !== null
+                    ]);
+
+                    return back()->with('flash', [
                         'success' => true,
                         'message' => $message,
                         'action' => 'joined',
-                        'position' => $newEntry->position_in_queue,
+                        'position' => $newEntry ? $newEntry->position_in_queue : 1,
+                    ]);
+                } else {
+                    return back()->with('flash', [
+                        'success' => false,
+                        'message' => $message,
+                        'action' => 'error'
                     ]);
                 }
-                
-                return response()->json([
-                    'success' => false,
-                    'message' => $message,
-                ], 400);
             }
         } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'An error occurred. Please try again.',
-            ], 500);
+            \Log::error('Error in toggleWaitingList', [
+                'user_id' => $user->id,
+                'course_id' => $course->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return back()->with('flash', [
+                'success' => false,
+                'message' => 'An error occurred. Please try again.',
+                'action' => 'error'
+            ]);
         }
     }
 

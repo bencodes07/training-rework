@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { Course } from '@/pages/training/courses';
+import { router } from '@inertiajs/react';
 import { Clock, MapPin, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -63,61 +64,76 @@ export default function CourseCard({ course: initialCourse, onCourseUpdate }: Co
         onCourseUpdate?.(course.id, optimisticUpdates);
         setIsLoading(true);
 
-        // Show immediate feedback
-        toast.success(wasOnWaitingList ? 'Left waiting list' : 'Joined waiting list');
-
         try {
-            const response = await fetch(`/courses/${course.id}/waiting-list`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-                credentials: 'same-origin',
+            // Use Inertia router instead of fetch to handle CSRF automatically
+            await new Promise<void>((resolve, reject) => {
+                router.post(
+                    `/courses/${course.id}/waiting-list`,
+                    {},
+                    {
+                        preserveState: true,
+                        preserveScroll: true,
+                        onSuccess: (page) => {
+                            // Extract the response data from the page props
+                            const response: any = page.props.flash || {};
+
+                            if (response.success !== false) {
+                                // Update with actual server response
+                                const serverUpdates: Partial<Course> = {
+                                    is_on_waiting_list: response.action === 'joined',
+                                    waiting_list_position: response.position || undefined,
+                                };
+
+                                setCourse((prev) => ({ ...prev, ...serverUpdates }));
+                                onCourseUpdate?.(course.id, serverUpdates);
+
+                                // Show success message
+                                const action = response.action === 'joined' ? 'Joined waiting list' : 'Left waiting list';
+                                toast.success(response.message || action);
+
+                                if (response.action === 'joined' && response.position) {
+                                    toast.info(`Queue position: ${response.position}`);
+                                }
+                            } else {
+                                // Revert optimistic update on failure
+                                setCourse((prev) => ({
+                                    ...prev,
+                                    is_on_waiting_list: wasOnWaitingList,
+                                    waiting_list_position: initialCourse.waiting_list_position,
+                                }));
+                                onCourseUpdate?.(course.id, {
+                                    is_on_waiting_list: wasOnWaitingList,
+                                    waiting_list_position: initialCourse.waiting_list_position,
+                                });
+
+                                toast.error(response.message || 'Action failed');
+                            }
+                            resolve();
+                        },
+                        onError: (errors) => {
+                            // Revert optimistic update on error
+                            setCourse((prev) => ({
+                                ...prev,
+                                is_on_waiting_list: wasOnWaitingList,
+                                waiting_list_position: initialCourse.waiting_list_position,
+                            }));
+                            onCourseUpdate?.(course.id, {
+                                is_on_waiting_list: wasOnWaitingList,
+                                waiting_list_position: initialCourse.waiting_list_position,
+                            });
+
+                            console.error('Error toggling waiting list:', errors);
+
+                            // Show specific error message if available
+                            const errorMessage = Object.values(errors).flat()[0] || 'An error occurred';
+                            toast.error(typeof errorMessage === 'string' ? errorMessage : 'An error occurred');
+
+                            reject(new Error('Inertia request failed'));
+                        },
+                    },
+                );
             });
-
-            const data = await response.json();
-
-            if (data.success) {
-                // Update with actual server response
-                const serverUpdates: Partial<Course> = {
-                    is_on_waiting_list: data.action === 'joined',
-                    waiting_list_position: data.position || undefined,
-                };
-
-                setCourse((prev) => ({ ...prev, ...serverUpdates }));
-                onCourseUpdate?.(course.id, serverUpdates);
-
-                // Update toast with actual position if joined
-                if (data.action === 'joined' && data.position) {
-                    toast.info('Queue position confirmed');
-                }
-            } else {
-                // Revert optimistic update on failure
-                setCourse((prev) => ({
-                    ...prev,
-                    is_on_waiting_list: wasOnWaitingList,
-                    waiting_list_position: initialCourse.waiting_list_position,
-                }));
-                onCourseUpdate?.(course.id, {
-                    is_on_waiting_list: wasOnWaitingList,
-                    waiting_list_position: initialCourse.waiting_list_position,
-                });
-
-                toast.error('Action failed');
-            }
         } catch (error) {
-            // Revert optimistic update on error
-            setCourse((prev) => ({
-                ...prev,
-                is_on_waiting_list: wasOnWaitingList,
-                waiting_list_position: initialCourse.waiting_list_position,
-            }));
-            onCourseUpdate?.(course.id, {
-                is_on_waiting_list: wasOnWaitingList,
-                waiting_list_position: initialCourse.waiting_list_position,
-            });
-
             console.error('Error toggling waiting list:', error);
             toast.error('Connection error');
         } finally {
