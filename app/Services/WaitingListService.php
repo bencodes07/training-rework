@@ -195,7 +195,7 @@ class WaitingListService
             try {
                 \Http::withHeaders([
                     'Authorization' => "Token {$apiKey}",
-                ])->get("http://vatsim-germany.org/api/moodle/course/{$courseId}/user/{$user->vatsim_id}/enrol");
+                ])->get("https://vatsim-germany.org/api/moodle/course/{$courseId}/user/{$user->vatsim_id}/enrol");
             } catch (\Exception $e) {
                 Log::warning('Failed to enroll user in Moodle course', [
                     'user_id' => $user->id,

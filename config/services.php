@@ -61,6 +61,6 @@ return [
 
     'vatger' => [
         'api_key' => env('VATGER_API_KEY'),
-        'api_url' => env('VATGER_API_URL', 'http://vatsim-germany.org/api'),
+        'api_url' => env('VATGER_API_URL', 'https://vatsim-germany.org/api'),
     ],
 ];
