@@ -25,6 +25,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        if (app()->isProduction()) {
+            \Illuminate\Support\Facades\URL::forceScheme('https');
+        }
+
         Gate::define('mentor', [EndorsementPolicy::class, 'mentor']);
         Gate::define('endorsements.manage', [EndorsementPolicy::class, 'viewManagement']);
         Gate::define('endorsements.remove-tier1', [EndorsementPolicy::class, 'removeTier1']);
