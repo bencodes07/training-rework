@@ -1,0 +1,199 @@
+# Portainer Stack Configuration for VATGER Training System (PostgreSQL)
+version: '3.8'
+
+services:
+  app:
+    image: ghcr.io/your-username/your-repo:latest
+    container_name: vatger-training-${ENVIRONMENT:-prod}
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - app_storage:/var/www/html/storage
+      - app_cache:/var/www/html/bootstrap/cache
+    environment:
+      - APP_NAME=${APP_NAME:-VATGER Training System}
+      - APP_ENV=${ENVIRONMENT:-production}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - APP_KEY=${APP_KEY}
+      - APP_URL=${APP_URL}
+      - APP_LOCALE=${APP_LOCALE:-en}
+      - APP_FALLBACK_LOCALE=${APP_FALLBACK_LOCALE:-en}
+      - APP_FAKER_LOCALE=${APP_FAKER_LOCALE:-en_US}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_USERNAME=${DB_USERNAME:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - CACHE_STORE=redis
+      - SESSION_DRIVER=redis
+      - QUEUE_CONNECTION=redis
+      - REDIS_HOST=redis
+      - REDIS_CLIENT=${REDIS_CLIENT:-phpredis}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - MAIL_MAILER=${MAIL_MAILER:-smtp}
+      - MAIL_HOST=${MAIL_HOST}
+      - MAIL_PORT=${MAIL_PORT:-587}
+      - MAIL_USERNAME=${MAIL_USERNAME}
+      - MAIL_PASSWORD=${MAIL_PASSWORD}
+      - MAIL_ENCRYPTION=${MAIL_ENCRYPTION:-tls}
+      - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME}
+      - VATSIM_CLIENT_ID=${VATSIM_CLIENT_ID}
+      - VATSIM_CLIENT_SECRET=${VATSIM_CLIENT_SECRET}
+      - VATSIM_REDIRECT_URI=${VATSIM_REDIRECT_URI}
+      - VATSIM_AUTH_URL=${VATSIM_AUTH_URL}
+      - VATSIM_TOKEN_URL=${VATSIM_TOKEN_URL}
+      - VATSIM_API_BASE_URL=${VATSIM_API_BASE_URL}
+      - OAUTH_CLIENT_ID=${VATSIM_CLIENT_ID}
+      - OAUTH_CLIENT_SECRET=${VATSIM_CLIENT_SECRET}
+      - OAUTH_TOKEN_URL=${VATSIM_TOKEN_URL}
+      - OAUTH_AUTH_URL=${VATSIM_AUTH_URL}
+      - OAUTH_REDIRECT_URL=${VATSIM_REDIRECT_URI}
+      - OAUTH_API_URL=${VATSIM_API_BASE_URL}
+      - VATEUD_TOKEN=${VATEUD_TOKEN}
+      - VATEUD_USE_MOCK=${VATEUD_USE_MOCK:-false}
+      - VATEUD_MIN_ACTIVITY_MINUTES=${VATEUD_MIN_ACTIVITY_MINUTES:-180}
+      - VATEUD_REMOVAL_WARNING_DAYS=${VATEUD_REMOVAL_WARNING_DAYS:-31}
+      - VATEUD_MIN_ENDORSEMENT_AGE_DAYS=${VATEUD_MIN_ENDORSEMENT_AGE_DAYS:-180}
+      - VATEUD_ATD_LEAD_CID=${VATEUD_ATD_LEAD_CID:-1601613}
+      - TRAINING_MIN_HOURS=${TRAINING_MIN_HOURS:-25}
+      - TRAINING_MIN_ACTIVITY=${TRAINING_MIN_ACTIVITY:-10}
+      - TRAINING_DISPLAY_ACTIVITY=${TRAINING_DISPLAY_ACTIVITY:-8}
+      - TRAINING_S3_RATING_CHANGE_DAYS=${TRAINING_S3_RATING_CHANGE_DAYS:-90}
+      - VATGER_API_KEY=${VATGER_API_KEY}
+      - VATGER_API_URL=${VATGER_API_URL:-http://vatsim-germany.org/api}
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - vatger-network
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-public"
+      - "traefik.http.routers.vatger-${ENVIRONMENT:-prod}.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.vatger-${ENVIRONMENT:-prod}.tls=true"
+      - "traefik.http.routers.vatger-${ENVIRONMENT:-prod}.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.vatger-${ENVIRONMENT:-prod}.middlewares=secure-headers"
+      - "traefik.http.middlewares.secure-headers.headers.sslredirect=true"
+      - "traefik.http.middlewares.secure-headers.headers.stsincludesubdomains=true"
+      - "traefik.http.middlewares.secure-headers.headers.stspreload=true"
+      - "traefik.http.middlewares.secure-headers.headers.stsseconds=31536000"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: vatger-postgres-${ENVIRONMENT:-prod}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - vatger-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+  redis:
+    image: redis:7-alpine
+    container_name: vatger-redis-${ENVIRONMENT:-prod}
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - vatger-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  scheduler:
+    image: ghcr.io/your-username/your-repo:latest
+    container_name: vatger-scheduler-${ENVIRONMENT:-prod}
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - app_storage:/var/www/html/storage
+      - app_cache:/var/www/html/bootstrap/cache
+    environment:
+      - APP_ENV=${ENVIRONMENT:-production}
+      - APP_KEY=${APP_KEY}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_USERNAME=${DB_USERNAME:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - CACHE_STORE=redis
+      - REDIS_HOST=redis
+      - VATEUD_TOKEN=${VATEUD_TOKEN}
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - vatger-network
+    command: ["php", "artisan", "schedule:work"]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  queue:
+    image: ghcr.io/your-username/your-repo:latest
+    container_name: vatger-queue-${ENVIRONMENT:-prod}
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - app_storage:/var/www/html/storage
+      - app_cache:/var/www/html/bootstrap/cache
+    environment:
+      - APP_ENV=${ENVIRONMENT:-production}
+      - APP_KEY=${APP_KEY}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_USERNAME=${DB_USERNAME:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - QUEUE_CONNECTION=redis
+      - REDIS_HOST=redis
+      - VATEUD_TOKEN=${VATEUD_TOKEN}
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - vatger-network
+    command: ["php", "artisan", "queue:work", "--verbose", "--tries=3", "--timeout=90"]
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+volumes:
+  app_storage:
+  app_cache:
+  postgres_data:
+  redis_data:
+
+networks:
+  vatger-network:
+    driver: bridge
+  traefik-public:
+    external: true
