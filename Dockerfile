@@ -1,21 +1,24 @@
-# Build stage for frontend assets
-FROM node:20-alpine AS frontend
+# Build stage for frontend assets with PHP
+FROM php:8.4-alpine AS frontend
+
+# Install Node.js
+RUN apk add --no-cache nodejs npm
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-COPY vite.config.ts ./
-COPY tsconfig.json ./
+# Install composer
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
-# Install dependencies
+# Copy all application files (needed for wayfinder)
+COPY . .
+
+# Install PHP dependencies (needed for artisan commands)
+RUN composer install --no-dev --optimize-autoloader
+
+# Install Node.js dependencies
 RUN npm ci
 
-# Copy source files
-COPY resources/ resources/
-COPY public/ public/
-
-# Build assets
+# Build assets (wayfinder can now run php artisan commands)
 RUN npm run build
 
 # Production stage
