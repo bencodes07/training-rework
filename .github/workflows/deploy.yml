@@ -3,7 +3,7 @@ name: Publish Docker image to GHCR
 on:
   push:
     branches:
-      - main   # Change if needed
+      - main
 
 jobs:
   build-and-push:
@@ -11,7 +11,7 @@ jobs:
 
     permissions:
       contents: read
-      packages: write   # Required to push to GHCR
+      packages: write
 
     steps:
       - name: Checkout source
