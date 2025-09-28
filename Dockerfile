@@ -4,13 +4,14 @@ FROM node:22-alpine AS node-builder
 WORKDIR /app
 
 # Copy package files
-COPY package-lock.json ./
 COPY package*.json ./
 RUN npm ci
 
 # Copy source code and build assets
 COPY . .
-RUN npm run build
+
+# Build assets without PHP dependencies (disable wayfinder generation)
+RUN DISABLE_WAYFINDER=true npm run build
 
 # PHP base stage
 FROM php:8.4-fpm-alpine AS php-base
