@@ -1,13 +1,10 @@
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { Course } from '@/pages/training/courses';
-import { router } from '@inertiajs/react';
-import { Clock, MapPin, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock, MapPin } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
+import WaitingListButton from './waiting-list-button';
 
 interface CourseCardProps {
     course: Course;
@@ -43,194 +40,73 @@ const getStatusColor = (course: Course) => {
 
 export default function CourseCard({ course: initialCourse, onCourseUpdate }: CourseCardProps) {
     const [course, setCourse] = useState(initialCourse);
-    const [isLoading, setIsLoading] = useState(false);
 
     // Update local state when props change (for page refreshes)
     useEffect(() => {
         setCourse(initialCourse);
     }, [initialCourse]);
 
-    const handleToggleWaitingList = async () => {
-        if (isLoading) return;
-
-        // Optimistic update - immediately show the change
-        const wasOnWaitingList = course.is_on_waiting_list;
-        const optimisticUpdates: Partial<Course> = {
-            is_on_waiting_list: !wasOnWaitingList,
-            waiting_list_position: !wasOnWaitingList ? 1 : undefined, // Placeholder position
-        };
-
-        setCourse((prev) => ({ ...prev, ...optimisticUpdates }));
-        onCourseUpdate?.(course.id, optimisticUpdates);
-        setIsLoading(true);
-
-        try {
-            // Use Inertia router instead of fetch to handle CSRF automatically
-            await new Promise<void>((resolve, reject) => {
-                router.post(
-                    `/courses/${course.id}/waiting-list`,
-                    {},
-                    {
-                        preserveState: true,
-                        preserveScroll: true,
-                        onSuccess: (page) => {
-                            // Extract the response data from the page props
-                            const response: any = page.props.flash || {};
-
-                            if (response.success !== false) {
-                                // Update with actual server response
-                                const serverUpdates: Partial<Course> = {
-                                    is_on_waiting_list: response.action === 'joined',
-                                    waiting_list_position: response.position || undefined,
-                                };
-
-                                setCourse((prev) => ({ ...prev, ...serverUpdates }));
-                                onCourseUpdate?.(course.id, serverUpdates);
-
-                                // Show success message
-                                const action = response.action === 'joined' ? 'Joined waiting list' : 'Left waiting list';
-                                toast.success(response.message || action);
-
-                                if (response.action === 'joined' && response.position) {
-                                    toast.info(`Queue position: ${response.position}`);
-                                }
-                            } else {
-                                // Revert optimistic update on failure
-                                setCourse((prev) => ({
-                                    ...prev,
-                                    is_on_waiting_list: wasOnWaitingList,
-                                    waiting_list_position: initialCourse.waiting_list_position,
-                                }));
-                                onCourseUpdate?.(course.id, {
-                                    is_on_waiting_list: wasOnWaitingList,
-                                    waiting_list_position: initialCourse.waiting_list_position,
-                                });
-
-                                toast.error(response.message || 'Action failed');
-                            }
-                            resolve();
-                        },
-                        onError: (errors) => {
-                            // Revert optimistic update on error
-                            setCourse((prev) => ({
-                                ...prev,
-                                is_on_waiting_list: wasOnWaitingList,
-                                waiting_list_position: initialCourse.waiting_list_position,
-                            }));
-                            onCourseUpdate?.(course.id, {
-                                is_on_waiting_list: wasOnWaitingList,
-                                waiting_list_position: initialCourse.waiting_list_position,
-                            });
-
-                            console.error('Error toggling waiting list:', errors);
-
-                            // Show specific error message if available
-                            const errorMessage = Object.values(errors).flat()[0] || 'An error occurred';
-                            toast.error(typeof errorMessage === 'string' ? errorMessage : 'An error occurred');
-
-                            reject(new Error('Inertia request failed'));
-                        },
-                    },
-                );
-            });
-        } catch (error) {
-            console.error('Error toggling waiting list:', error);
-            toast.error('Connection error');
-        } finally {
-            setIsLoading(false);
-        }
+    // Handle course updates from the button component
+    const handleCourseUpdate = (courseId: number, updates: Partial<Course>) => {
+        setCourse((prev) => ({ ...prev, ...updates }));
+        onCourseUpdate?.(courseId, updates);
     };
 
     return (
-        <Card className="group h-full">
-            <CardHeader>
-                <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                        <CardTitle className="mb-2 text-xl leading-tight font-bold">{course.trainee_display_name}</CardTitle>
-                        <CardDescription className="flex items-center gap-2 text-sm font-medium">
-                            <MapPin className="h-4 w-4" />
-                            {course.airport_icao}
-                        </CardDescription>
+        <>
+            <Card className="group h-full">
+                <CardHeader>
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                            <CardTitle className="mb-2 text-xl leading-tight font-bold">{course.trainee_display_name}</CardTitle>
+                            <CardDescription className="flex items-center gap-2 text-sm font-medium">
+                                <MapPin className="h-4 w-4" />
+                                {course.airport_icao}
+                            </CardDescription>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            <Badge variant="outline" className={getTypeColor(course.type)}>
+                                {course.type_display}
+                            </Badge>
+                            <Badge variant="secondary">{course.position_display}</Badge>
+                        </div>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                        <Badge variant="outline" className={getTypeColor(course.type)}>
-                            {course.type_display}
-                        </Badge>
-                        <Badge variant="secondary">{course.position_display}</Badge>
-                    </div>
-                </div>
-            </CardHeader>
-            <CardContent className="-mt-4 space-y-3">
-                {course.description && <p className="pt-0 text-sm text-muted-foreground">{course.description}</p>}
+                </CardHeader>
+                <CardContent className="-mt-4 space-y-3">
+                    {course.description && <p className="pt-0 text-sm text-muted-foreground">{course.description}</p>}
 
-                <div className="space-y-3">
-                    {/* Status Indicator */}
-                    <div className={cn('flex items-center gap-2 text-sm font-medium', getStatusColor(course))}>
-                        {course.is_on_waiting_list ? (
-                            <>
-                                <Clock className="h-4 w-4" />
-                                <span>
-                                    Queue Position #{course.waiting_list_position}
-                                    {course.waiting_list_activity !== undefined && ` • ${course.waiting_list_activity}h activity`}
-                                </span>
-                            </>
-                        ) : course.can_join ? (
-                            <>
-                                <CheckCircle className="h-4 w-4" />
-                                <span>Available to Join</span>
-                            </>
-                        ) : (
-                            <>
-                                <AlertCircle className="h-4 w-4" />
-                                <span>Currently Unavailable</span>
-                            </>
-                        )}
-                    </div>
-                </div>
-            </CardContent>
-
-            <CardFooter>
-                <TooltipProvider>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <div className="w-full">
-                                <Button
-                                    onClick={handleToggleWaitingList}
-                                    disabled={isLoading || (!course.can_join && !course.is_on_waiting_list)}
-                                    variant={course.is_on_waiting_list ? 'destructive' : 'default'}
-                                    className={'w-full transition-all duration-200'}
-                                    size="sm"
-                                >
-                                    {isLoading ? (
-                                        <>
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                            Loading...
-                                        </>
-                                    ) : course.is_on_waiting_list ? (
-                                        <>
-                                            <CheckCircle className="h-4 w-4" />
-                                            Leave Queue
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Clock className="h-4 w-4" />
-                                            Join Queue
-                                        </>
-                                    )}
-                                </Button>
-                            </div>
-                        </TooltipTrigger>
-                        {!course.can_join && !course.is_on_waiting_list && (
-                            <TooltipContent side="top" className="max-w-xs">
-                                <div className="flex items-center gap-2">
+                    <div className="space-y-3">
+                        {/* Status Indicator */}
+                        <div className={cn('flex items-center gap-2 text-sm font-medium', getStatusColor(course))}>
+                            {course.is_on_waiting_list ? (
+                                <>
+                                    <Clock className="h-4 w-4" />
+                                    <span>
+                                        Queue Position #{course.waiting_list_position}
+                                        {course.waiting_list_activity !== undefined &&
+                                            course.waiting_list_activity !== null &&
+                                            ` • ${course.waiting_list_activity}h activity`}
+                                    </span>
+                                </>
+                            ) : course.can_join ? (
+                                <>
+                                    <CheckCircle className="h-4 w-4" />
+                                    <span>Available to Join</span>
+                                </>
+                            ) : (
+                                <>
                                     <AlertCircle className="h-4 w-4" />
-                                    <span>{course.join_error || 'Cannot join this course at the moment'}</span>
-                                </div>
-                            </TooltipContent>
-                        )}
-                    </Tooltip>
-                </TooltipProvider>
-            </CardFooter>
-        </Card>
+                                    <span>Currently Unavailable</span>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </CardContent>
+
+                <CardFooter>
+                    <WaitingListButton course={course} onCourseUpdate={handleCourseUpdate} className="w-full transition-all duration-200" size="sm" />
+                </CardFooter>
+            </Card>
+        </>
     );
 }

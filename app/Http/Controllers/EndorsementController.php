@@ -409,6 +409,7 @@ class EndorsementController extends Controller
             'EDDL_TWR' => 'Düsseldorf Tower',
             'EDDL_APP' => 'Düsseldorf Approach',
             'EDDL_GNDDEL' => 'Düsseldorf Ground/Delivery',
+            'EDDK_TWR' => 'Köln Tower',
             'EDDH_TWR' => 'Hamburg Tower',
             'EDDH_APP' => 'Hamburg Approach',
             'EDDH_GNDDEL' => 'Hamburg Ground/Delivery',

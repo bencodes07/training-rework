@@ -1,12 +1,10 @@
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { Course } from '@/pages/training/courses';
-import { ArrowUpDown, ArrowUp, ArrowDown, Clock, MapPin, AlertCircle, CheckCircle, Play } from 'lucide-react';
-import { useState, useMemo, useEffect } from 'react';
-import { toast } from 'sonner';
+import { ArrowDown, ArrowUp, ArrowUpDown, Clock, MapPin } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import WaitingListButton from './waiting-list-button';
 
 interface SortableCoursesTableProps {
     courses: Course[];
@@ -37,12 +35,17 @@ export default function SortableCoursesTable({ courses: initialCourses, onCourse
     const [courses, setCourses] = useState(initialCourses);
     const [sortField, setSortField] = useState<SortField>('name');
     const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-    const [loadingCourses, setLoadingCourses] = useState<Set<number>>(new Set());
 
     // Update local state when props change
     useEffect(() => {
         setCourses(initialCourses);
     }, [initialCourses]);
+
+    // Handle course updates from the button component
+    const handleCourseUpdate = (courseId: number, updates: Partial<Course>) => {
+        setCourses((prev) => prev.map((c) => (c.id === courseId ? { ...c, ...updates } : c)));
+        onCourseUpdate?.(courseId, updates);
+    };
 
     const handleSort = (field: SortField) => {
         if (sortField === field) {
@@ -106,99 +109,6 @@ export default function SortableCoursesTable({ courses: initialCourses, onCourse
         });
     }, [courses, sortField, sortDirection]);
 
-    const handleToggleWaitingList = async (course: Course) => {
-        if (loadingCourses.has(course.id)) return;
-
-        const wasOnWaitingList = course.is_on_waiting_list;
-
-        // Optimistic update
-        const optimisticUpdates: Partial<Course> = {
-            is_on_waiting_list: !wasOnWaitingList,
-            waiting_list_position: !wasOnWaitingList ? 1 : undefined,
-        };
-
-        setCourses((prev) => prev.map((c) => (c.id === course.id ? { ...c, ...optimisticUpdates } : c)));
-        onCourseUpdate?.(course.id, optimisticUpdates);
-
-        setLoadingCourses((prev) => new Set(prev).add(course.id));
-
-        // Show immediate feedback
-        toast.success(wasOnWaitingList ? 'Left waiting list' : 'Joined waiting list');
-
-        try {
-            const response = await fetch(`/courses/${course.id}/waiting-list`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-                credentials: 'same-origin',
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                // Update with actual server response
-                const serverUpdates: Partial<Course> = {
-                    is_on_waiting_list: data.action === 'joined',
-                    waiting_list_position: data.position || undefined,
-                };
-
-                setCourses((prev) => prev.map((c) => (c.id === course.id ? { ...c, ...serverUpdates } : c)));
-                onCourseUpdate?.(course.id, serverUpdates);
-
-                if (data.action === 'joined' && data.position) {
-                    toast.success('Queue position confirmed');
-                }
-            } else {
-                // Revert on failure
-                setCourses((prev) =>
-                    prev.map((c) =>
-                        c.id === course.id
-                            ? {
-                                  ...c,
-                                  is_on_waiting_list: wasOnWaitingList,
-                                  waiting_list_position: course.waiting_list_position,
-                              }
-                            : c,
-                    ),
-                );
-                onCourseUpdate?.(course.id, {
-                    is_on_waiting_list: wasOnWaitingList,
-                    waiting_list_position: course.waiting_list_position,
-                });
-
-                toast.error('Action failed');
-            }
-        } catch (error) {
-            // Revert on error
-            setCourses((prev) =>
-                prev.map((c) =>
-                    c.id === course.id
-                        ? {
-                              ...c,
-                              is_on_waiting_list: wasOnWaitingList,
-                              waiting_list_position: course.waiting_list_position,
-                          }
-                        : c,
-                ),
-            );
-            onCourseUpdate?.(course.id, {
-                is_on_waiting_list: wasOnWaitingList,
-                waiting_list_position: course.waiting_list_position,
-            });
-
-            console.error('Error toggling waiting list:', error);
-            toast.error('Connection error');
-        } finally {
-            setLoadingCourses((prev) => {
-                const newSet = new Set(prev);
-                newSet.delete(course.id);
-                return newSet;
-            });
-        }
-    };
-
     const SortableHeader = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
         <TableHead className="cursor-pointer select-none hover:bg-muted/50" onClick={() => handleSort(field)}>
             <div className="flex items-center gap-2">
@@ -231,8 +141,6 @@ export default function SortableCoursesTable({ courses: initialCourses, onCourse
                 </TableHeader>
                 <TableBody>
                     {sortedCourses.map((course) => {
-                        const isLoading = loadingCourses.has(course.id);
-
                         return (
                             <TableRow
                                 key={course.id}
@@ -270,7 +178,7 @@ export default function SortableCoursesTable({ courses: initialCourses, onCourse
                                             <Clock className="h-4 w-4" />
                                             <div>
                                                 <div className="text-sm font-medium">Position #{course.waiting_list_position}</div>
-                                                {course.waiting_list_activity !== undefined && (
+                                                {course.waiting_list_activity !== undefined && course.waiting_list_activity !== null && (
                                                     <div className="text-xs text-muted-foreground">{course.waiting_list_activity}h activity</div>
                                                 )}
                                             </div>
@@ -281,43 +189,7 @@ export default function SortableCoursesTable({ courses: initialCourses, onCourse
                                 </TableCell>
 
                                 <TableCell className="w-42 pr-4">
-                                    <TooltipProvider>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <div>
-                                                    <Button
-                                                        onClick={() => handleToggleWaitingList(course)}
-                                                        disabled={isLoading || (!course.can_join && !course.is_on_waiting_list)}
-                                                        variant={course.is_on_waiting_list ? 'destructive' : 'default'}
-                                                        size="sm"
-                                                        className="w-full"
-                                                    >
-                                                        {isLoading ? (
-                                                            'Loading...'
-                                                        ) : course.is_on_waiting_list ? (
-                                                            <>
-                                                                <CheckCircle className="h-4 w-4" />
-                                                                Leave Queue
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <Play className="h-4 w-4" />
-                                                                Join Queue
-                                                            </>
-                                                        )}
-                                                    </Button>
-                                                </div>
-                                            </TooltipTrigger>
-                                            {!course.can_join && !course.is_on_waiting_list && (
-                                                <TooltipContent>
-                                                    <div className="flex items-center gap-2">
-                                                        <AlertCircle className="h-4 w-4" />
-                                                        {course.join_error || 'Cannot join this course'}
-                                                    </div>
-                                                </TooltipContent>
-                                            )}
-                                        </Tooltip>
-                                    </TooltipProvider>
+                                    <WaitingListButton course={course} onCourseUpdate={handleCourseUpdate} className="w-full" size="sm" />
                                 </TableCell>
                             </TableRow>
                         );
