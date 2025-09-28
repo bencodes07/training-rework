@@ -10,8 +10,8 @@ RUN npm ci
 # Copy source code and build assets
 COPY . .
 
-# Build assets without PHP dependencies (disable wayfinder generation)
-RUN DISABLE_WAYFINDER=true npm run build
+# Build assets
+RUN npm run build
 
 # PHP base stage
 FROM php:8.4-fpm-alpine AS php-base
