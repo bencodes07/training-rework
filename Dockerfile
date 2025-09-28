@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-COPY vite.config.js ./
+COPY vite.config.ts ./
 COPY tsconfig.json ./
 
 # Install dependencies
