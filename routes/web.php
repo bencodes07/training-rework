@@ -8,8 +8,8 @@ use App\Http\Controllers\WaitingListController;
 use App\Http\Controllers\FamiliarisationController;
 
 Route::get('/', function () {
-    return Inertia::render('welcome');
-})->name('home');
+    return redirect("/dashboard");
+});
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', function () {
