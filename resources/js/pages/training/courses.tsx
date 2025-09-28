@@ -43,10 +43,11 @@ export interface Course {
 interface PageProps {
     courses: Course[];
     isVatsimUser: boolean;
+    userHasActiveRtgCourse: boolean; // NEW: Backend tells us if user has active RTG course
     error?: string;
 }
 
-export default function Courses({ courses: initialCourses = [], isVatsimUser, error }: PageProps) {
+export default function Courses({ courses: initialCourses = [], isVatsimUser, userHasActiveRtgCourse = false, error }: PageProps) {
     const [courses, setCourses] = useState(initialCourses);
     const [searchTerm, setSearchTerm] = useState('');
     const [typeFilter, setTypeFilter] = useState('all');
@@ -54,6 +55,12 @@ export default function Courses({ courses: initialCourses = [], isVatsimUser, er
     const [activeTab, setActiveTab] = useState('all');
     const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
     const [showFilters, setShowFilters] = useState(false);
+
+    // Calculate if user currently has any RTG courses (including from local state updates)
+    const currentUserHasActiveRtgCourse = useMemo(() => {
+        const hasRtgFromWaitingList = courses.some((course) => course.type === 'RTG' && course.is_on_waiting_list);
+        return userHasActiveRtgCourse || hasRtgFromWaitingList;
+    }, [userHasActiveRtgCourse, courses]);
 
     // Handle course updates from child components
     const handleCourseUpdate = useCallback((courseId: number, updates: Partial<Course>) => {
@@ -76,14 +83,21 @@ export default function Courses({ courses: initialCourses = [], isVatsimUser, er
             const matchesFir = firFilter === 'all' || (course.mentor_group && course.mentor_group.includes(firFilter));
 
             // Tab filter
-            const matchesTab =
-                activeTab === 'all' ||
-                (activeTab === 'waiting' && course.is_on_waiting_list) ||
-                (activeTab === 'available' && course.can_join && !course.is_on_waiting_list);
+            let matchesTab = false;
+            if (activeTab === 'all') {
+                matchesTab = true;
+            } else if (activeTab === 'waiting') {
+                matchesTab = course.is_on_waiting_list;
+            } else if (activeTab === 'available') {
+                // For "available" tab, course must be joinable AND not restricted by RTG rule
+                const isActuallyAvailable = course.can_join && !course.is_on_waiting_list;
+                const isNotBlockedByRtgRestriction = !(course.type === 'RTG' && currentUserHasActiveRtgCourse);
+                matchesTab = isActuallyAvailable && isNotBlockedByRtgRestriction;
+            }
 
             return matchesSearch && matchesType && matchesFir && matchesTab;
         });
-    }, [courses, searchTerm, typeFilter, firFilter, activeTab]);
+    }, [courses, searchTerm, typeFilter, firFilter, activeTab, currentUserHasActiveRtgCourse]);
 
     const clearFilters = () => {
         setSearchTerm('');
@@ -218,11 +232,20 @@ export default function Courses({ courses: initialCourses = [], isVatsimUser, er
                 ) : viewMode === 'grid' ? (
                     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                         {filteredCourses.map((course) => (
-                            <CourseCard key={course.id} course={course} onCourseUpdate={handleCourseUpdate} />
+                            <CourseCard
+                                key={course.id}
+                                course={course}
+                                onCourseUpdate={handleCourseUpdate}
+                                userHasActiveRtgCourse={currentUserHasActiveRtgCourse}
+                            />
                         ))}
                     </div>
                 ) : (
-                    <SortableCoursesTable courses={filteredCourses} onCourseUpdate={handleCourseUpdate} />
+                    <SortableCoursesTable
+                        courses={filteredCourses}
+                        onCourseUpdate={handleCourseUpdate}
+                        userHasActiveRtgCourse={currentUserHasActiveRtgCourse}
+                    />
                 )}
             </div>
         </AppLayout>

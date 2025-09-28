@@ -2,13 +2,14 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { Course } from '@/pages/training/courses';
-import { ArrowDown, ArrowUp, ArrowUpDown, Clock, MapPin } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { ArrowUpDown, ArrowUp, ArrowDown, Clock, MapPin } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
 import WaitingListButton from './waiting-list-button';
 
 interface SortableCoursesTableProps {
     courses: Course[];
     onCourseUpdate?: (courseId: number, updates: Partial<Course>) => void;
+    userHasActiveRtgCourse?: boolean;
 }
 
 type SortField = 'name' | 'airport_name' | 'type' | 'position' | 'rating' | 'mentor_group' | 'waiting_list_position';
@@ -31,7 +32,7 @@ const getTypeColor = (type: string) => {
     }
 };
 
-export default function SortableCoursesTable({ courses: initialCourses, onCourseUpdate }: SortableCoursesTableProps) {
+export default function SortableCoursesTable({ courses: initialCourses, onCourseUpdate, userHasActiveRtgCourse = false }: SortableCoursesTableProps) {
     const [courses, setCourses] = useState(initialCourses);
     const [sortField, setSortField] = useState<SortField>('name');
     const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -189,7 +190,13 @@ export default function SortableCoursesTable({ courses: initialCourses, onCourse
                                 </TableCell>
 
                                 <TableCell className="w-42 pr-4">
-                                    <WaitingListButton course={course} onCourseUpdate={handleCourseUpdate} className="w-full" size="sm" />
+                                    <WaitingListButton
+                                        course={course}
+                                        onCourseUpdate={handleCourseUpdate}
+                                        className="w-full"
+                                        size="sm"
+                                        userHasActiveRtgCourse={userHasActiveRtgCourse}
+                                    />
                                 </TableCell>
                             </TableRow>
                         );

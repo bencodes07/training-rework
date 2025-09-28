@@ -64,9 +64,10 @@ class CourseController extends Controller
                 ->where('user_id', $user->id)
                 ->get();
 
-            // Check if user has an active RTG course (either in training or on waiting list)
             $userHasActiveRtgCourse = $user->activeRatingCourses()->exists() ||
-                $waitingListEntries->whereIn('course.type', ['RTG'])->isNotEmpty();
+                $user->waitingListEntries()->whereHas('course', function ($q) {
+                    $q->where('type', 'RTG');
+                })->exists();
 
             // Format courses for frontend
             $formattedCourses = $filteredCourses->map(function ($course) use ($user, $waitingListEntries) {

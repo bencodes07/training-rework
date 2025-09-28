@@ -13,14 +13,16 @@ interface WaitingListButtonProps {
     variant?: 'default' | 'compact';
     className?: string;
     size?: 'sm' | 'default' | 'lg';
+    userHasActiveRtgCourse?: boolean; // NEW: Indicates if user already has an active RTG course
 }
 
-export default function WaitingListButton({ 
-    course, 
-    onCourseUpdate, 
+export default function WaitingListButton({
+    course,
+    onCourseUpdate,
     variant = 'default',
     className = '',
-    size = 'sm'
+    size = 'sm',
+    userHasActiveRtgCourse = false,
 }: WaitingListButtonProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [loadingAction, setLoadingAction] = useState<'joining' | 'leaving' | null>(null);
@@ -51,11 +53,11 @@ export default function WaitingListButton({
                         preserveScroll: true,
                         onSuccess: (page) => {
                             console.log('Inertia success response:', page);
-                            
+
                             // Check multiple possible locations for the response
                             const flashData = page.props.flash || {};
                             const response = flashData.flash || flashData;
-                            
+
                             console.log('Flash data:', flashData);
                             console.log('Response data:', response);
 
@@ -79,7 +81,7 @@ export default function WaitingListButton({
                         },
                         onError: (errors) => {
                             console.log('Inertia error response:', errors);
-                            
+
                             // Revert optimistic update on error
                             onCourseUpdate?.(course.id, {
                                 is_on_waiting_list: false,
@@ -98,7 +100,7 @@ export default function WaitingListButton({
         } catch (error) {
             console.error('Error joining waiting list:', error);
             toast.error('Connection error');
-            
+
             // Revert optimistic update on error
             onCourseUpdate?.(course.id, {
                 is_on_waiting_list: false,
@@ -188,9 +190,17 @@ export default function WaitingListButton({
             is_on_waiting_list: course.is_on_waiting_list,
             can_join: course.can_join,
             isLoading,
-            loadingAction
+            loadingAction,
+            userHasActiveRtgCourse,
+            courseType: course.type,
         });
-        
+
+        // Check if this is a rating course and user already has an active one
+        if (course.type === 'RTG' && userHasActiveRtgCourse && !course.is_on_waiting_list) {
+            toast.error('You can only join one rating course at a time');
+            return;
+        }
+
         if (course.is_on_waiting_list) {
             setShowLeaveConfirmation(true);
         } else if (course.can_join) {
@@ -203,7 +213,7 @@ export default function WaitingListButton({
             return (
                 <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    {variant === 'compact' ? '' : (loadingAction === 'leaving' ? 'Leaving...' : 'Joining...')}
+                    {variant === 'compact' ? '' : loadingAction === 'leaving' ? 'Leaving...' : 'Joining...'}
                 </>
             );
         }
@@ -225,10 +235,22 @@ export default function WaitingListButton({
         );
     };
 
+    // Check if button should be disabled due to rating course restriction
+    const isDisabledDueToRtgRestriction = course.type === 'RTG' && userHasActiveRtgCourse && !course.is_on_waiting_list;
+    const isButtonDisabled = isLoading || (!course.can_join && !course.is_on_waiting_list) || isDisabledDueToRtgRestriction;
+
+    // Determine the error message for tooltip
+    const getTooltipError = () => {
+        if (isDisabledDueToRtgRestriction) {
+            return 'You can only join one rating course at a time';
+        }
+        return course.join_error || 'Cannot join this course at the moment';
+    };
+
     const button = (
         <Button
             onClick={handleButtonClick}
-            disabled={isLoading || (!course.can_join && !course.is_on_waiting_list)}
+            disabled={isButtonDisabled}
             variant={course.is_on_waiting_list ? 'destructive' : 'default'}
             className={className}
             size={size}
@@ -237,21 +259,19 @@ export default function WaitingListButton({
         </Button>
     );
 
-    // If the course can't be joined and user is not on waiting list, wrap with tooltip
-    if (!course.can_join && !course.is_on_waiting_list) {
+    // If the course can't be joined for any reason, wrap with tooltip
+    if (isButtonDisabled && !course.is_on_waiting_list) {
         return (
             <>
                 <TooltipProvider>
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <div className={variant === 'compact' ? '' : 'w-full'}>
-                                {button}
-                            </div>
+                            <div className={variant === 'compact' ? '' : 'w-full'}>{button}</div>
                         </TooltipTrigger>
                         <TooltipContent side="top" className="max-w-xs">
                             <div className="flex items-center gap-2">
                                 <AlertCircle className="h-4 w-4" />
-                                <span>{course.join_error || 'Cannot join this course at the moment'}</span>
+                                <span>{getTooltipError()}</span>
                             </div>
                         </TooltipContent>
                     </Tooltip>
@@ -265,7 +285,7 @@ export default function WaitingListButton({
                             <DialogDescription>
                                 Are you sure you want to leave the waiting list for <strong>{course.trainee_display_name || course.name}</strong>?
                                 {course.waiting_list_position && (
-                                    <span className="block mt-2 text-sm">
+                                    <span className="mt-2 block text-sm">
                                         You are currently at position #{course.waiting_list_position} and will lose your place.
                                     </span>
                                 )}
@@ -287,9 +307,7 @@ export default function WaitingListButton({
 
     return (
         <>
-            <div className={variant === 'compact' ? '' : 'w-full'}>
-                {button}
-            </div>
+            <div className={variant === 'compact' ? '' : 'w-full'}>{button}</div>
 
             {/* Leave Confirmation Dialog */}
             <Dialog open={showLeaveConfirmation} onOpenChange={setShowLeaveConfirmation}>
@@ -299,7 +317,7 @@ export default function WaitingListButton({
                         <DialogDescription>
                             Are you sure you want to leave the waiting list for <strong>{course.trainee_display_name || course.name}</strong>?
                             {course.waiting_list_position && (
-                                <span className="block mt-2 text-sm">
+                                <span className="mt-2 block text-sm">
                                     You are currently at position #{course.waiting_list_position} and will lose your place.
                                 </span>
                             )}
