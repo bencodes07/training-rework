@@ -12,9 +12,9 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
-import { type NavItem } from '@/types';
+import { SharedData, type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpenIcon, CircleCheck, Globe, LayoutGrid, Send } from 'lucide-react';
+import { BookOpenIcon, CircleCheck, ClipboardList, Globe, LayoutGrid, Send } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const navSections = [
@@ -44,6 +44,17 @@ const navSections = [
         ],
     },
 ];
+
+const mentorSection = {
+    label: 'Mentor',
+    items: [
+        {
+            title: 'Waiting Lists',
+            href: route('waiting-lists.manage'),
+            icon: ClipboardList,
+        },
+    ],
+};
 
 const footerNavItems: NavItem[] = [
     {
@@ -85,6 +96,9 @@ function NavSection({ section }: { section: (typeof navSections)[0] }) {
 }
 
 export function AppSidebar() {
+    const { auth } = usePage<SharedData>().props;
+    const isMentor = auth.user?.is_mentor || auth.user?.is_superuser;
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
@@ -103,6 +117,8 @@ export function AppSidebar() {
                 {navSections.map((section) => (
                     <NavSection key={section.label} section={section} />
                 ))}
+
+                {isMentor === true && <NavSection section={mentorSection} />}
             </SidebarContent>
 
             <SidebarFooter>

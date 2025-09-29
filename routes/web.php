@@ -46,39 +46,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/{course}/waiting-list', [CourseController::class, 'toggleWaitingList'])->name('toggle-waiting-list');
     });
 
-    Route::get('/debug/courses', function () {
-        $user = auth()->user();
-
-        if (!$user) {
-            return response()->json(['error' => 'Not authenticated']);
-        }
-
-        return response()->json([
-            'user' => [
-                'id' => $user->id,
-                'vatsim_id' => $user->vatsim_id,
-                'rating' => $user->rating,
-                'subdivision' => $user->subdivision,
-                'is_vatsim_user' => $user->isVatsimUser(),
-            ],
-            'total_courses' => \App\Models\Course::count(),
-            'courses_for_rating' => \App\Models\Course::forRating($user->rating ?? 1)->count(),
-            'available_courses' => \App\Models\Course::forRating($user->rating ?? 1)
-                ->availableFor($user)
-                ->get()
-                ->map(function ($course) {
-                    return [
-                        'id' => $course->id,
-                        'name' => $course->name,
-                        'trainee_display_name' => $course->trainee_display_name,
-                        'type' => $course->type,
-                        'min_rating' => $course->min_rating,
-                        'max_rating' => $course->max_rating,
-                    ];
-                }),
-        ]);
-    });
-
     // Waiting list management for mentors
     Route::prefix('waiting-lists')->name('waiting-lists.')->middleware('can:mentor')->group(function () {
         Route::get('/manage', [WaitingListController::class, 'mentorView'])->name('manage');

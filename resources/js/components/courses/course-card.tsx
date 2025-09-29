@@ -12,7 +12,7 @@ interface CourseCardProps {
     userHasActiveRtgCourse?: boolean;
 }
 
-const getTypeColor = (type: string) => {
+export const getTypeColor = (type: string) => {
     switch (type) {
         case 'RTG':
             return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 border-blue-200 dark:border-blue-800';
@@ -103,7 +103,7 @@ export default function CourseCard({ course: initialCourse, onCourseUpdate, user
                 </div>
             </CardContent>
 
-            <CardFooter>
+            <CardFooter className="flex h-full flex-col justify-end">
                 <WaitingListButton
                     course={course}
                     onCourseUpdate={handleCourseUpdate}

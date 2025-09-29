@@ -86,7 +86,7 @@ class User extends Authenticatable
      */
     public function isMentor(): bool
     {
-        return $this->hasAnyRole(['EDGG Mentor', 'EDMM Mentor', 'EDWW Mentor']);
+        return $this->hasAnyRole(['EDGG Mentor', 'EDMM Mentor', 'EDWW Mentor', 'ATD Leitung', 'VATGER Leitung']);
     }
 
     /**

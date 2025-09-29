@@ -2,13 +2,18 @@ import AppLayout from '@/layouts/app-layout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { router } from '@inertiajs/react';
-import { AlertCircle, Clock, MessageSquare, Play, Users } from 'lucide-react';
-import { useState } from 'react';
+import { Clock, MessageSquare, Play, Search, Users, X, Eye } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { cn } from '@/lib/utils';
+import { getTypeColor } from '@/components/courses/course-card';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 
 interface WaitingListEntry {
     id: number;
@@ -47,26 +52,28 @@ interface PageProps {
     };
 }
 
-export default function MentorWaitingLists({ courses, statistics, config }: PageProps) {
+export default function MentorWaitingLists({ courses, config }: PageProps) {
+    const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
     const [selectedEntry, setSelectedEntry] = useState<WaitingListEntry | null>(null);
     const [remarks, setRemarks] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [typeFilter, setTypeFilter] = useState('all');
+    const isMobile = useIsMobile();
 
     const handleStartTraining = async (entryId: number) => {
         if (isLoading) return;
-        
+
         setIsLoading(true);
         try {
-            await router.post(`/waiting-lists/${entryId}/start-training`, {}, {
-                preserveState: true,
-                onSuccess: () => {
-                    // Refresh the page data
+            await router.post(
+                `/waiting-lists/${entryId}/start-training`,
+                {},
+                {
+                    preserveState: true,
+                    onFinish: () => setIsLoading(false),
                 },
-                onError: (errors) => {
-                    console.error('Error starting training:', errors);
-                },
-                onFinish: () => setIsLoading(false),
-            });
+            );
         } catch (error) {
             console.error('Error:', error);
             setIsLoading(false);
@@ -75,250 +82,392 @@ export default function MentorWaitingLists({ courses, statistics, config }: Page
 
     const handleUpdateRemarks = async () => {
         if (!selectedEntry || isLoading) return;
-        
+
         setIsLoading(true);
         try {
-            await router.post('/waiting-lists/update-remarks', {
-                entry_id: selectedEntry.id,
-                remarks: remarks,
-            }, {
-                preserveState: true,
-                onSuccess: () => {
-                    setSelectedEntry(null);
-                    setRemarks('');
+            await router.post(
+                '/waiting-lists/update-remarks',
+                {
+                    entry_id: selectedEntry.id,
+                    remarks: remarks,
                 },
-                onError: (errors) => {
-                    console.error('Error updating remarks:', errors);
+                {
+                    preserveState: true,
+                    onSuccess: () => {
+                        setSelectedEntry(null);
+                        setRemarks('');
+                    },
+                    onFinish: () => setIsLoading(false),
                 },
-                onFinish: () => setIsLoading(false),
-            });
+            );
         } catch (error) {
             console.error('Error:', error);
             setIsLoading(false);
         }
     };
 
-    const getTypeColor = (type: string) => {
-        switch (type) {
-            case 'RTG': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
-            case 'EDMT': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300';
-            case 'FAM': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
-            case 'GST': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
-            case 'RST': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
-            default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
-        }
-    };
+    const filteredCourses = useMemo(() => {
+        return courses.filter((course) => {
+            const matchesSearch =
+                !searchTerm ||
+                course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                course.position_display.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const groupedCourses = courses.reduce((acc, course) => {
-        if (!acc[course.type]) acc[course.type] = [];
-        acc[course.type].push(course);
-        return acc;
-    }, {} as Record<string, Course[]>);
+            const matchesType = typeFilter === 'all' || course.type === typeFilter;
+
+            return matchesSearch && matchesType;
+        });
+    }, [courses, searchTerm, typeFilter]);
 
     return (
-        <AppLayout>
-            <div className="container mx-auto px-4 py-8">
-                {/* Header */}
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold mb-2">Waiting List Management</h1>
-                    <p className="text-muted-foreground">
-                        Manage students waiting to start training across your courses.
-                    </p>
+        <AppLayout breadcrumbs={[{ title: 'Waiting Lists', href: route('waiting-lists.manage') }]}>
+            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
+                {/* Filters and Search */}
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="relative min-w-[300px] flex-1">
+                        <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input placeholder="Search courses..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+                        {searchTerm && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="absolute top-1/2 right-1 h-7 w-7 -translate-y-1/2 p-0"
+                                onClick={() => setSearchTerm('')}
+                            >
+                                <X className="h-4 w-4" />
+                            </Button>
+                        )}
+                    </div>
+
+                    <Tabs value={typeFilter} onValueChange={setTypeFilter}>
+                        <TabsList>
+                            <TabsTrigger value="all">All</TabsTrigger>
+                            <TabsTrigger value="RTG">Rating</TabsTrigger>
+                            <TabsTrigger value="EDMT">Endorsement</TabsTrigger>
+                            <TabsTrigger value="FAM">Familiarisation</TabsTrigger>
+                            <TabsTrigger value="GST">Visitor</TabsTrigger>
+                            <TabsTrigger value="RST">Roster</TabsTrigger>
+                        </TabsList>
+                    </Tabs>
                 </div>
 
-                {/* Statistics Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Waiting</CardTitle>
-                            <Users className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{statistics.total_waiting}</div>
-                            <p className="text-xs text-muted-foreground">Across all courses</p>
-                        </CardContent>
-                    </Card>
-                    
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Rating Courses</CardTitle>
-                            <Badge className="h-4 w-4" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{statistics.rtg_waiting}</div>
-                            <p className="text-xs text-muted-foreground">Students ready for training</p>
-                        </CardContent>
-                    </Card>
-                    
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Endorsements</CardTitle>
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{statistics.edmt_waiting}</div>
-                            <p className="text-xs text-muted-foreground">Endorsement training</p>
-                        </CardContent>
-                    </Card>
-                    
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Familiarisations</CardTitle>
-                            <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{statistics.fam_waiting}</div>
-                            <p className="text-xs text-muted-foreground">Familiarisation requests</p>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Course Tabs */}
-                <Tabs defaultValue="RTG" className="mb-6">
-                    <TabsList>
-                        <TabsTrigger value="RTG">Rating Courses</TabsTrigger>
-                        <TabsTrigger value="EDMT">Endorsements</TabsTrigger>
-                        <TabsTrigger value="FAM">Familiarisations</TabsTrigger>
-                        <TabsTrigger value="GST">Visitor Courses</TabsTrigger>
-                        <TabsTrigger value="RST">Roster Courses</TabsTrigger>
-                    </TabsList>
-
-                    {Object.entries(groupedCourses).map(([type, typeCourses]) => (
-                        <TabsContent key={type} value={type} className="space-y-6">
-                            {typeCourses.map((course) => (
-                                <Card key={course.id}>
-                                    <CardHeader>
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <CardTitle className="flex items-center gap-2">
-                                                    {course.name}
-                                                    <Badge className={getTypeColor(course.type)}>
-                                                        {course.type_display}
-                                                    </Badge>
-                                                    <Badge variant="outline">
-                                                        {course.position_display}
-                                                    </Badge>
-                                                </CardTitle>
-                                                <CardDescription>
-                                                    {course.waiting_count} student{course.waiting_count !== 1 ? 's' : ''} waiting
-                                                </CardDescription>
-                                            </div>
+                {/* Course Cards */}
+                {filteredCourses.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {filteredCourses.map((course) => (
+                            <Card key={course.id}>
+                                <CardHeader>
+                                    <div className="flex items-start gap-3">
+                                        <div className="min-w-0 flex-1">
+                                            <CardTitle className="truncate text-base">{course.name}</CardTitle>
+                                            <CardDescription className="mt-1 flex flex-wrap gap-2">
+                                                <Badge variant="outline" className="text-xs">
+                                                    {course.position_display}
+                                                </Badge>
+                                                <Badge className={cn('text-xs', getTypeColor(course.type))}>{course.type_display}</Badge>
+                                            </CardDescription>
                                         </div>
-                                    </CardHeader>
-                                    
-                                    {course.waiting_list.length > 0 && (
-                                        <CardContent>
-                                            <Table>
-                                                <TableHeader>
-                                                    <TableRow>
-                                                        <TableHead>Student</TableHead>
-                                                        <TableHead>VATSIM ID</TableHead>
-                                                        <TableHead>Activity (hrs)</TableHead>
-                                                        <TableHead>Waiting Time</TableHead>
-                                                        <TableHead>Remarks</TableHead>
-                                                        <TableHead>Actions</TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {course.waiting_list.map((entry) => (
-                                                        <TableRow key={entry.id}>
-                                                            <TableCell className="font-medium">
-                                                                {entry.name}
-                                                            </TableCell>
-                                                            <TableCell>{entry.vatsim_id}</TableCell>
-                                                            <TableCell>
-                                                                <span className={
-                                                                    entry.activity >= config.min_activity 
-                                                                        ? 'text-green-600' 
-                                                                        : entry.activity >= config.display_activity 
-                                                                            ? 'text-yellow-600' 
-                                                                            : 'text-red-600'
-                                                                }>
-                                                                    {entry.activity}
-                                                                </span>
-                                                            </TableCell>
-                                                            <TableCell>{entry.waiting_time}</TableCell>
-                                                            <TableCell>
-                                                                {entry.remarks ? (
-                                                                    <span className="text-sm text-muted-foreground">
-                                                                        {entry.remarks.substring(0, 50)}
-                                                                        {entry.remarks.length > 50 && '...'}
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="text-muted-foreground">No remarks</span>
-                                                                )}
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                <div className="flex gap-2">
-                                                                    <Button
-                                                                        size="sm"
-                                                                        onClick={() => handleStartTraining(entry.id)}
-                                                                        disabled={isLoading || (course.type === 'RTG' && entry.activity < config.display_activity)}
-                                                                    >
-                                                                        <Play className="h-4 w-4 mr-1" />
-                                                                        Start
-                                                                    </Button>
-                                                                    
-                                                                    <Dialog>
-                                                                        <DialogTrigger asChild>
+                                    </div>
+                                </CardHeader>
+
+                                <CardContent className="-mt-4 space-y-3">
+                                    {/* Student count indicator */}
+                                    <div className="flex items-center justify-between rounded-lg border p-3">
+                                        <div className="flex items-center gap-2">
+                                            <Users className="h-4 w-4 text-muted-foreground" />
+                                            <span className="text-sm text-muted-foreground">Students waiting</span>
+                                        </div>
+                                        <Badge variant={course.waiting_count > 0 ? 'default' : 'secondary'}>{course.waiting_count}</Badge>
+                                    </div>
+
+                                    {isMobile ? (
+                                        <Drawer>
+                                            <DrawerTrigger asChild>
+                                                <Button
+                                                    className="w-full"
+                                                    variant={course.waiting_count > 0 ? 'default' : 'outline'}
+                                                    disabled={course.waiting_count === 0}
+                                                    onClick={() => setSelectedCourse(course)}
+                                                >
+                                                    <Eye className="h-4 w-4" />
+                                                    View Waiting List
+                                                </Button>
+                                            </DrawerTrigger>
+
+                                            <DrawerContent className="max-h-[85vh]">
+                                                <DrawerHeader>
+                                                    <DrawerTitle className="flex items-center gap-2">{course.name}</DrawerTitle>
+                                                    <DrawerDescription>
+                                                        {course.waiting_count} student{course.waiting_count !== 1 ? 's' : ''} waiting for training
+                                                    </DrawerDescription>
+                                                </DrawerHeader>
+
+                                                <div className="overflow-y-auto px-4 pb-4">
+                                                    {selectedCourse && selectedCourse.waiting_list.length > 0 ? (
+                                                        <div className="space-y-3">
+                                                            {selectedCourse.waiting_list.map((entry) => (
+                                                                <Card key={entry.id}>
+                                                                    <CardContent className="space-y-3 p-4">
+                                                                        <div className="flex items-start justify-between">
+                                                                            <div>
+                                                                                <div className="font-medium">{entry.name}</div>
+                                                                                <div className="text-sm text-muted-foreground">{entry.vatsim_id}</div>
+                                                                            </div>
+                                                                            <Badge
+                                                                                className={cn(
+                                                                                    entry.activity >= config.min_activity &&
+                                                                                        'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
+                                                                                    entry.activity >= config.display_activity &&
+                                                                                        entry.activity < config.min_activity &&
+                                                                                        'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
+                                                                                    entry.activity < config.display_activity &&
+                                                                                        'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+                                                                                )}
+                                                                            >
+                                                                                {entry.activity}h
+                                                                            </Badge>
+                                                                        </div>
+
+                                                                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                                                            <Clock className="h-3 w-3" />
+                                                                            {entry.waiting_time}
+                                                                        </div>
+
+                                                                        {entry.remarks && (
+                                                                            <div className="border-l-2 pl-3 text-sm text-muted-foreground">
+                                                                                {entry.remarks}
+                                                                            </div>
+                                                                        )}
+
+                                                                        <div className="flex gap-2 pt-2">
                                                                             <Button
                                                                                 size="sm"
-                                                                                variant="outline"
-                                                                                onClick={() => {
-                                                                                    setSelectedEntry(entry);
-                                                                                    setRemarks(entry.remarks || '');
-                                                                                }}
+                                                                                className="flex-1"
+                                                                                onClick={() => handleStartTraining(entry.id)}
+                                                                                disabled={
+                                                                                    isLoading ||
+                                                                                    (selectedCourse.type === 'RTG' &&
+                                                                                        entry.activity < config.display_activity)
+                                                                                }
                                                                             >
-                                                                                <MessageSquare className="h-4 w-4 mr-1" />
-                                                                                Remarks
+                                                                                <Play className="mr-1 h-4 w-4" />
+                                                                                Start Training
                                                                             </Button>
-                                                                        </DialogTrigger>
-                                                                        <DialogContent>
-                                                                            <DialogHeader>
-                                                                                <DialogTitle>
-                                                                                    Update Remarks - {entry.name}
-                                                                                </DialogTitle>
-                                                                            </DialogHeader>
-                                                                            <div className="space-y-4">
-                                                                                <Textarea
-                                                                                    placeholder="Enter remarks about this student..."
-                                                                                    value={remarks}
-                                                                                    onChange={(e) => setRemarks(e.target.value)}
-                                                                                    rows={4}
-                                                                                />
-                                                                                <div className="flex justify-end gap-2">
+
+                                                                            <Dialog>
+                                                                                <DialogTrigger asChild>
                                                                                     <Button
+                                                                                        size="sm"
                                                                                         variant="outline"
                                                                                         onClick={() => {
-                                                                                            setSelectedEntry(null);
-                                                                                            setRemarks('');
+                                                                                            setSelectedEntry(entry);
+                                                                                            setRemarks(entry.remarks || '');
                                                                                         }}
                                                                                     >
-                                                                                        Cancel
+                                                                                        <MessageSquare className="h-4 w-4" />
                                                                                     </Button>
-                                                                                    <Button
-                                                                                        onClick={handleUpdateRemarks}
-                                                                                        disabled={isLoading}
-                                                                                    >
-                                                                                        {isLoading ? 'Saving...' : 'Save'}
-                                                                                    </Button>
-                                                                                </div>
+                                                                                </DialogTrigger>
+                                                                                <DialogContent onClick={(e) => e.stopPropagation()}>
+                                                                                    <DialogHeader>
+                                                                                        <DialogTitle>Update Remarks - {entry.name}</DialogTitle>
+                                                                                        <DialogDescription>
+                                                                                            Add or update notes about this student's progress
+                                                                                        </DialogDescription>
+                                                                                    </DialogHeader>
+                                                                                    <Textarea
+                                                                                        placeholder="Enter remarks about this student..."
+                                                                                        value={remarks}
+                                                                                        onChange={(e) => setRemarks(e.target.value)}
+                                                                                        rows={4}
+                                                                                    />
+                                                                                    <DialogFooter>
+                                                                                        <Button
+                                                                                            variant="outline"
+                                                                                            onClick={() => {
+                                                                                                setSelectedEntry(null);
+                                                                                                setRemarks('');
+                                                                                            }}
+                                                                                        >
+                                                                                            Cancel
+                                                                                        </Button>
+                                                                                        <Button onClick={handleUpdateRemarks} disabled={isLoading}>
+                                                                                            Save
+                                                                                        </Button>
+                                                                                    </DialogFooter>
+                                                                                </DialogContent>
+                                                                            </Dialog>
+                                                                        </div>
+                                                                    </CardContent>
+                                                                </Card>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="py-8 text-center text-muted-foreground">
+                                                            No students waiting for this course
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </DrawerContent>
+                                        </Drawer>
+                                    ) : (
+                                        <Dialog>
+                                            <DialogTrigger asChild>
+                                                <Button
+                                                    className="w-full"
+                                                    variant={course.waiting_count > 0 ? 'default' : 'outline'}
+                                                    disabled={course.waiting_count === 0}
+                                                    onClick={() => setSelectedCourse(course)}
+                                                >
+                                                    <Eye className="h-4 w-4" />
+                                                    View Waiting List
+                                                </Button>
+                                            </DialogTrigger>
+
+                                            <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-[90vw] lg:max-w-[1000px]">
+                                                <DialogHeader>
+                                                    <DialogTitle className="flex items-center gap-2">{course.name}</DialogTitle>
+                                                    <DialogDescription>
+                                                        {course.waiting_count} student{course.waiting_count !== 1 ? 's' : ''} waiting for training
+                                                    </DialogDescription>
+                                                </DialogHeader>
+
+                                                {selectedCourse && selectedCourse.waiting_list.length > 0 ? (
+                                                    <div className="rounded-md border">
+                                                        <Table>
+                                                            <TableHeader>
+                                                                <TableRow>
+                                                                    <TableHead>Student</TableHead>
+                                                                    <TableHead>Activity</TableHead>
+                                                                    <TableHead>Waiting Time</TableHead>
+                                                                    <TableHead>Remarks</TableHead>
+                                                                    <TableHead className="text-right">Actions</TableHead>
+                                                                </TableRow>
+                                                            </TableHeader>
+                                                            <TableBody>
+                                                                {selectedCourse.waiting_list.map((entry) => (
+                                                                    <TableRow key={entry.id}>
+                                                                        <TableCell>
+                                                                            <div>
+                                                                                <div className="font-medium">{entry.name}</div>
+                                                                                <div className="text-sm text-muted-foreground">{entry.vatsim_id}</div>
                                                                             </div>
-                                                                        </DialogContent>
-                                                                    </Dialog>
-                                                                </div>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                                </TableBody>
-                                            </Table>
-                                        </CardContent>
+                                                                        </TableCell>
+                                                                        <TableCell>
+                                                                            <span
+                                                                                className={cn(
+                                                                                    'font-medium',
+                                                                                    entry.activity >= config.min_activity && 'text-green-600',
+                                                                                    entry.activity >= config.display_activity &&
+                                                                                        entry.activity < config.min_activity &&
+                                                                                        'text-yellow-600',
+                                                                                    entry.activity < config.display_activity && 'text-red-600',
+                                                                                )}
+                                                                            >
+                                                                                {entry.activity}h
+                                                                            </span>
+                                                                        </TableCell>
+                                                                        <TableCell>
+                                                                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                                                                <Clock className="h-3 w-3" />
+                                                                                {entry.waiting_time}
+                                                                            </div>
+                                                                        </TableCell>
+                                                                        <TableCell>
+                                                                            {entry.remarks ? (
+                                                                                <span className="text-sm text-muted-foreground">
+                                                                                    {entry.remarks.substring(0, 30)}
+                                                                                    {entry.remarks.length > 30 && '...'}
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="text-sm text-muted-foreground">—</span>
+                                                                            )}
+                                                                        </TableCell>
+                                                                        <TableCell className="text-right">
+                                                                            <div className="flex justify-end gap-2">
+                                                                                <Button
+                                                                                    size="sm"
+                                                                                    onClick={() => handleStartTraining(entry.id)}
+                                                                                    disabled={
+                                                                                        isLoading ||
+                                                                                        (selectedCourse.type === 'RTG' &&
+                                                                                            entry.activity < config.display_activity)
+                                                                                    }
+                                                                                >
+                                                                                    <Play className="mr-1 h-4 w-4" />
+                                                                                    Start
+                                                                                </Button>
+
+                                                                                <Dialog>
+                                                                                    <DialogTrigger asChild>
+                                                                                        <Button
+                                                                                            size="sm"
+                                                                                            variant="outline"
+                                                                                            onClick={() => {
+                                                                                                setSelectedEntry(entry);
+                                                                                                setRemarks(entry.remarks || '');
+                                                                                            }}
+                                                                                        >
+                                                                                            <MessageSquare className="h-4 w-4" />
+                                                                                        </Button>
+                                                                                    </DialogTrigger>
+                                                                                    <DialogContent onClick={(e) => e.stopPropagation()}>
+                                                                                        <DialogHeader>
+                                                                                            <DialogTitle>Update Remarks - {entry.name}</DialogTitle>
+                                                                                            <DialogDescription>
+                                                                                                Add or update notes about this student's progress
+                                                                                            </DialogDescription>
+                                                                                        </DialogHeader>
+                                                                                        <Textarea
+                                                                                            placeholder="Enter remarks about this student..."
+                                                                                            value={remarks}
+                                                                                            onChange={(e) => setRemarks(e.target.value)}
+                                                                                            rows={4}
+                                                                                        />
+                                                                                        <DialogFooter>
+                                                                                            <Button
+                                                                                                variant="outline"
+                                                                                                onClick={() => {
+                                                                                                    setSelectedEntry(null);
+                                                                                                    setRemarks('');
+                                                                                                }}
+                                                                                            >
+                                                                                                Cancel
+                                                                                            </Button>
+                                                                                            <Button
+                                                                                                onClick={handleUpdateRemarks}
+                                                                                                disabled={isLoading}
+                                                                                            >
+                                                                                                Save
+                                                                                            </Button>
+                                                                                        </DialogFooter>
+                                                                                    </DialogContent>
+                                                                                </Dialog>
+                                                                            </div>
+                                                                        </TableCell>
+                                                                    </TableRow>
+                                                                ))}
+                                                            </TableBody>
+                                                        </Table>
+                                                    </div>
+                                                ) : (
+                                                    <div className="py-8 text-center text-muted-foreground">No students waiting for this course</div>
+                                                )}
+                                            </DialogContent>
+                                        </Dialog>
                                     )}
-                                </Card>
-                            ))}
-                        </TabsContent>
-                    ))}
-                </Tabs>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                ) : (
+                    <Card className="py-12">
+                        <CardContent className="text-center">
+                            <Search className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                            <h3 className="mb-2 text-lg font-semibold">No courses found</h3>
+                            <p className="text-muted-foreground">Try adjusting your search or filter criteria.</p>
+                        </CardContent>
+                    </Card>
+                )}
             </div>
         </AppLayout>
     );

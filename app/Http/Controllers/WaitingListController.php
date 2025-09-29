@@ -30,9 +30,10 @@ class WaitingListController extends Controller
         }
 
         $user = $request->user();
-        
-        // Get courses the user can mentor
-        if ($user->is_superuser) {
+
+        // Superusers and admins see ALL courses
+        // Regular mentors only see their assigned courses
+        if ($user->is_superuser || $user->is_admin) {
             $courses = Course::with(['waitingListEntries.user', 'mentorGroup'])->get();
         } else {
             $courses = $user->mentorCourses()->with(['waitingListEntries.user', 'mentorGroup'])->get();
@@ -115,7 +116,8 @@ class WaitingListController extends Controller
         $user = $request->user();
         
         // Check if user can mentor this course
-        if (!$user->is_superuser && !$user->mentorCourses()->where('id', $entry->course_id)->exists()) {
+        // Superusers and admins can mentor any course
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('id', $entry->course_id)->exists()) {
             return response()->json(['error' => 'You cannot mentor this course'], 403);
         }
 
@@ -157,7 +159,8 @@ class WaitingListController extends Controller
         $user = $request->user();
 
         // Check if user can mentor this course
-        if (!$user->is_superuser && !$user->mentorCourses()->where('id', $entry->course_id)->exists()) {
+        // Superusers and admins can modify any entry
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('id', $entry->course_id)->exists()) {
             return response()->json(['error' => 'You cannot modify this entry'], 403);
         }
 
