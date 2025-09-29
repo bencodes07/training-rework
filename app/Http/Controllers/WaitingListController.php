@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Course;
+use App\Models\User;
 use App\Models\WaitingListEntry;
 use App\Services\WaitingListService;
 use Illuminate\Http\Request;
@@ -68,6 +69,7 @@ class WaitingListController extends Controller
                 ];
             });
 
+
             $courseData[] = [
                 'id' => $course->id,
                 'name' => $course->name,
@@ -105,7 +107,7 @@ class WaitingListController extends Controller
     }
 
     /**
-     * Start training for a student
+     * Start training for a Trainee
      */
     public function startTraining(Request $request, WaitingListEntry $entry): JsonResponse
     {
@@ -142,12 +144,12 @@ class WaitingListController extends Controller
     }
 
     /**
-     * Update remarks for a waiting list entry
-     */
-    public function updateRemarks(Request $request): JsonResponse
+ * Update remarks for a waiting list entry
+ */
+    public function updateRemarks(Request $request)
     {
         if (!Gate::allows('mentor')) {
-            return response()->json(['error' => 'Access denied'], 403);
+            return back()->withErrors(['error' => 'Access denied']);
         }
 
         $request->validate([
@@ -159,22 +161,21 @@ class WaitingListController extends Controller
         $user = $request->user();
 
         // Check if user can mentor this course
-        // Superusers and admins can modify any entry
         if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('id', $entry->course_id)->exists()) {
-            return response()->json(['error' => 'You cannot modify this entry'], 403);
+            return back()->withErrors(['error' => 'You cannot modify this entry']);
         }
 
         try {
-            [$success, $message] = $this->waitingListService->updateRemarks(
-                $entry, 
-                $request->remarks ?? '', 
-                $user
-            );
-            
-            return response()->json([
-                'success' => $success,
-                'message' => $message,
-            ], $success ? 200 : 400);
+            $entry->update(['remarks' => $request->remarks ?? '']);
+
+            \Log::info('Waiting list remarks updated', [
+                'entry_id' => $entry->id,
+                'mentor_id' => $user->id,
+                'trainee_id' => $entry->user_id,
+                'course_id' => $entry->course_id
+            ]);
+
+            return back();
         } catch (\Exception $e) {
             \Log::error('Error updating remarks', [
                 'entry_id' => $entry->id,
@@ -182,9 +183,7 @@ class WaitingListController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return response()->json([
-                'error' => 'An error occurred while updating remarks.',
-            ], 500);
+            return back()->withErrors(['error' => 'An error occurred while updating remarks.']);
         }
     }
 }

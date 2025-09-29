@@ -115,7 +115,7 @@ class WaitingListService
         $minActivity = config('services.training.display_activity', 8);
         
         if ($entry->course->type === 'RTG' && $entry->activity < $minActivity) {
-            return [false, 'Student does not have sufficient activity to start training.'];
+            return [false, 'Trainee does not have sufficient activity to start training.'];
         }
 
         try {

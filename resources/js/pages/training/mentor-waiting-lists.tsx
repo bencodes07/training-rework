@@ -14,6 +14,8 @@ import { cn } from '@/lib/utils';
 import { getTypeColor } from '@/components/courses/course-card';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
+import { toast } from 'sonner';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface WaitingListEntry {
     id: number;
@@ -60,6 +62,7 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
     const [searchTerm, setSearchTerm] = useState('');
     const [typeFilter, setTypeFilter] = useState('all');
     const isMobile = useIsMobile();
+    const [isRemarksDialogOpen, setIsRemarksDialogOpen] = useState(false);
 
     const handleStartTraining = async (entryId: number) => {
         if (isLoading) return;
@@ -81,29 +84,67 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
     };
 
     const handleUpdateRemarks = async () => {
-        if (!selectedEntry || isLoading) return;
+        if (!selectedEntry || isLoading || !selectedCourse) return;
 
         setIsLoading(true);
-        try {
-            await router.post(
-                '/waiting-lists/update-remarks',
-                {
-                    entry_id: selectedEntry.id,
-                    remarks: remarks,
+
+        // Store original remarks for potential rollback
+        const originalRemarks = selectedEntry.remarks;
+        const savedEntry = selectedEntry;
+        const savedRemarks = remarks;
+
+        // Optimistic update - immediately update the UI
+        const updatedWaitingList = selectedCourse.waiting_list.map((entry) =>
+            entry.id === savedEntry.id ? { ...entry, remarks: savedRemarks } : entry,
+        );
+
+        setSelectedCourse({
+            ...selectedCourse,
+            waiting_list: updatedWaitingList,
+        });
+
+        // Close dialog immediately for better UX
+        setIsRemarksDialogOpen(false);
+        setSelectedEntry(null);
+        setRemarks('');
+
+        router.post(
+            '/waiting-lists/update-remarks',
+            {
+                entry_id: savedEntry.id,
+                remarks: savedRemarks,
+            },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                onSuccess: () => {
+                    toast.success('Remarks updated successfully');
                 },
-                {
-                    preserveState: true,
-                    onSuccess: () => {
-                        setSelectedEntry(null);
-                        setRemarks('');
-                    },
-                    onFinish: () => setIsLoading(false),
+                onError: (errors) => {
+                    // Revert optimistic update on error
+                    const revertedWaitingList = selectedCourse.waiting_list.map((entry) =>
+                        entry.id === savedEntry.id ? { ...entry, remarks: originalRemarks } : entry,
+                    );
+
+                    setSelectedCourse({
+                        ...selectedCourse,
+                        waiting_list: revertedWaitingList,
+                    });
+
+                    const errorMessage = Object.values(errors).flat()[0] || 'Failed to update remarks';
+                    toast.error(typeof errorMessage === 'string' ? errorMessage : 'Failed to update remarks');
                 },
-            );
-        } catch (error) {
-            console.error('Error:', error);
-            setIsLoading(false);
-        }
+                onFinish: () => {
+                    setIsLoading(false);
+                },
+            },
+        );
+    };
+
+    const handleCancelRemarks = () => {
+        setIsRemarksDialogOpen(false);
+        setSelectedEntry(null);
+        setRemarks('');
     };
 
     const filteredCourses = useMemo(() => {
@@ -171,11 +212,11 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                                 </CardHeader>
 
                                 <CardContent className="-mt-4 space-y-3">
-                                    {/* Student count indicator */}
+                                    {/* Trainee count indicator */}
                                     <div className="flex items-center justify-between rounded-lg border p-3">
                                         <div className="flex items-center gap-2">
                                             <Users className="h-4 w-4 text-muted-foreground" />
-                                            <span className="text-sm text-muted-foreground">Students waiting</span>
+                                            <span className="text-sm text-muted-foreground">Trainees waiting</span>
                                         </div>
                                         <Badge variant={course.waiting_count > 0 ? 'default' : 'secondary'}>{course.waiting_count}</Badge>
                                     </div>
@@ -198,7 +239,7 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                                                 <DrawerHeader>
                                                     <DrawerTitle className="flex items-center gap-2">{course.name}</DrawerTitle>
                                                     <DrawerDescription>
-                                                        {course.waiting_count} student{course.waiting_count !== 1 ? 's' : ''} waiting for training
+                                                        {course.waiting_count} trainee{course.waiting_count !== 1 ? 's' : ''} waiting for training
                                                     </DrawerDescription>
                                                 </DrawerHeader>
 
@@ -240,28 +281,47 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                                                                         )}
 
                                                                         <div className="flex gap-2 pt-2">
-                                                                            <Button
-                                                                                size="sm"
-                                                                                className="flex-1"
-                                                                                onClick={() => handleStartTraining(entry.id)}
-                                                                                disabled={
-                                                                                    isLoading ||
-                                                                                    (selectedCourse.type === 'RTG' &&
-                                                                                        entry.activity < config.display_activity)
-                                                                                }
-                                                                            >
-                                                                                <Play className="mr-1 h-4 w-4" />
-                                                                                Start Training
-                                                                            </Button>
+                                                                            <TooltipProvider>
+                                                                                <Tooltip>
+                                                                                    <TooltipTrigger asChild>
+                                                                                        <div>
+                                                                                            <Button
+                                                                                                size="sm"
+                                                                                                className="flex-1"
+                                                                                                onClick={() => handleStartTraining(entry.id)}
+                                                                                                disabled={
+                                                                                                    isLoading ||
+                                                                                                    (selectedCourse.type === 'RTG' &&
+                                                                                                        entry.activity < config.display_activity)
+                                                                                                }
+                                                                                            >
+                                                                                                <Play className="mr-1 h-4 w-4" />
+                                                                                                Start Training
+                                                                                            </Button>
+                                                                                        </div>
+                                                                                    </TooltipTrigger>
+                                                                                    {selectedCourse.type === 'RTG' &&
+                                                                                        entry.activity < config.display_activity && (
+                                                                                            <TooltipContent side="top">
+                                                                                                <p>
+                                                                                                    Trainee needs at least {config.display_activity}h
+                                                                                                    of activity to start a rating course
+                                                                                                </p>
+                                                                                            </TooltipContent>
+                                                                                        )}
+                                                                                </Tooltip>
+                                                                            </TooltipProvider>
 
-                                                                            <Dialog>
+                                                                            <Dialog open={isRemarksDialogOpen} onOpenChange={setIsRemarksDialogOpen}>
                                                                                 <DialogTrigger asChild>
                                                                                     <Button
                                                                                         size="sm"
                                                                                         variant="outline"
-                                                                                        onClick={() => {
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
                                                                                             setSelectedEntry(entry);
                                                                                             setRemarks(entry.remarks || '');
+                                                                                            setIsRemarksDialogOpen(true);
                                                                                         }}
                                                                                     >
                                                                                         <MessageSquare className="h-4 w-4" />
@@ -271,27 +331,21 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                                                                                     <DialogHeader>
                                                                                         <DialogTitle>Update Remarks - {entry.name}</DialogTitle>
                                                                                         <DialogDescription>
-                                                                                            Add or update notes about this student's progress
+                                                                                            Add or update notes about this trainee's progress
                                                                                         </DialogDescription>
                                                                                     </DialogHeader>
                                                                                     <Textarea
-                                                                                        placeholder="Enter remarks about this student..."
+                                                                                        placeholder="Enter remarks about this trainee..."
                                                                                         value={remarks}
                                                                                         onChange={(e) => setRemarks(e.target.value)}
                                                                                         rows={4}
                                                                                     />
                                                                                     <DialogFooter>
-                                                                                        <Button
-                                                                                            variant="outline"
-                                                                                            onClick={() => {
-                                                                                                setSelectedEntry(null);
-                                                                                                setRemarks('');
-                                                                                            }}
-                                                                                        >
+                                                                                        <Button variant="outline" onClick={handleCancelRemarks}>
                                                                                             Cancel
                                                                                         </Button>
                                                                                         <Button onClick={handleUpdateRemarks} disabled={isLoading}>
-                                                                                            Save
+                                                                                            {isLoading ? 'Saving...' : 'Save'}
                                                                                         </Button>
                                                                                     </DialogFooter>
                                                                                 </DialogContent>
@@ -303,7 +357,7 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                                                         </div>
                                                     ) : (
                                                         <div className="py-8 text-center text-muted-foreground">
-                                                            No students waiting for this course
+                                                            No trainees waiting for this course
                                                         </div>
                                                     )}
                                                 </div>
@@ -327,7 +381,7 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                                                 <DialogHeader>
                                                     <DialogTitle className="flex items-center gap-2">{course.name}</DialogTitle>
                                                     <DialogDescription>
-                                                        {course.waiting_count} student{course.waiting_count !== 1 ? 's' : ''} waiting for training
+                                                        {course.waiting_count} trainee{course.waiting_count !== 1 ? 's' : ''} waiting for training
                                                     </DialogDescription>
                                                 </DialogHeader>
 
@@ -336,7 +390,7 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                                                         <Table>
                                                             <TableHeader>
                                                                 <TableRow>
-                                                                    <TableHead>Student</TableHead>
+                                                                    <TableHead>Trainee</TableHead>
                                                                     <TableHead>Activity</TableHead>
                                                                     <TableHead>Waiting Time</TableHead>
                                                                     <TableHead>Remarks</TableHead>
@@ -384,27 +438,51 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                                                                         </TableCell>
                                                                         <TableCell className="text-right">
                                                                             <div className="flex justify-end gap-2">
-                                                                                <Button
-                                                                                    size="sm"
-                                                                                    onClick={() => handleStartTraining(entry.id)}
-                                                                                    disabled={
-                                                                                        isLoading ||
-                                                                                        (selectedCourse.type === 'RTG' &&
-                                                                                            entry.activity < config.display_activity)
-                                                                                    }
-                                                                                >
-                                                                                    <Play className="mr-1 h-4 w-4" />
-                                                                                    Start
-                                                                                </Button>
+                                                                                <TooltipProvider>
+                                                                                    <Tooltip>
+                                                                                        <TooltipTrigger asChild>
+                                                                                            <div>
+                                                                                                <Button
+                                                                                                    size="sm"
+                                                                                                    className="flex-1"
+                                                                                                    onClick={() => handleStartTraining(entry.id)}
+                                                                                                    disabled={
+                                                                                                        isLoading ||
+                                                                                                        (selectedCourse.type === 'RTG' &&
+                                                                                                            entry.activity < config.display_activity)
+                                                                                                    }
+                                                                                                >
+                                                                                                    <Play className="mr-1 h-4 w-4" />
+                                                                                                    Start Training
+                                                                                                </Button>
+                                                                                            </div>
+                                                                                        </TooltipTrigger>
+                                                                                        {selectedCourse.type === 'RTG' &&
+                                                                                            entry.activity < config.display_activity && (
+                                                                                                <TooltipContent side="top">
+                                                                                                    <p>
+                                                                                                        Trainee needs at least{' '}
+                                                                                                        {config.display_activity}h of activity to
+                                                                                                        start a rating course
+                                                                                                    </p>
+                                                                                                </TooltipContent>
+                                                                                            )}
+                                                                                    </Tooltip>
+                                                                                </TooltipProvider>
 
-                                                                                <Dialog>
+                                                                                <Dialog
+                                                                                    open={isRemarksDialogOpen}
+                                                                                    onOpenChange={setIsRemarksDialogOpen}
+                                                                                >
                                                                                     <DialogTrigger asChild>
                                                                                         <Button
                                                                                             size="sm"
                                                                                             variant="outline"
-                                                                                            onClick={() => {
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation();
                                                                                                 setSelectedEntry(entry);
                                                                                                 setRemarks(entry.remarks || '');
+                                                                                                setIsRemarksDialogOpen(true);
                                                                                             }}
                                                                                         >
                                                                                             <MessageSquare className="h-4 w-4" />
@@ -414,30 +492,24 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                                                                                         <DialogHeader>
                                                                                             <DialogTitle>Update Remarks - {entry.name}</DialogTitle>
                                                                                             <DialogDescription>
-                                                                                                Add or update notes about this student's progress
+                                                                                                Add or update notes about this trainee's progress
                                                                                             </DialogDescription>
                                                                                         </DialogHeader>
                                                                                         <Textarea
-                                                                                            placeholder="Enter remarks about this student..."
+                                                                                            placeholder="Enter remarks about this trainee..."
                                                                                             value={remarks}
                                                                                             onChange={(e) => setRemarks(e.target.value)}
                                                                                             rows={4}
                                                                                         />
                                                                                         <DialogFooter>
-                                                                                            <Button
-                                                                                                variant="outline"
-                                                                                                onClick={() => {
-                                                                                                    setSelectedEntry(null);
-                                                                                                    setRemarks('');
-                                                                                                }}
-                                                                                            >
+                                                                                            <Button variant="outline" onClick={handleCancelRemarks}>
                                                                                                 Cancel
                                                                                             </Button>
                                                                                             <Button
                                                                                                 onClick={handleUpdateRemarks}
                                                                                                 disabled={isLoading}
                                                                                             >
-                                                                                                Save
+                                                                                                {isLoading ? 'Saving...' : 'Save'}
                                                                                             </Button>
                                                                                         </DialogFooter>
                                                                                     </DialogContent>
@@ -450,7 +522,7 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                                                         </Table>
                                                     </div>
                                                 ) : (
-                                                    <div className="py-8 text-center text-muted-foreground">No students waiting for this course</div>
+                                                    <div className="py-8 text-center text-muted-foreground">No trainees waiting for this course</div>
                                                 )}
                                             </DialogContent>
                                         </Dialog>
