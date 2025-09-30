@@ -1,6 +1,4 @@
-import { SVGAttributes } from 'react';
-
-export default function AppLogoIcon(props: SVGAttributes<SVGElement>) {
+export default function AppLogoIcon() {
     return (
         <svg className="size-6" id="Layer_2" data-name="Layer 2" fill="#fafbfb" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 367.31 204.81">
             <g id="Layer_1-2" data-name="Layer 1">
