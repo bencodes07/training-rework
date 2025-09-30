@@ -11,10 +11,12 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
+import { UserSearchModal } from '@/components/user-search-modal';
 import { dashboard } from '@/routes';
 import { SharedData, type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpenIcon, CircleCheck, ClipboardList, Globe, LayoutGrid, Send } from 'lucide-react';
+import { BookOpenIcon, CircleCheck, ClipboardList, Globe, LayoutGrid, Search, Send } from 'lucide-react';
+import { useState } from 'react';
 import AppLogo from './app-logo';
 
 const navSections = [
@@ -98,33 +100,52 @@ function NavSection({ section }: { section: (typeof navSections)[0] }) {
 export function AppSidebar() {
     const { auth } = usePage<SharedData>().props;
     const isMentor = auth.user?.is_mentor || auth.user?.is_superuser;
+    const [searchModalOpen, setSearchModalOpen] = useState(false);
 
     return (
-        <Sidebar collapsible="icon" variant="inset">
-            <SidebarHeader>
-                <SidebarMenu>
-                    <SidebarMenuItem>
-                        <SidebarMenuButton size="lg" asChild>
-                            <Link href={dashboard()} prefetch>
-                                <AppLogo />
-                            </Link>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
-                </SidebarMenu>
-            </SidebarHeader>
+        <>
+            <Sidebar collapsible="icon" variant="inset">
+                <SidebarHeader>
+                    <SidebarMenu>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton size="lg" asChild>
+                                <Link href={dashboard()} prefetch>
+                                    <AppLogo />
+                                </Link>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    </SidebarMenu>
+                </SidebarHeader>
 
-            <SidebarContent>
-                {navSections.map((section) => (
-                    <NavSection key={section.label} section={section} />
-                ))}
+                <SidebarContent>
+                    {navSections.map((section) => (
+                        <NavSection key={section.label} section={section} />
+                    ))}
 
-                {isMentor === true && <NavSection section={mentorSection} />}
-            </SidebarContent>
+                    {isMentor === true && (
+                        <>
+                            <NavSection section={mentorSection} />
+                            <SidebarGroup className="px-2 py-0">
+                                <SidebarMenu>
+                                    <SidebarMenuItem>
+                                        <SidebarMenuButton onClick={() => setSearchModalOpen(true)} tooltip={{ children: 'Find User' }}>
+                                            <Search />
+                                            <span>Find User</span>
+                                        </SidebarMenuButton>
+                                    </SidebarMenuItem>
+                                </SidebarMenu>
+                            </SidebarGroup>
+                        </>
+                    )}
+                </SidebarContent>
 
-            <SidebarFooter>
-                <NavFooter items={footerNavItems} className="mt-auto" />
-                <NavUser />
-            </SidebarFooter>
-        </Sidebar>
+                <SidebarFooter>
+                    <NavFooter items={footerNavItems} className="mt-auto" />
+                    <NavUser />
+                </SidebarFooter>
+            </Sidebar>
+
+            <UserSearchModal open={searchModalOpen} onOpenChange={setSearchModalOpen} />
+        </>
     );
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\EndorsementController;
 use App\Http\Controllers\CourseController;
 use App\Http\Controllers\WaitingListController;
 use App\Http\Controllers\FamiliarisationController;
+use App\Http\Controllers\UserSearchController;
 
 Route::get('/', function () {
     return redirect("/dashboard");
@@ -58,6 +59,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/', [FamiliarisationController::class, 'index'])->name('index');
         Route::get('/my-familiarisations', [FamiliarisationController::class, 'userFamiliarisations'])->name('user');
     });
+
+    Route::middleware('can:mentor')->group(function () {
+        Route::post('users/search', [UserSearchController::class, 'search'])->name('users.search');
+        Route::get('users/{vatsimId}', [UserSearchController::class, 'show'])->name('users.profile');
+    });
+
 });
 
 require __DIR__.'/settings.php';

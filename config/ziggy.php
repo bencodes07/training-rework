@@ -43,7 +43,8 @@ return [
         'familiarisations.index',
         'familiarisations.user',
 
-        // Legacy course route (for compatibility)
-        'courses', // This was the old trainee waiting list page
+        'users.search',
+        'users.profile',
+        'users.data',
     ],
 ];

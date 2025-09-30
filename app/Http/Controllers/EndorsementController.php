@@ -232,7 +232,6 @@ class EndorsementController extends Controller
                 continue;
             }
 
-            // Use actual last activity date instead of sync timestamp
             $lastActivityDate = $activity->last_activity_date
                 ? $activity->last_activity_date->format('Y-m-d')
                 : 'Never';
