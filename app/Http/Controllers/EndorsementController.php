@@ -32,13 +32,6 @@ class EndorsementController extends Controller
     {
         $user = $request->user();
         
-        // Debug logging
-        Log::info('Endorsement trainee view accessed', [
-            'user_id' => $user->id,
-            'vatsim_id' => $user->vatsim_id ?? 'null',
-            'is_vatsim_user' => $user->isVatsimUser(),
-        ]);
-        
         if (!$user->isVatsimUser()) {
             return Inertia::render('endorsements/trainee', [
                 'tier1Endorsements' => [],
@@ -49,17 +42,9 @@ class EndorsementController extends Controller
         }
 
         try {
-            // Get Tier 1 endorsements
             $tier1Data = $this->getUserTier1Endorsements($user->vatsim_id);
-            Log::info('Tier 1 data retrieved', ['count' => count($tier1Data)]);
-            
-            // Get Tier 2 endorsements
             $tier2Data = $this->getUserTier2Endorsements($user->vatsim_id);
-            Log::info('Tier 2 data retrieved', ['count' => count($tier2Data)]);
-            
-            // Get Solo endorsements
             $soloData = $this->getUserSoloEndorsements($user->vatsim_id);
-            Log::info('Solo data retrieved', ['count' => count($soloData)]);
 
             return Inertia::render('endorsements/trainee', [
                 'tier1Endorsements' => $tier1Data,
@@ -143,7 +128,6 @@ class EndorsementController extends Controller
             $endorsement->last_updated = Carbon::createFromTimestamp(0); // Trigger update
             $endorsement->save();
 
-            // Log the action
             Log::info('Endorsement marked for removal', [
                 'endorsement_id' => $endorsementId,
                 'position' => $endorsement->position,
@@ -229,16 +213,10 @@ class EndorsementController extends Controller
     protected function getUserTier1Endorsements(int $vatsimId): array
     {
         Log::info('Getting Tier 1 endorsements for user', ['vatsim_id' => $vatsimId]);
-        
+
         $allTier1 = $this->vatEudService->getTier1Endorsements();
-        Log::info('All Tier 1 endorsements from API', ['total_count' => count($allTier1)]);
-        
+
         $tier1Endorsements = collect($allTier1)->where('user_cid', $vatsimId);
-        Log::info('Filtered Tier 1 endorsements for user', [
-            'vatsim_id' => $vatsimId,
-            'filtered_count' => $tier1Endorsements->count(),
-            'endorsements' => $tier1Endorsements->toArray()
-        ]);
 
         $result = [];
         $minRequiredMinutes = config('services.vateud.min_activity_minutes', 180);
@@ -271,11 +249,6 @@ class EndorsementController extends Controller
                 'removalDate' => $activity->removal_date?->format('Y-m-d'),
             ];
         }
-
-        Log::info('Final Tier 1 result for user', [
-            'vatsim_id' => $vatsimId,
-            'result_count' => count($result)
-        ]);
 
         return $result;
     }
@@ -401,7 +374,6 @@ class EndorsementController extends Controller
      */
     protected function getPositionFullName(string $position): string
     {
-        // Map common positions to full names
         $positionNames = [
             'EDDF_TWR' => 'Frankfurt Tower',
             'EDDF_APP' => 'Frankfurt Approach',
@@ -410,12 +382,18 @@ class EndorsementController extends Controller
             'EDDL_APP' => 'Düsseldorf Approach',
             'EDDL_GNDDEL' => 'Düsseldorf Ground/Delivery',
             'EDDK_TWR' => 'Köln Tower',
+            'EDDK_APP' => 'Köln Approach',
+            'EDDS_TWR' => 'Stuttgart Tower',
             'EDDH_TWR' => 'Hamburg Tower',
             'EDDH_APP' => 'Hamburg Approach',
             'EDDH_GNDDEL' => 'Hamburg Ground/Delivery',
             'EDDM_TWR' => 'München Tower',
             'EDDM_APP' => 'München Approach',
             'EDDM_GNDDEL' => 'München Ground/Delivery',
+            'EDDB_APP' => 'Berlin Approach',
+            'EDDB_TWR' => 'Berlin Tower',
+            'EDDB_GNDDEL' => 'Berlin Ground/Delivery',
+            'EDWW_CTR' => 'Bremen Big',
             'EDGG_KTG_CTR' => 'Sektor Kitzingen',
             'EDXX_AFIS' => 'AFIS Tower',
         ];
