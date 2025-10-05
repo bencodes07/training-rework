@@ -87,9 +87,6 @@ class SyncUserEndorsements extends Command
         foreach ($userEndorsements as $endorsement) {
             $this->syncEndorsement($endorsement);
         }
-
-        // Note: Tier 2 and Solo endorsements are fetched directly from VatEUD API when needed
-        // They don't require local storage or activity tracking
     }
 
     /**
@@ -120,7 +117,8 @@ class SyncUserEndorsements extends Command
     }
 
     /**
-     * Update activity for a specific endorsement - UPDATED to handle last activity date
+     * Update activity for a specific endorsement
+     * CRITICAL: Only updates activity data, NEVER automatically sets removal date
      */
     protected function updateEndorsementActivity(EndorsementActivity $endorsementActivity): void
     {
@@ -144,14 +142,12 @@ class SyncUserEndorsements extends Command
             $endorsementActivity->last_activity_date = $lastActivityDate;
             $endorsementActivity->last_updated = now();
 
-            // Handle removal logic
+            // ONLY clear removal flags if activity recovered
+            // NEVER automatically set removal date - this is a manual mentor action
             if ($activityMinutes >= $minRequiredMinutes) {
-                $endorsementActivity->removal_date = null;
-                $endorsementActivity->removal_notified = false;
-            } else {
-                if ($endorsementActivity->isEligibleForRemoval() && !$endorsementActivity->removal_date) {
-                    $removalWarningDays = (int) config('services.vateud.removal_warning_days', 31);
-                    $endorsementActivity->removal_date = now()->addDays($removalWarningDays);
+                if ($endorsementActivity->removal_date) {
+                    $this->info("✓ Activity recovered, clearing removal date");
+                    $endorsementActivity->removal_date = null;
                     $endorsementActivity->removal_notified = false;
                 }
             }

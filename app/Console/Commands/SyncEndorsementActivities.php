@@ -72,7 +72,7 @@ class SyncEndorsementActivities extends Command
             try {
                 // Check if this endorsement already exists in our database
                 $existingActivity = EndorsementActivity::where('endorsement_id', $endorsement['id'])->first();
-
+                
                 if ($existingActivity) {
                     // Already exists, skip
                     continue;
@@ -133,7 +133,7 @@ class SyncEndorsementActivities extends Command
     protected function updateStaleActivities(): void
     {
         $limit = (int) $this->option('limit');
-
+        
         // Get the oldest records by last_updated (matching Python's order_by('updated'))
         $endorsements = EndorsementActivity::orderBy('last_updated', 'asc')
             ->limit($limit)
@@ -206,27 +206,18 @@ class SyncEndorsementActivities extends Command
             $endorsementActivity->last_activity_date = $lastActivityDate;
             $endorsementActivity->last_updated = now();
 
-            // Handle removal logic
+            // Handle removal logic - ONLY clear removal if activity recovered
+            // NEVER automatically mark for removal - this must be done manually by mentors
             if ($activityMinutes >= $minRequiredMinutes) {
-                // User has sufficient activity - clear any removal flags
+                // User has sufficient activity - clear any removal flags that were set
                 if ($endorsementActivity->removal_date) {
                     $this->info("✓ User {$endorsementActivity->vatsim_id} recovered activity for {$endorsementActivity->position}, clearing removal date");
-                }
-                $endorsementActivity->removal_date = null;
-                $endorsementActivity->removal_notified = false;
-            } else {
-                // Activity is below threshold
-                if ($endorsementActivity->isEligibleForRemoval()) {
-                    // Only set removal date if not already set
-                    if (!$endorsementActivity->removal_date) {
-                        $removalWarningDays = config('services.vateud.removal_warning_days', 31);
-                        $endorsementActivity->removal_date = now()->addDays($removalWarningDays);
-                        $endorsementActivity->removal_notified = false;
-
-                        $this->warn("⚠ Marked {$endorsementActivity->position} for removal (User: {$endorsementActivity->vatsim_id}, Activity: {$activityMinutes} min)");
-                    }
+                    $endorsementActivity->removal_date = null;
+                    $endorsementActivity->removal_notified = false;
                 }
             }
+            // If activity is below threshold but no removal date is set, do nothing
+            // Mentors must manually mark endorsements for removal
 
             $endorsementActivity->save();
 
