@@ -188,7 +188,8 @@ class SyncEndorsementActivities extends Command
     }
 
     /**
-     * Update activity for a specific Tier 1 endorsement - UPDATED to handle last activity date
+     * Update activity for a specific Tier 1 endorsement
+     * Implements the exact Python logic for activity tracking and removal flagging
      */
     protected function updateEndorsementActivity(EndorsementActivity $endorsementActivity): void
     {
@@ -205,30 +206,44 @@ class SyncEndorsementActivities extends Command
 
             $minRequiredMinutes = config('services.vateud.min_activity_minutes', 180);
 
-            // Update activity
+            // Update activity data
             $endorsementActivity->activity_minutes = $activityMinutes;
             $endorsementActivity->last_activity_date = $lastActivityDate;
             $endorsementActivity->last_updated = now();
 
-            // Handle removal logic
+            // Handle removal logic (matching Python update_activity.py logic)
             if ($activityMinutes >= $minRequiredMinutes) {
-                // Reset removal date if activity is sufficient
+                // User has sufficient activity - clear any removal flags
+                if ($endorsementActivity->removal_date) {
+                    $this->info("✓ User {$endorsementActivity->vatsim_id} recovered activity for {$endorsementActivity->position}, clearing removal date");
+                }
                 $endorsementActivity->removal_date = null;
                 $endorsementActivity->removal_notified = false;
             } else {
-                // Check if eligible for removal and not already marked
-                if ($endorsementActivity->isEligibleForRemoval() && !$endorsementActivity->removal_date) {
-                    $endorsementActivity->removal_date = now()->addDays(
-                        config('services.vateud.removal_warning_days', 31)
-                    );
-                    $endorsementActivity->removal_notified = false;
+                // Activity is below threshold
+                // Check if eligible for removal (endorsement > 180 days old AND activity < min)
+                if ($endorsementActivity->isEligibleForRemoval()) {
+                    // Only set removal date if not already set
+                    if (!$endorsementActivity->removal_date) {
+                        // Start removal process: 31 days from now
+                        $removalWarningDays = config('services.vateud.removal_warning_days', 31);
+                        $endorsementActivity->removal_date = now()->addDays($removalWarningDays);
+                        $endorsementActivity->removal_notified = false;
+
+                        $this->warn("⚠ Marked {$endorsementActivity->position} for removal (User: {$endorsementActivity->vatsim_id}, Activity: {$activityMinutes} min)");
+                    }
+                    // If already marked for removal, do nothing - let the removal command handle it
                 }
             }
 
             $endorsementActivity->save();
 
             $lastActivityStr = $lastActivityDate ? $lastActivityDate->format('Y-m-d') : 'Never';
-            $this->line("Updated {$endorsementActivity->position} for user {$endorsementActivity->vatsim_id}: {$activityMinutes} minutes, last active: {$lastActivityStr}");
+            $removalStatus = $endorsementActivity->removal_date
+                ? " [REMOVAL: {$endorsementActivity->removal_date->format('Y-m-d')}]"
+                : '';
+
+            $this->line("Updated {$endorsementActivity->position} for user {$endorsementActivity->vatsim_id}: {$activityMinutes} min, last: {$lastActivityStr}{$removalStatus}");
 
         } catch (\Exception $e) {
             $this->error("Failed to update endorsement {$endorsementActivity->id}: " . $e->getMessage());
