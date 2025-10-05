@@ -25,4 +25,18 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
-    })->create();
+    })
+    ->withSchedule(function ($schedule) {
+        // Every minute: Update one endorsement's activity
+        $schedule->command('endorsements:sync-activities', ['--limit' => 1])
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->runInBackground();
+
+        // Daily at 9 AM: Send notifications and process removals
+        $schedule->command('endorsements:remove', ['--notify'])
+            ->dailyAt('09:00')
+            ->withoutOverlapping()
+            ->runInBackground();
+    })
+    ->create();
