@@ -212,8 +212,6 @@ class EndorsementController extends Controller
      */
     protected function getUserTier1Endorsements(int $vatsimId): array
     {
-        Log::info('Getting Tier 1 endorsements for user', ['vatsim_id' => $vatsimId]);
-
         $allTier1 = $this->vatEudService->getTier1Endorsements();
 
         $tier1Endorsements = collect($allTier1)->where('user_cid', $vatsimId);

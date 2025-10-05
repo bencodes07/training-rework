@@ -15,7 +15,7 @@ import { UserSearchModal } from '@/components/user-search-modal';
 import { dashboard } from '@/routes';
 import { SharedData, type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpenIcon, CircleCheck, ClipboardList, Globe, LayoutGrid, Search, Send } from 'lucide-react';
+import { BookOpenIcon, CheckCircle, CircleCheck, ClipboardList, Globe, LayoutGrid, Search, Send } from 'lucide-react';
 import { useState } from 'react';
 import AppLogo from './app-logo';
 
@@ -54,6 +54,11 @@ const mentorSection = {
             title: 'Waiting Lists',
             href: route('waiting-lists.manage'),
             icon: ClipboardList,
+        },
+        {
+            title: 'Endorsement Management',
+            href: route('endorsements.manage'),
+            icon: CheckCircle,
         },
     ],
 };
