@@ -11,21 +11,11 @@ use Illuminate\Support\Facades\Log;
 
 class SyncEndorsementActivities extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
     protected $signature = 'endorsements:sync-activities 
                             {--limit=1 : Number of endorsements to update per run}
                             {--force : Force update all endorsements}
                             {--batch-size=50 : Size of batches when processing all}';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
     protected $description = 'Sync endorsement activities from VATSIM and VatEUD (default: updates 1 endorsement per run, designed for frequent scheduling)';
 
     protected VatEudService $vatEudService;
@@ -38,18 +28,16 @@ class SyncEndorsementActivities extends Command
         $this->activityService = $activityService;
     }
 
-    /**
-     * Execute the console command.
-     */
     public function handle(): int
     {
         $this->info('Starting endorsement activity sync...');
 
         try {
-            // First, sync with VatEUD to get current endorsements
-            $this->syncWithVatEud();
+            // STEP 1: Sync ALL Tier 1 endorsements from VatEUD
+            // This ensures we track endorsements even for users not registered in our system
+            $this->syncAllTier1Endorsements();
 
-            // Then update activity data - ONLY FOR TIER 1 (which require activity)
+            // STEP 2: Update activity data - incrementally update the oldest records
             if ($this->option('force')) {
                 $this->updateAllActivities();
             } else {
@@ -69,55 +57,63 @@ class SyncEndorsementActivities extends Command
     }
 
     /**
-     * Sync current endorsements from VatEUD - FIXED: Only sync Tier 1 for activity tracking
+     * Sync ALL Tier 1 endorsements from VatEUD
+     * This matches the Python behavior - we track ALL endorsements, not just for registered users
      */
-    protected function syncWithVatEud(): void
+    protected function syncAllTier1Endorsements(): void
     {
-        $this->info('Fetching Tier 1 endorsements from VatEUD for activity tracking...');
+        $this->info('Fetching ALL Tier 1 endorsements from VatEUD...');
 
-        // Only sync Tier 1 endorsements since they require activity tracking
         $tier1Endorsements = $this->vatEudService->getTier1Endorsements();
         
         $this->info('Found ' . count($tier1Endorsements) . ' Tier 1 endorsements');
 
         foreach ($tier1Endorsements as $endorsement) {
-            $this->syncEndorsement($endorsement);
-        }
-
-        // Clean up endorsements that no longer exist in VatEUD (Tier 1 only)
-        $this->cleanupRemovedEndorsements($tier1Endorsements);
-
-        // Note: Tier 2 and Solo endorsements are fetched directly from VatEUD API when needed
-        // They don't require activity tracking or local storage
-    }
-
-    /**
-     * Sync individual Tier 1 endorsement for activity tracking
-     */
-    protected function syncEndorsement(array $endorsement): void
-    {
-        $createdAt = null;
-        if (!empty($endorsement['created_at'])) {
             try {
-                $createdAt = Carbon::createFromFormat('Y-m-d\TH:i:s.u\Z', $endorsement['created_at']);
+                // Check if this endorsement already exists in our database
+                $existingActivity = EndorsementActivity::where('endorsement_id', $endorsement['id'])->first();
+
+                if ($existingActivity) {
+                    // Already exists, skip
+                    continue;
+                }
+
+                // Create new activity record for this endorsement
+                $createdAt = null;
+                if (!empty($endorsement['created_at'])) {
+                    try {
+                        $createdAt = Carbon::createFromFormat('Y-m-d\TH:i:s.u\Z', $endorsement['created_at']);
+                    } catch (\Exception $e) {
+                        $createdAt = Carbon::createFromTimestamp(0);
+                    }
+                }
+
+                EndorsementActivity::create([
+                    'endorsement_id' => $endorsement['id'],
+                    'vatsim_id' => $endorsement['user_cid'],
+                    'position' => $endorsement['position'],
+                    'activity_minutes' => 0.0,
+                    'created_at_vateud' => $createdAt ?? Carbon::createFromTimestamp(0),
+                    'last_updated' => Carbon::createFromTimestamp(0), // Set to epoch to force update
+                ]);
+
+                $this->line("Created new activity record for endorsement {$endorsement['id']} (User: {$endorsement['user_cid']}, Position: {$endorsement['position']})");
+
             } catch (\Exception $e) {
-                $createdAt = Carbon::createFromTimestamp(0);
+                $this->error("Failed to sync endorsement {$endorsement['id']}: " . $e->getMessage());
+                Log::error('Failed to sync endorsement', [
+                    'endorsement_id' => $endorsement['id'],
+                    'error' => $e->getMessage()
+                ]);
             }
         }
 
-        EndorsementActivity::updateOrCreate(
-            ['endorsement_id' => $endorsement['id']],
-            [
-                'vatsim_id' => $endorsement['user_cid'],
-                'position' => $endorsement['position'],
-                'created_at_vateud' => $createdAt,
-                'last_updated' => $createdAt ?? Carbon::createFromTimestamp(0),
-            ]
-        );
+        // Clean up endorsements that no longer exist in VatEUD
+        $this->cleanupRemovedEndorsements($tier1Endorsements);
     }
 
     /**
-     * Clean up endorsements that no longer exist in VatEUD (Tier 1 only)
+     * Clean up endorsements that no longer exist in VatEUD
      */
     protected function cleanupRemovedEndorsements(array $currentEndorsements): void
     {
@@ -131,22 +127,24 @@ class SyncEndorsementActivities extends Command
     }
 
     /**
-     * Update activities for endorsements that need updating (Tier 1 only)
+     * Update activities for endorsements that need updating
+     * This matches Python's behavior - update the OLDEST record by 'updated' field
      */
     protected function updateStaleActivities(): void
     {
         $limit = (int) $this->option('limit');
-        
-        $endorsements = EndorsementActivity::needsUpdate()
+
+        // Get the oldest records by last_updated (matching Python's order_by('updated'))
+        $endorsements = EndorsementActivity::orderBy('last_updated', 'asc')
             ->limit($limit)
             ->get();
 
         if ($endorsements->isEmpty()) {
-            $this->info('No Tier 1 endorsements need updating');
+            $this->info('No endorsements need updating');
             return;
         }
 
-        $this->info("Updating activity for {$endorsements->count()} Tier 1 endorsement(s)...");
+        $this->info("Updating activity for {$endorsements->count()} endorsement(s)...");
 
         foreach ($endorsements as $endorsementActivity) {
             $this->updateEndorsementActivity($endorsementActivity);
@@ -154,17 +152,17 @@ class SyncEndorsementActivities extends Command
     }
 
     /**
-     * Update all endorsement activities (Tier 1 only)
+     * Update all endorsement activities
      */
     protected function updateAllActivities(): void
     {
         $batchSize = (int) $this->option('batch-size');
-        $this->info("Force updating all Tier 1 endorsement activities in batches of {$batchSize}...");
+        $this->info("Force updating all endorsement activities in batches of {$batchSize}...");
         
         $totalCount = EndorsementActivity::count();
         $processedCount = 0;
 
-        $this->info("Total Tier 1 endorsements to process: {$totalCount}");
+        $this->info("Total endorsements to process: {$totalCount}");
         
         EndorsementActivity::chunk($batchSize, function ($endorsements) use (&$processedCount, $totalCount) {
             $this->info("Processing batch starting at endorsement " . ($processedCount + 1));
@@ -173,23 +171,20 @@ class SyncEndorsementActivities extends Command
                 $this->updateEndorsementActivity($endorsementActivity);
                 $processedCount++;
                 
-                // Show progress every 10 endorsements
                 if ($processedCount % 10 === 0) {
                     $this->info("Progress: {$processedCount}/{$totalCount}");
                 }
             }
             
-            // Small delay between batches
             $this->info("Batch complete. Waiting 2 seconds before next batch...");
             sleep(2);
         });
 
-        $this->info("Completed updating {$processedCount} Tier 1 endorsements.");
+        $this->info("Completed updating {$processedCount} endorsements.");
     }
 
     /**
-     * Update activity for a specific Tier 1 endorsement
-     * Implements the exact Python logic for activity tracking and removal flagging
+     * Update activity for a specific endorsement
      */
     protected function updateEndorsementActivity(EndorsementActivity $endorsementActivity): void
     {
@@ -211,7 +206,7 @@ class SyncEndorsementActivities extends Command
             $endorsementActivity->last_activity_date = $lastActivityDate;
             $endorsementActivity->last_updated = now();
 
-            // Handle removal logic (matching Python update_activity.py logic)
+            // Handle removal logic
             if ($activityMinutes >= $minRequiredMinutes) {
                 // User has sufficient activity - clear any removal flags
                 if ($endorsementActivity->removal_date) {
@@ -221,18 +216,15 @@ class SyncEndorsementActivities extends Command
                 $endorsementActivity->removal_notified = false;
             } else {
                 // Activity is below threshold
-                // Check if eligible for removal (endorsement > 180 days old AND activity < min)
                 if ($endorsementActivity->isEligibleForRemoval()) {
                     // Only set removal date if not already set
                     if (!$endorsementActivity->removal_date) {
-                        // Start removal process: 31 days from now
                         $removalWarningDays = config('services.vateud.removal_warning_days', 31);
                         $endorsementActivity->removal_date = now()->addDays($removalWarningDays);
                         $endorsementActivity->removal_notified = false;
 
                         $this->warn("⚠ Marked {$endorsementActivity->position} for removal (User: {$endorsementActivity->vatsim_id}, Activity: {$activityMinutes} min)");
                     }
-                    // If already marked for removal, do nothing - let the removal command handle it
                 }
             }
 
