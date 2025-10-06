@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -86,6 +88,7 @@ export default function ManageEndorsements({ endorsementGroups: initialGroups }:
     const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
     const [isRemovalDialogOpen, setIsRemovalDialogOpen] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [showActiveEndorsements, setShowActiveEndorsements] = useState(false);
 
     // Update endorsement in state
     const updateEndorsementInState = useCallback((endorsementId: number, updates: Partial<EndorsementData>) => {
@@ -114,26 +117,33 @@ export default function ManageEndorsements({ endorsementGroups: initialGroups }:
         const total = endorsements.length;
         const lowActivity = endorsements.filter((e) => getEndorsementState(e) === 'low-activity').length;
         const inRemoval = endorsements.filter((e) => getEndorsementState(e) === 'in-removal').length;
+        const actionable = lowActivity + inRemoval;
 
-        return { total, lowActivity, inRemoval };
+        return { total, lowActivity, inRemoval, actionable };
     };
 
     const filteredGroups = useMemo(() => {
-        return endorsementGroups.filter((group) => {
-            const matchesSearch =
-                !searchTerm ||
-                group.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                group.position_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                group.airport_icao.toLowerCase().includes(searchTerm.toLowerCase());
+        return endorsementGroups
+            .filter((group) => {
+                const matchesSearch =
+                    !searchTerm ||
+                    group.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    group.position_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    group.airport_icao.toLowerCase().includes(searchTerm.toLowerCase());
 
-            const stats = getGroupStats(group.endorsements);
-            const matchesStatus =
-                statusFilter === 'all' ||
-                (statusFilter === 'low-activity' && stats.lowActivity > 0) ||
-                (statusFilter === 'in-removal' && stats.inRemoval > 0);
+                const stats = getGroupStats(group.endorsements);
+                const matchesStatus =
+                    statusFilter === 'all' ||
+                    (statusFilter === 'low-activity' && stats.lowActivity > 0) ||
+                    (statusFilter === 'in-removal' && stats.inRemoval > 0);
 
-            return matchesSearch && matchesStatus;
-        });
+                return matchesSearch && matchesStatus;
+            })
+            .filter((group) => {
+                // Only show groups that have actionable endorsements
+                const stats = getGroupStats(group.endorsements);
+                return stats.actionable > 0;
+            });
     }, [endorsementGroups, searchTerm, statusFilter]);
 
     const openGroupDialog = (group: EndorsementGroupData) => {
@@ -146,13 +156,11 @@ export default function ManageEndorsements({ endorsementGroups: initialGroups }:
 
         setIsProcessing(true);
 
-        // Calculate optimistic removal date (31 days from now)
         const removalWarningDays = 31;
         const optimisticRemovalDate = new Date();
         optimisticRemovalDate.setDate(optimisticRemovalDate.getDate() + removalWarningDays);
         const formattedRemovalDate = optimisticRemovalDate.toISOString().split('T')[0];
 
-        // Optimistic update - immediately mark as in removal
         const optimisticUpdates: Partial<EndorsementData> = {
             removalDate: formattedRemovalDate,
             removalDays: removalWarningDays,
@@ -161,7 +169,6 @@ export default function ManageEndorsements({ endorsementGroups: initialGroups }:
 
         updateEndorsementInState(selectedEndorsement.endorsementId, optimisticUpdates);
 
-        // Close dialog immediately for better UX
         setIsRemovalDialogOpen(false);
         const savedEndorsement = selectedEndorsement;
         setSelectedEndorsement(null);
@@ -178,7 +185,6 @@ export default function ManageEndorsements({ endorsementGroups: initialGroups }:
                         resolve();
                     },
                     onError: (errors) => {
-                        // Revert optimistic update on error
                         updateEndorsementInState(savedEndorsement.endorsementId, {
                             removalDate: null,
                             removalDays: 0,
@@ -203,7 +209,18 @@ export default function ManageEndorsements({ endorsementGroups: initialGroups }:
         setIsRemovalDialogOpen(true);
     };
 
-    const selectedGroupEndorsements = selectedGroup ? selectedGroup.endorsements : [];
+    const filteredDetailEndorsements = useMemo(() => {
+        if (!selectedGroup) return [];
+
+        if (showActiveEndorsements) {
+            return selectedGroup.endorsements;
+        }
+
+        return selectedGroup.endorsements.filter((e) => {
+            const state = getEndorsementState(e);
+            return state === 'low-activity' || state === 'in-removal';
+        });
+    }, [selectedGroup, showActiveEndorsements]);
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -294,9 +311,11 @@ export default function ManageEndorsements({ endorsementGroups: initialGroups }:
                     <Card className="py-12">
                         <CardContent className="text-center">
                             <Search className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                            <h3 className="mb-2 text-lg font-semibold">No positions found</h3>
+                            <h3 className="mb-2 text-lg font-semibold">No positions requiring attention</h3>
                             <p className="text-muted-foreground">
-                                {searchTerm ? 'Try adjusting your search criteria.' : 'No positions match the selected filter.'}
+                                {searchTerm
+                                    ? 'Try adjusting your search criteria.'
+                                    : 'All endorsements are currently active with sufficient activity levels.'}
                             </p>
                         </CardContent>
                     </Card>
@@ -320,7 +339,18 @@ export default function ManageEndorsements({ endorsementGroups: initialGroups }:
                         </DialogDescription>
                     </DialogHeader>
 
-                    {selectedGroupEndorsements.length > 0 ? (
+                    {/* Toggle for showing active endorsements */}
+                    <div className="flex items-center justify-between rounded-lg border bg-muted/50 p-4">
+                        <div className="space-y-0.5">
+                            <Label htmlFor="show-active" className="text-sm font-medium">
+                                Show active endorsements
+                            </Label>
+                            <p className="text-xs text-muted-foreground">Include endorsements with sufficient activity levels</p>
+                        </div>
+                        <Switch id="show-active" checked={showActiveEndorsements} onCheckedChange={setShowActiveEndorsements} />
+                    </div>
+
+                    {filteredDetailEndorsements.length > 0 ? (
                         <div className="rounded-md border">
                             <Table>
                                 <TableHeader>
@@ -332,7 +362,7 @@ export default function ManageEndorsements({ endorsementGroups: initialGroups }:
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {selectedGroupEndorsements.map((endorsement) => {
+                                    {filteredDetailEndorsements.map((endorsement) => {
                                         const removalInfo = formatRemovalDate(endorsement.removalDate, endorsement.removalDays);
                                         const state = getEndorsementState(endorsement);
 
@@ -422,7 +452,11 @@ export default function ManageEndorsements({ endorsementGroups: initialGroups }:
                             </Table>
                         </div>
                     ) : (
-                        <div className="py-8 text-center text-muted-foreground">No controllers found for this position</div>
+                        <div className="py-8 text-center text-muted-foreground">
+                            {showActiveEndorsements
+                                ? 'No controllers found for this position'
+                                : 'No controllers requiring attention. Enable "Show active endorsements" to see all controllers.'}
+                        </div>
                     )}
                 </DialogContent>
             </Dialog>
