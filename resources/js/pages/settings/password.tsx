@@ -1,5 +1,4 @@
 import PasswordController from '@/actions/App/Http/Controllers/Settings/PasswordController';
-import InputError from '@/components/input-error';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 import { type BreadcrumbItem } from '@/types';
@@ -7,7 +6,6 @@ import { Transition } from '@headlessui/react';
 import { Form, Head } from '@inertiajs/react';
 import { useRef } from 'react';
 
-import HeadingSmall from '@/components/heading-small';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -30,8 +28,6 @@ export default function Password() {
 
             <SettingsLayout>
                 <div className="space-y-6">
-                    <HeadingSmall title="Update password" description="Ensure your account is using a long, random password to stay secure" />
-
                     <Form
                         {...PasswordController.update.form()}
                         options={{
@@ -64,8 +60,6 @@ export default function Password() {
                                         autoComplete="current-password"
                                         placeholder="Current password"
                                     />
-
-                                    <InputError message={errors.current_password} />
                                 </div>
 
                                 <div className="grid gap-2">
@@ -80,8 +74,6 @@ export default function Password() {
                                         autoComplete="new-password"
                                         placeholder="New password"
                                     />
-
-                                    <InputError message={errors.password} />
                                 </div>
 
                                 <div className="grid gap-2">
@@ -95,12 +87,12 @@ export default function Password() {
                                         autoComplete="new-password"
                                         placeholder="Confirm password"
                                     />
-
-                                    <InputError message={errors.password_confirmation} />
                                 </div>
 
                                 <div className="flex items-center gap-4">
-                                    <Button disabled={processing} data-test="update-password-button">Save password</Button>
+                                    <Button disabled={processing} data-test="update-password-button">
+                                        Save password
+                                    </Button>
 
                                     <Transition
                                         show={recentlySuccessful}
