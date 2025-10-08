@@ -29,22 +29,26 @@ return [
         'endorsements.tier1.remove',
         'endorsements.tier2.request',
 
-        // Course routes (NEW)
+        // Course routes
         'courses',
         'courses.index',
         'courses.toggle-waiting-list',
 
-        // Waiting list management routes (NEW)
+        // Waiting list management routes
         'waiting-lists.manage',
         'waiting-lists.start-training',
         'waiting-lists.update-remarks',
 
-        // Familiarisation routes (NEW)
+        // Familiarisation routes
         'familiarisations.index',
         'familiarisations.user',
 
+        // Find user 
         'users.search',
         'users.profile',
         'users.data',
+
+        // Mentor Overview
+        'overview'
     ],
 ];
