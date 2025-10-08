@@ -15,7 +15,7 @@ import { UserSearchModal } from '@/components/user-search-modal';
 import { dashboard } from '@/routes';
 import { SharedData, type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpenIcon, CheckCircle, CircleCheck, ClipboardList, Globe, LayoutGrid, Search, Send } from 'lucide-react';
+import { BookOpenIcon, CheckCircle, CircleCheck, ClipboardList, Database, Globe, LayoutGrid, Megaphone, Search, Send, Users } from 'lucide-react';
 import { useState } from 'react';
 import AppLogo from './app-logo';
 
@@ -48,8 +48,13 @@ const navSections = [
 ];
 
 const mentorSection = {
-    label: 'Mentor',
+    label: 'Mentoring',
     items: [
+        {
+            title: 'Overview',
+            href: route('overview'),
+            icon: Users,
+        },
         {
             title: 'Waiting Lists',
             href: route('waiting-lists.manage'),
@@ -59,6 +64,22 @@ const mentorSection = {
             title: 'Endorsement Management',
             href: route('endorsements.manage'),
             icon: CheckCircle,
+        },
+    ],
+};
+
+const adminSection = {
+    label: 'Admin',
+    items: [
+        {
+            title: 'Announcements',
+            href: '#',
+            icon: Megaphone,
+        },
+        {
+            title: 'Database',
+            href: '#',
+            icon: Database,
         },
     ],
 };
@@ -104,7 +125,8 @@ function NavSection({ section }: { section: (typeof navSections)[0] }) {
 
 export function AppSidebar() {
     const { auth } = usePage<SharedData>().props;
-    const isMentor = auth.user?.is_mentor || auth.user?.is_superuser;
+    const isMentor = auth.user?.is_mentor || auth.user?.is_superuser || auth.user?.is_admin;
+    const isSuperuser = auth.user?.is_superuser || auth.user?.is_admin;
     const [searchModalOpen, setSearchModalOpen] = useState(false);
 
     return (
@@ -133,13 +155,23 @@ export function AppSidebar() {
                             <SidebarGroup className="px-2 py-0">
                                 <SidebarMenu>
                                     <SidebarMenuItem>
-                                        <SidebarMenuButton onClick={() => setSearchModalOpen(true)} tooltip={{ children: 'Find User' }}>
+                                        <SidebarMenuButton
+                                            className="cursor-pointer"
+                                            onClick={() => setSearchModalOpen(true)}
+                                            tooltip={{ children: 'Find User' }}
+                                        >
                                             <Search />
                                             <span>Find User</span>
                                         </SidebarMenuButton>
                                     </SidebarMenuItem>
                                 </SidebarMenu>
                             </SidebarGroup>
+                        </>
+                    )}
+
+                    {isSuperuser === true && (
+                        <>
+                            <NavSection section={adminSection} />
                         </>
                     )}
                 </SidebarContent>

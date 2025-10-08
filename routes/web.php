@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\MentorOverviewController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\EndorsementController;
@@ -60,11 +61,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/my-familiarisations', [FamiliarisationController::class, 'userFamiliarisations'])->name('user');
     });
 
+    // User search
     Route::middleware('can:mentor')->group(function () {
         Route::post('users/search', [UserSearchController::class, 'search'])->name('users.search');
         Route::get('users/{vatsimId}', [UserSearchController::class, 'show'])->name('users.profile');
     });
 
+    // Mentor Overview
+    Route::middleware('can:mentor')->group(function () {
+        Route::get('overview', [MentorOverviewController::class, 'index'])->name('overview');
+    });
 });
 
 require __DIR__.'/settings.php';
