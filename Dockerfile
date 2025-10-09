@@ -1,8 +1,14 @@
 # Build stage for frontend assets with PHP
 FROM php:8.4-alpine AS frontend
 
-# Install Node.js
-RUN apk add --no-cache nodejs npm
+# Install Node.js and required dependencies for PHP extensions
+RUN apk add --no-cache nodejs npm \
+    icu-dev \
+    libzip-dev \
+    zip
+
+# Install PHP extensions (Alpine uses docker-php-ext-install)
+RUN docker-php-ext-install intl zip
 
 WORKDIR /app
 
@@ -31,15 +37,14 @@ RUN apt-get update && \
     zip \
     libpq-dev \
     libicu-dev \
-    && docker-php-ext-install intl zip \
+    && docker-php-ext-install intl zip pdo_mysql pdo_pgsql \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Redis extension
+RUN pecl install redis && docker-php-ext-enable redis
 
 # Enable mod_rewrite
 RUN a2enmod rewrite
-
-# Install PHP extensions
-RUN docker-php-ext-install pdo_mysql pdo_pgsql zip
-RUN pecl install redis && docker-php-ext-enable redis
 
 # Set Apache document root
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
