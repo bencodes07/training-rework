@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use Filament\Models\Contracts\FilamentUser;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Filament\Panel;
 
 
-class User extends Authenticatable
+class User extends Authenticatable implements FilamentUser
 {
     use HasFactory, Notifiable;
 
@@ -87,6 +89,14 @@ class User extends Authenticatable
     public function isMentor(): bool
     {
         return $this->hasAnyRole(['EDGG Mentor', 'EDMM Mentor', 'EDWW Mentor', 'ATD Leitung', 'VATGER Leitung']);
+    }
+
+    /**
+     * Check if user is a superuser
+     */
+    public function isSuperuser(): bool
+    {
+        return $this->is_superuser === true;
     }
 
     /**
@@ -273,5 +283,10 @@ class User extends Authenticatable
     public function familiarisations()
     {
         return $this->hasMany(Familiarisation::class);
+    }
+
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return $this->is_superuser;
     }
 }
