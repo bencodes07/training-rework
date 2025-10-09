@@ -7,7 +7,7 @@ RUN apk add --no-cache nodejs npm \
     libzip-dev \
     zip
 
-# Install PHP extensions (Alpine uses docker-php-ext-install)
+# Install PHP extensions
 RUN docker-php-ext-install intl zip
 
 WORKDIR /app
@@ -15,22 +15,19 @@ WORKDIR /app
 # Install composer
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
-# Copy composer files first
-COPY composer.json composer.lock ./
-
-# Install PHP dependencies without running scripts
-RUN composer install --no-dev --optimize-autoloader --no-scripts
-
-# Copy all application files (needed for wayfinder)
+# Copy all application files
 COPY . .
 
-# Now run the post-install scripts
-RUN composer run-script post-autoload-dump
+# Remove any cached bootstrap files
+RUN rm -f bootstrap/cache/*.php
+
+# Install PHP dependencies
+RUN composer install --no-dev --optimize-autoloader
 
 # Install Node.js dependencies
 RUN npm ci
 
-# Build assets (wayfinder can now run php artisan commands)
+# Build assets
 RUN npm run build
 
 # Production stage
@@ -63,10 +60,13 @@ WORKDIR /var/www/html
 # Install composer
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
-# Copy the application code first
+# Copy the application code
 COPY . .
 
-# Then install dependencies (artisan file now exists)
+# Remove any cached bootstrap files that might have been copied
+RUN rm -f bootstrap/cache/*.php
+
+# Install project dependencies
 RUN composer install --optimize-autoloader --no-dev
 
 # Copy built assets from frontend stage
