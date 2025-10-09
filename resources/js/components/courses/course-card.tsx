@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { getTypeColor } from '@/lib/course-utils';
 import { Course } from '@/pages/training/courses';
 import { Clock, MapPin, AlertCircle, CheckCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -11,23 +12,6 @@ interface CourseCardProps {
     onCourseUpdate?: (courseId: number, updates: Partial<Course>) => void;
     userHasActiveRtgCourse?: boolean;
 }
-
-export const getTypeColor = (type: string) => {
-    switch (type) {
-        case 'RTG':
-            return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 border-blue-200 dark:border-blue-800';
-        case 'EDMT':
-            return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300 border-purple-200 dark:border-purple-800';
-        case 'FAM':
-            return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800';
-        case 'GST':
-            return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 border-green-200 dark:border-green-800';
-        case 'RST':
-            return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 border-red-200 dark:border-red-800';
-        default:
-            return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800';
-    }
-};
 
 const getStatusColor = (course: Course) => {
     if (course.is_on_waiting_list) {

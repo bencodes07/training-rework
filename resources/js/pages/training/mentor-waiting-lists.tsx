@@ -11,11 +11,11 @@ import { router } from '@inertiajs/react';
 import { Clock, MessageSquare, Play, Search, Users, X, Eye } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { getTypeColor } from '@/components/courses/course-card';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 import { toast } from 'sonner';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { getTypeColor } from '@/lib/course-utils';
 
 interface WaitingListEntry {
     id: number;

@@ -6,11 +6,16 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AppLayout from '@/layouts/app-layout';
+import { dashboard } from '@/routes';
 import { Endorsement, type BreadcrumbItem } from '@/types';
 import { Head, usePage } from '@inertiajs/react';
 import { AlertCircle, CheckCircle, Radio, Shield, TowerControl } from 'lucide-react';
 
 const breadcrumbs: BreadcrumbItem[] = [
+    {
+        title: 'Dashboard',
+        href: dashboard().url,
+    },
     {
         title: 'Endorsements',
         href: route('endorsements'),

@@ -11,8 +11,13 @@ import SortableCoursesTable from '@/components/courses/courses-table';
 import { Head } from '@inertiajs/react';
 import { BreadcrumbItem } from '@/types';
 import { cn } from '@/lib/utils';
+import { dashboard } from '@/routes';
 
 const breadcrumbs: BreadcrumbItem[] = [
+    {
+        title: 'Dashboard',
+        href: dashboard().url,
+    },
     {
         title: 'Courses',
         href: route('courses.index'),
