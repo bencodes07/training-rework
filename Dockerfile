@@ -29,8 +29,10 @@ RUN apt-get update && \
     apt-get install -y \
     libzip-dev \
     zip \
-    libpq-dev && \
-    rm -rf /var/lib/apt/lists/*
+    libpq-dev \
+    libicu-dev \
+    && docker-php-ext-install intl zip \
+    && rm -rf /var/lib/apt/lists/*
 
 # Enable mod_rewrite
 RUN a2enmod rewrite
