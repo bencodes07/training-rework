@@ -18,7 +18,6 @@ import {
     Clock,
     Eye,
     FileText,
-    ListTodo,
     MoreVertical,
     Plane,
     Plus,
@@ -30,107 +29,54 @@ import {
     UserCheck,
     Users,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Overview',
-        href: route('courses.index'),
+        title: 'Mentor Overview',
+        href: route('overview'),
     },
 ];
 
-// Mock data
-const mockCourses = [
-    {
-        id: 1,
-        name: 'Düsseldorf Tower',
-        position: 'TWR',
-        type: 'RTG',
-        activeTrainees: 5,
-        trainees: [
-            {
-                id: 1,
-                name: 'John Doe',
-                vatsimId: '1234567',
-                initials: 'JD',
-                progress: [true, true, false, false, false],
-                lastSession: '2024-12-15',
-                nextStep: 'Pattern work with traffic',
-                claimedBy: 'You',
-                soloStatus: { remaining: 25, used: 5 },
-                remark: 'Good progress, needs more traffic management practice',
-            },
-            {
-                id: 2,
-                name: 'Jane Smith',
-                vatsimId: '7654321',
-                initials: 'JS',
-                progress: [true, true, true, false, false],
-                lastSession: '2024-12-10',
-                nextStep: 'Complex traffic scenarios',
-                claimedBy: null,
-                soloStatus: null,
-                remark: '',
-            },
-            {
-                id: 3,
-                name: 'Bob Wilson',
-                vatsimId: '9876543',
-                initials: 'BW',
-                progress: [true, false, false, false, false],
-                lastSession: '2024-12-18',
-                nextStep: 'Basic procedures review',
-                claimedBy: 'Sarah Miller',
-                soloStatus: { remaining: 15, used: 15 },
-                remark: 'Struggling with radio phraseology',
-            },
-        ],
-    },
-    {
-        id: 2,
-        name: 'Frankfurt Approach',
-        position: 'APP',
-        type: 'RTG',
-        activeTrainees: 3,
-        trainees: [
-            {
-                id: 4,
-                name: 'Alice Brown',
-                vatsimId: '1357924',
-                initials: 'AB',
-                progress: [true, true, true, true, false],
-                lastSession: '2024-12-12',
-                nextStep: 'IFR sequencing',
-                claimedBy: 'You',
-                soloStatus: { remaining: 45, used: 0 },
-                remark: 'Excellent performance',
-            },
-        ],
-    },
-    {
-        id: 3,
-        name: 'Paderborn-High',
-        position: 'CTR',
-        type: 'RTG',
-        activeTrainees: 2,
-        trainees: [],
-    },
-    {
-        id: 4,
-        name: 'Berlin TMA Familiarisation',
-        position: 'APP',
-        type: 'FAM',
-        activeTrainees: 1,
-        trainees: [],
-    },
-];
+interface SoloStatus {
+    remaining: number;
+    used: number;
+    expiry: string;
+}
 
-const statistics = {
-    activeTrainees: 21,
-    claimedTrainees: 3,
-    trainingSessions: 4,
-    waitingList: 8,
-};
+interface Trainee {
+    id: number;
+    name: string;
+    vatsimId: string;
+    initials: string;
+    progress: boolean[];
+    lastSession: string | null;
+    nextStep: string;
+    claimedBy: string | null;
+    soloStatus: SoloStatus | null;
+    remark: string;
+}
+
+interface Course {
+    id: number;
+    name: string;
+    position: string;
+    type: string;
+    activeTrainees: number;
+    trainees: Trainee[];
+}
+
+interface Statistics {
+    activeTrainees: number;
+    claimedTrainees: number;
+    trainingSessions: number;
+    waitingList: number;
+}
+
+interface Props {
+    courses: Course[];
+    statistics: Statistics;
+}
 
 const getPositionIcon = (position: string) => {
     switch (position) {
@@ -177,14 +123,14 @@ const getTypeColor = (type: string) => {
     }
 };
 
-export default function MentorOverview() {
-    const [selectedCourse, setSelectedCourse] = useState(mockCourses[0]);
+export default function MentorOverview({ courses, statistics }: Props) {
+    const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
     const [activeCategory, setActiveCategory] = useState('RTG');
-    const [selectedTrainee, setSelectedTrainee] = useState(null);
+    const [selectedTrainee, setSelectedTrainee] = useState<Trainee | null>(null);
     const [isRemarkDialogOpen, setIsRemarkDialogOpen] = useState(false);
     const [remarkText, setRemarkText] = useState('');
 
-    const filteredCourses = mockCourses.filter((course) => {
+    const filteredCourses = courses.filter((course) => {
         if (activeCategory === 'EDMT_FAM') {
             return course.type === 'EDMT' || course.type === 'FAM';
         }
@@ -193,20 +139,29 @@ export default function MentorOverview() {
 
     const getCategoryCount = (category: string) => {
         if (category === 'EDMT_FAM') {
-            return mockCourses.filter((c) => c.type === 'EDMT' || c.type === 'FAM').length;
+            return courses.filter((c) => c.type === 'EDMT' || c.type === 'FAM').length;
         }
-        return mockCourses.filter((c) => c.type === category).length;
+        return courses.filter((c) => c.type === category).length;
     };
+
+    // Auto-select first course when filtered courses change
+    useEffect(() => {
+        if (filteredCourses.length > 0 && (!selectedCourse || !filteredCourses.find((c) => c.id === selectedCourse.id))) {
+            setSelectedCourse(filteredCourses[0]);
+        } else if (filteredCourses.length === 0) {
+            setSelectedCourse(null);
+        }
+    }, [activeCategory, filteredCourses.length]);
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Courses" />
+            <Head title="Mentor Overview" />
             <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
                 <div className="grid auto-rows-min gap-4 md:grid-cols-3">
                     <Card className="@container/card">
                         <CardHeader>
                             <CardDescription>Active Trainees</CardDescription>
-                            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">21</CardTitle>
+                            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">{statistics.activeTrainees}</CardTitle>
                         </CardHeader>
                         <CardFooter className="text-sm">
                             <div className="text-muted-foreground">Active trainees across all of your courses</div>
@@ -215,22 +170,26 @@ export default function MentorOverview() {
                     <Card className="@container/card">
                         <CardHeader>
                             <CardDescription>Claimed Trainees</CardDescription>
-                            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">3</CardTitle>
+                            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">{statistics.claimedTrainees}</CardTitle>
                         </CardHeader>
                         <CardFooter className="flex-col items-start gap-1.5 text-sm">
-                            <div className="text-muted-foreground">Amount of total sessions you had together with a mentor</div>
+                            <div className="text-muted-foreground">Trainees in courses you mentor</div>
                         </CardFooter>
                     </Card>
                     <Card className="@container/card">
                         <CardHeader>
                             <CardDescription>Training Sessions</CardDescription>
-                            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">4</CardTitle>
-                            <CardAction>
-                                <Badge>
-                                    <TrendingUp />
-                                    +12.5%
-                                </Badge>
-                            </CardAction>
+                            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+                                {statistics.trainingSessions}
+                            </CardTitle>
+                            {statistics.trainingSessions > 0 && (
+                                <CardAction>
+                                    <Badge>
+                                        <TrendingUp />
+                                        +12.5%
+                                    </Badge>
+                                </CardAction>
+                            )}
                         </CardHeader>
                         <CardFooter className="text-sm text-muted-foreground">Training sessions held the last 30 days</CardFooter>
                     </Card>
@@ -261,25 +220,31 @@ export default function MentorOverview() {
                     </CardHeader>
 
                     <CardContent className="px-4">
-                        <div className="flex flex-wrap gap-2">
-                            {filteredCourses.map((course) => (
-                                <button
-                                    key={course.id}
-                                    onClick={() => setSelectedCourse(course)}
-                                    className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-sm font-medium transition-colors ${
-                                        selectedCourse.id === course.id
-                                            ? 'border-primary bg-primary text-primary-foreground'
-                                            : 'border-border bg-background hover:bg-muted'
-                                    }`}
-                                >
-                                    <div className={`rounded-full p-1 ${getPositionColor(course.position)}`}>{getPositionIcon(course.position)}</div>
-                                    {course.name}
-                                    <Badge variant="secondary" className="ml-1">
-                                        {course.activeTrainees}
-                                    </Badge>
-                                </button>
-                            ))}
-                        </div>
+                        {filteredCourses.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                                {filteredCourses.map((course) => (
+                                    <button
+                                        key={course.id}
+                                        onClick={() => setSelectedCourse(course)}
+                                        className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-sm font-medium transition-colors ${
+                                            selectedCourse?.id === course.id
+                                                ? 'border-primary bg-primary text-primary-foreground'
+                                                : 'border-border bg-background hover:bg-muted'
+                                        }`}
+                                    >
+                                        <div className={`rounded-full p-1 ${getPositionColor(course.position)}`}>
+                                            {getPositionIcon(course.position)}
+                                        </div>
+                                        {course.name}
+                                        <Badge variant="secondary" className="ml-1">
+                                            {course.activeTrainees}
+                                        </Badge>
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="py-8 text-center text-muted-foreground">No courses available in this category</div>
+                        )}
                     </CardContent>
                 </Card>
 
@@ -348,26 +313,39 @@ export default function MentorOverview() {
 
                                                     <TableCell>
                                                         <div className="space-y-1">
-                                                            <div className="flex items-center gap-1">
-                                                                {trainee.progress.map((passed, idx) => (
-                                                                    <div
-                                                                        key={idx}
-                                                                        className={`h-2 w-2 rounded-full ${passed ? 'bg-green-500' : 'bg-red-500'}`}
-                                                                        title={`Session ${idx + 1}: ${passed ? 'Passed' : 'Failed'}`}
-                                                                    />
-                                                                ))}
-                                                                <Button variant="ghost" size="sm" className="ml-1 h-6 px-2">
-                                                                    <Eye className="mr-1 h-3 w-3" />
-                                                                    Details
-                                                                </Button>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="sm"
-                                                                    className="h-6 bg-green-50 px-2 text-green-700 hover:bg-green-100"
-                                                                >
-                                                                    <Plus className="h-3 w-3" />
-                                                                </Button>
-                                                            </div>
+                                                            {trainee.progress.length > 0 ? (
+                                                                <div className="flex items-center gap-1">
+                                                                    {trainee.progress.map((passed, idx) => (
+                                                                        <div
+                                                                            key={idx}
+                                                                            className={`h-2 w-2 rounded-full ${passed ? 'bg-green-500' : 'bg-red-500'}`}
+                                                                            title={`Session ${idx + 1}: ${passed ? 'Passed' : 'Failed'}`}
+                                                                        />
+                                                                    ))}
+                                                                    <Button variant="ghost" size="sm" className="ml-1 h-6 px-2">
+                                                                        <Eye className="mr-1 h-3 w-3" />
+                                                                        Details
+                                                                    </Button>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="h-6 bg-green-50 px-2 text-green-700 hover:bg-green-100"
+                                                                    >
+                                                                        <Plus className="h-3 w-3" />
+                                                                    </Button>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className="text-sm text-muted-foreground">No sessions yet</span>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="h-6 bg-green-50 px-2 text-green-700 hover:bg-green-100"
+                                                                    >
+                                                                        <Plus className="h-3 w-3" />
+                                                                    </Button>
+                                                                </div>
+                                                            )}
                                                             {trainee.lastSession && (
                                                                 <div className="text-xs text-muted-foreground">
                                                                     Last: {new Date(trainee.lastSession).toLocaleDateString()}

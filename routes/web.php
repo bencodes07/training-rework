@@ -68,8 +68,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     // Mentor Overview
-    Route::middleware('can:mentor')->group(function () {
-        Route::get('overview', [MentorOverviewController::class, 'index'])->name('overview');
+    Route::middleware(['can:mentor'])->group(function () {
+        Route::get('overview', [MentorOverviewController::class, 'index'])
+            ->name('overview');
     });
 });
 
