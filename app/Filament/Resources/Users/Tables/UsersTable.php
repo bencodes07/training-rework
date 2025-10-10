@@ -16,45 +16,124 @@ class UsersTable
     public static function configure(Table $table): Table
     {
         return $table
-        ->columns([
-            TextColumn::make('vatsim_id')
-                ->label('VATSIM ID')
-                ->searchable()
-                ->sortable(),
-            TextColumn::make('name')
-                ->label('Name')
-                ->searchable(['first_name', 'last_name'])
-                ->sortable(),
-            TextColumn::make('email')
-                ->searchable(),
-            TextColumn::make('subdivision')
-                ->badge(),
-            TextColumn::make('rating')
-                ->badge()
-                ->color('success'),
-            IconColumn::make('is_staff')
-                ->label('Is Staff')
-                ->boolean(),
-            IconColumn::make('is_superuser')
-                ->label('Is Superuser')
-                ->boolean(),
-            TextColumn::make('roles.name')
-                ->badge()
-                ->separator(','),
-            TextColumn::make('created_at')
-                ->dateTime()
-                ->sortable()
-                ->toggleable(isToggledHiddenByDefault: true),
-        ])
-        ->filters([
-            TernaryFilter::make('is_staff'),
-            TernaryFilter::make('is_superuser'),
-            SelectFilter::make('subdivision')
-                ->options([
-                    'GER' => 'Germany',
-                    // Add other subdivisions as needed
-                ]),
-        ])
+            ->columns([
+                TextColumn::make('vatsim_id')
+                    ->label('VATSIM ID')
+                    ->searchable()
+                    ->sortable(),
+
+                TextColumn::make('name')
+                    ->label('Name')
+                    ->searchable(['first_name', 'last_name'])
+                    ->sortable(),
+
+                TextColumn::make('email')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('subdivision')
+                    ->badge()
+                    ->color('info')
+                    ->sortable(),
+
+                TextColumn::make('rating')
+                    ->badge()
+                    ->color('success')
+                    ->formatStateUsing(fn(int $state): string => match ($state) {
+                        0 => 'None',
+                        1 => 'OBS',
+                        2 => 'S1',
+                        3 => 'S2',
+                        4 => 'S3',
+                        5 => 'C1',
+                        7 => 'C3',
+                        8 => 'I1',
+                        10 => 'I3',
+                        11 => 'SUP',
+                        12 => 'ADM',
+                        default => "Unknown ($state)",
+                    })
+                    ->sortable(),
+
+                IconColumn::make('is_staff')
+                    ->label('Staff')
+                    ->boolean()
+                    ->sortable(),
+
+                IconColumn::make('is_superuser')
+                    ->label('Superuser')
+                    ->boolean()
+                    ->sortable(),
+
+                IconColumn::make('is_admin')
+                    ->label('Admin')
+                    ->boolean()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('roles.name')
+                    ->label('Roles')
+                    ->badge()
+                    ->separator(',')
+                    ->color('warning'),
+
+                TextColumn::make('created_at')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('last_rating_change')
+                    ->label('Last Rating Change')
+                    ->date()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+            ])
+            ->filters([
+                TernaryFilter::make('is_staff')
+                    ->label('Staff Members'),
+
+                TernaryFilter::make('is_superuser')
+                    ->label('Superusers'),
+
+                TernaryFilter::make('is_admin')
+                    ->label('Admin Accounts'),
+
+                SelectFilter::make('subdivision')
+                    ->options([
+                        'GER' => 'Germany',
+                        'USA' => 'United States',
+                        'GBR' => 'United Kingdom',
+                        'FRA' => 'France',
+                        'ITA' => 'Italy',
+                        'ESP' => 'Spain',
+                        'NLD' => 'Netherlands',
+                        'BEL' => 'Belgium',
+                        'AUT' => 'Austria',
+                        'CHE' => 'Switzerland',
+                    ])
+                    ->multiple(),
+
+                SelectFilter::make('rating')
+                    ->label('ATC Rating')
+                    ->options([
+                        0 => 'None',
+                        1 => 'OBS',
+                        2 => 'S1',
+                        3 => 'S2',
+                        4 => 'S3',
+                        5 => 'C1',
+                        7 => 'C3',
+                        8 => 'I1',
+                        10 => 'I3',
+                        11 => 'SUP',
+                        12 => 'ADM',
+                    ])
+                    ->multiple(),
+
+                SelectFilter::make('roles')
+                    ->relationship('roles', 'name')
+                    ->multiple()
+                    ->preload(),
+            ])
             ->recordActions([
                 EditAction::make(),
             ])
@@ -62,6 +141,7 @@ class UsersTable
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
                 ]),
-            ]);
+            ])
+            ->defaultSort('vatsim_id', 'asc');
     }
 }

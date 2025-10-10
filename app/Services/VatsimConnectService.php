@@ -5,6 +5,7 @@ namespace App\Services;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class VatsimConnectService
 {
@@ -104,82 +105,23 @@ class VatsimConnectService
 
         $rawProfile = $response->json();
 
-        // VATSIM Connect returns data in a 'data' wrapper
-        $profile = $rawProfile;
-        if (isset($rawProfile['data'])) {
-            $profile = $rawProfile['data'];
-        }
+        // Log the raw response for debugging
+        Log::info('VATSIM Connect raw response', ['response' => $rawProfile]);
 
-        // Handle different possible response formats
+        // VATSIM Connect returns data in a 'data' wrapper
+        $profile = $rawProfile['data'] ?? $rawProfile;
+
+        // Build standardized profile
         $transformedProfile = [
-            'id' => null,
-            'firstname' => null,
-            'lastname' => null,
-            'email' => null,
-            'rating_atc' => 1,
-            'subdivision_code' => null,
+            'id' => $profile['cid'] ?? null,
+            'firstname' => $profile['personal']['name_first'] ?? null,
+            'lastname' => $profile['personal']['name_last'] ?? null,
+            'email' => $profile['personal']['email'] ?? null,
+            'rating_atc' => $profile['vatsim']['rating']['id'] ?? 1,
+            'subdivision_code' => $profile['vatsim']['subdivision']['id'] ?? null,
             'last_rating_change_at' => null,
             'teams' => []
         ];
-
-        // Try to extract CID/ID from various possible locations
-        if (isset($profile['cid'])) {
-            $transformedProfile['id'] = $profile['cid'];
-        } elseif (isset($profile['id'])) {
-            $transformedProfile['id'] = $profile['id'];
-        } elseif (isset($profile['vatsim_id'])) {
-            $transformedProfile['id'] = $profile['vatsim_id'];
-        }
-
-        // Try to extract name from various possible locations
-        if (isset($profile['personal']['name_first'])) {
-            $transformedProfile['firstname'] = $profile['personal']['name_first'];
-        } elseif (isset($profile['name_first'])) {
-            $transformedProfile['firstname'] = $profile['name_first'];
-        } elseif (isset($profile['first_name'])) {
-            $transformedProfile['firstname'] = $profile['first_name'];
-        } elseif (isset($profile['firstname'])) {
-            $transformedProfile['firstname'] = $profile['firstname'];
-        }
-
-        if (isset($profile['personal']['name_last'])) {
-            $transformedProfile['lastname'] = $profile['personal']['name_last'];
-        } elseif (isset($profile['name_last'])) {
-            $transformedProfile['lastname'] = $profile['name_last'];
-        } elseif (isset($profile['last_name'])) {
-            $transformedProfile['lastname'] = $profile['last_name'];
-        } elseif (isset($profile['lastname'])) {
-            $transformedProfile['lastname'] = $profile['lastname'];
-        }
-
-        // Try to extract email
-        if (isset($profile['personal']['email'])) {
-            $transformedProfile['email'] = $profile['personal']['email'];
-        } elseif (isset($profile['email'])) {
-            $transformedProfile['email'] = $profile['email'];
-        }
-
-        // Try to extract rating from various possible locations
-        if (isset($profile['vatsim']['rating']['id'])) {
-            $transformedProfile['rating_atc'] = $profile['vatsim']['rating']['id'];
-        } elseif (isset($profile['rating']['id'])) {
-            $transformedProfile['rating_atc'] = $profile['rating']['id'];
-        } elseif (isset($profile['rating_atc'])) {
-            $transformedProfile['rating_atc'] = $profile['rating_atc'];
-        } elseif (isset($profile['rating'])) {
-            $transformedProfile['rating_atc'] = is_array($profile['rating']) ? ($profile['rating']['id'] ?? 1) : $profile['rating'];
-        }
-
-        // Try to extract subdivision from various possible locations
-        if (isset($profile['vatsim']['subdivision']['code'])) {
-            $transformedProfile['subdivision_code'] = $profile['vatsim']['subdivision']['code'];
-        } elseif (isset($profile['subdivision']['code'])) {
-            $transformedProfile['subdivision_code'] = $profile['subdivision']['code'];
-        } elseif (isset($profile['subdivision_code'])) {
-            $transformedProfile['subdivision_code'] = $profile['subdivision_code'];
-        } elseif (isset($profile['subdivision'])) {
-            $transformedProfile['subdivision_code'] = is_array($profile['subdivision']) ? ($profile['subdivision']['code'] ?? null) : $profile['subdivision'];
-        }
 
         // Extract region/division staff roles if available
         if (isset($profile['vatsim']['region']['staff']) && is_array($profile['vatsim']['region']['staff'])) {
@@ -198,11 +140,6 @@ class VatsimConnectService
             }
         }
 
-        // Also check for direct teams array
-        if (isset($profile['teams']) && is_array($profile['teams'])) {
-            $transformedProfile['teams'] = array_merge($transformedProfile['teams'], $profile['teams']);
-        }
-
         // Validate that we have the minimum required data
         if (!$transformedProfile['id']) {
             throw new \Exception('Could not extract user ID from VATSIM Connect response. Raw response: ' . json_encode($rawProfile));
@@ -211,6 +148,8 @@ class VatsimConnectService
         if (!$transformedProfile['firstname'] || !$transformedProfile['lastname']) {
             throw new \Exception('Could not extract user name from VATSIM Connect response. Raw response: ' . json_encode($rawProfile));
         }
+
+        Log::info('VATSIM Connect transformed profile', ['profile' => $transformedProfile]);
 
         return $transformedProfile;
     }
