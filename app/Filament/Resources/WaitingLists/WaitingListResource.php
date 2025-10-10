@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Resources;
+namespace App\Filament\Resources\WaitingLists;
 
 use App\Filament\Resources\WaitingLists\Pages\EditWaitingList;
 use App\Filament\Resources\WaitingLists\Pages\ListWaitingLists;
