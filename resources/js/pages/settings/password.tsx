@@ -46,7 +46,7 @@ export default function Password() {
                         }}
                         className="space-y-6"
                     >
-                        {({ errors, processing, recentlySuccessful }) => (
+                        {({ processing, recentlySuccessful }) => (
                             <>
                                 <div className="grid gap-2">
                                     <Label htmlFor="current_password">Current password</Label>
