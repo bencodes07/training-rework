@@ -142,6 +142,8 @@ class UsersTable
                     DeleteBulkAction::make(),
                 ]),
             ])
-            ->defaultSort('vatsim_id', 'asc');
+            ->defaultSort('vatsim_id', 'asc')
+            ->defaultPaginationPageOption(100)
+            ->paginationPageOptions([25, 50, 100, 200, 500]);
     }
 }
