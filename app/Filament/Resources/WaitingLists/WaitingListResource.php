@@ -45,4 +45,14 @@ class WaitingListResource extends Resource
             'edit' => EditWaitingList::route('/{record}/edit'),
         ];
     }
+
+    public static function getNavigationGroup(): ?string
+    {
+        return 'Training';
+    }
+
+    public static function getNavigationSort(): ?int
+    {
+        return 2;
+    }
 }
