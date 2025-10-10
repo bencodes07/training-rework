@@ -28,7 +28,7 @@ const navSections = [
                 href: dashboard(),
                 icon: LayoutGrid,
             },
-        ],
+        ] as NavItem[],
     },
     {
         label: 'Training',
@@ -43,7 +43,7 @@ const navSections = [
                 href: route('endorsements'),
                 icon: CircleCheck,
             },
-        ],
+        ] as NavItem[],
     },
 ];
 
@@ -65,7 +65,7 @@ const mentorSection = {
             href: route('endorsements.manage'),
             icon: CheckCircle,
         },
-    ],
+    ] as NavItem[],
 };
 
 const adminSection = {
@@ -78,10 +78,11 @@ const adminSection = {
         },
         {
             title: 'Database',
-            href: '#',
+            href: '/admin',
             icon: Database,
+            external: true,
         },
-    ],
+    ] as NavItem[],
 };
 
 const footerNavItems: NavItem[] = [
@@ -111,10 +112,17 @@ function NavSection({ section }: { section: (typeof navSections)[0] }) {
                             isActive={page.url.startsWith(typeof item.href === 'string' ? item.href : item.href.url)}
                             tooltip={{ children: item.title }}
                         >
-                            <Link href={item.href} prefetch>
-                                {item.icon && <item.icon />}
-                                <span>{item.title}</span>
-                            </Link>
+                            {item.external ? (
+                                <a href={item.href as string}>
+                                    {item.icon && <item.icon />}
+                                    <span>{item.title}</span>
+                                </a>
+                            ) : (
+                                <Link href={item.href} prefetch>
+                                    {item.icon && <item.icon />}
+                                    <span>{item.title}</span>
+                                </Link>
+                            )}
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                 ))}

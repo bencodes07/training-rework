@@ -49,6 +49,6 @@ return [
         'users.data',
 
         // Mentor Overview
-        'overview'
+        'overview',
     ],
 ];
