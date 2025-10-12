@@ -427,7 +427,7 @@ class MentorOverviewController extends Controller
         }
 
         // Check if the new mentor can actually mentor this course
-        if (!$newMentor->is_superuser && !$newMentor->is_admin && !$newMentor->mentorCourses()->where('id', $course->id)->exists()) {
+        if (!$newMentor->is_superuser && !$newMentor->is_admin && !$newMentor->mentorCourses()->where('course.id', $course->id)->exists()) {
             return back()->withErrors(['error' => 'Selected mentor cannot mentor this course']);
         }
 
