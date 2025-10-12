@@ -216,7 +216,7 @@ class MentorOverviewController extends Controller
         $course = \App\Models\Course::findOrFail($courseId);
 
         // Check if user can mentor this course
-        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('id', $course->id)->exists()) {
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
             return response()->json(['error' => 'Access denied'], 403);
         }
 
@@ -251,7 +251,7 @@ class MentorOverviewController extends Controller
         $course = \App\Models\Course::findOrFail($request->course_id);
 
         // Check if user can mentor this course
-        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('id', $course->id)->exists()) {
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
             return back()->withErrors(['error' => 'You cannot modify this course']);
         }
 
@@ -304,7 +304,7 @@ class MentorOverviewController extends Controller
         $trainee = \App\Models\User::findOrFail($request->trainee_id);
 
         // Check if user can mentor this course
-        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('id', $course->id)->exists()) {
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
             return back()->withErrors(['error' => 'You cannot modify this course']);
         }
 
@@ -353,7 +353,7 @@ class MentorOverviewController extends Controller
         $trainee = \App\Models\User::findOrFail($request->trainee_id);
 
         // Check if user can mentor this course
-        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('id', $course->id)->exists()) {
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
             return back()->withErrors(['error' => 'You cannot claim trainees for this course']);
         }
 
@@ -422,7 +422,7 @@ class MentorOverviewController extends Controller
         $newMentor = \App\Models\User::findOrFail($request->mentor_id);
 
         // Check if user can mentor this course
-        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('id', $course->id)->exists()) {
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
             return back()->withErrors(['error' => 'You cannot assign trainees for this course']);
         }
 
@@ -497,7 +497,7 @@ class MentorOverviewController extends Controller
         $trainee = \App\Models\User::findOrFail($request->trainee_id);
 
         // Check if user can mentor this course
-        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('id', $course->id)->exists()) {
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
             return back()->withErrors(['error' => 'You cannot unclaim trainees for this course']);
         }
 
