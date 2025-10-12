@@ -11,15 +11,8 @@ return new class extends Migration
         Schema::table('course_trainees', function (Blueprint $table) {
             $table->integer('remark_author_id')->nullable()->after('remarks');
             $table->timestamp('remark_updated_at')->nullable()->after('remark_author_id');
-            $table->integer('claimed_by_mentor_id')->nullable()->after('remark_updated_at');
-            $table->timestamp('claimed_at')->nullable()->after('claimed_by_mentor_id');
             
             $table->foreign('remark_author_id')
-                ->references('id')
-                ->on('users')
-                ->onDelete('set null');
-            
-            $table->foreign('claimed_by_mentor_id')
                 ->references('id')
                 ->on('users')
                 ->onDelete('set null');
@@ -30,8 +23,7 @@ return new class extends Migration
     {
         Schema::table('course_trainees', function (Blueprint $table) {
             $table->dropForeign(['remark_author_id']);
-            $table->dropForeign(['claimed_by_mentor_id']);
-            $table->dropColumn(['remark_author_id', 'remark_updated_at', 'claimed_by_mentor_id', 'claimed_at']);
+            $table->dropColumn(['remark_author_id', 'remark_updated_at']);
         });
     }
 };
