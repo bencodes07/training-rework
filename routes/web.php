@@ -93,7 +93,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('overview/assign-trainee', [MentorOverviewController::class, 'assignTrainee'])
             ->name('overview.assign-trainee');
 
-        Route::get('/course/{course}/mentors', [MentorOverviewController::class, 'getCourseMentors']);
+        Route::get('/course/{course}/mentors', [MentorOverviewController::class, 'getCourseMentors'])->name('overview.get-course-mentors');
     });
 });
 
