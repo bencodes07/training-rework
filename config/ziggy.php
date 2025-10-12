@@ -54,6 +54,7 @@ return [
         'overview.remove-trainee',
         'overview.assign-trainee',
         'overview.claim-trainee',
-        'overview.unclaim-trainee'
+        'overview.unclaim-trainee',
+        'overview.get-course-mentors'
     ],
 ];
