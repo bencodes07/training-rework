@@ -50,7 +50,7 @@ export function CourseDetail({ course, onRemarkClick, onClaimClick, onAssignClic
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Trainee</TableHead>
+                                    <TableHead className="pl-6">Trainee</TableHead>
                                     <TableHead>Progress</TableHead>
                                     <TableHead>Solo</TableHead>
                                     <TableHead>Next Step</TableHead>

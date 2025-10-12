@@ -4,9 +4,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { TableCell, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Trainee } from '@/types/mentor';
-import { router } from '@inertiajs/react';
-import { Calendar, CheckCircle2, Clock, Eye, FileText, MoreVertical, Plus, UserCheck, UserMinus, UserPlus, Users } from 'lucide-react';
+import { Link, router } from '@inertiajs/react';
+import { CheckCircle2, Clock, Eye, FileText, MoreVertical, Plus, UserCheck, UserMinus, UserPlus, Users } from 'lucide-react';
 import { useState } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 
 interface TraineeRowProps {
     trainee: Trainee;
@@ -19,12 +20,9 @@ interface TraineeRowProps {
 export function TraineeRow({ trainee, courseId, onRemarkClick, onClaimClick, onAssignClick }: TraineeRowProps) {
     const [isRemoving, setIsRemoving] = useState(false);
     const [isUnclaiming, setIsUnclaiming] = useState(false);
+    const [removeOpen, setRemoveOpen] = useState(false);
 
     const handleRemoveTrainee = () => {
-        if (!confirm(`Are you sure you want to remove ${trainee.name} from this course?`)) {
-            return;
-        }
-
         setIsRemoving(true);
         router.post(
             route('overview.remove-trainee'),
@@ -68,7 +66,7 @@ export function TraineeRow({ trainee, courseId, onRemarkClick, onClaimClick, onA
 
     return (
         <TableRow key={trainee.id}>
-            <TableCell>
+            <TableCell className="pl-6">
                 <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 font-medium text-primary">
                         {trainee.initials}
@@ -140,17 +138,17 @@ export function TraineeRow({ trainee, courseId, onRemarkClick, onClaimClick, onA
                 <div className="truncate text-sm">{trainee.nextStep || '—'}</div>
             </TableCell>
 
-            <TableCell className="max-w-xs">
+            <TableCell>
                 <TooltipProvider>
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <button
                                 onClick={() => onRemarkClick(trainee)}
-                                className="w-full rounded p-1 text-left transition-colors hover:bg-muted/50"
+                                className="max-w-76 rounded p-1 text-left transition-colors hover:bg-muted/64"
                             >
                                 {trainee.remark && trainee.remark.text ? (
                                     <div>
-                                        <div className="line-clamp-2 text-sm">{trainee.remark.text}</div>
+                                        <div className="line-clamp-2 truncate text-sm">{trainee.remark.text}</div>
                                         <div className="mt-1 text-xs text-muted-foreground">Click to edit</div>
                                     </div>
                                 ) : (
@@ -162,15 +160,12 @@ export function TraineeRow({ trainee, courseId, onRemarkClick, onClaimClick, onA
                             <TooltipContent side="top" className="max-w-xs">
                                 <div className="space-y-1">
                                     <div className="font-medium">Last updated</div>
-                                    <div className="text-sm">
+                                    <div>
                                         {formatRemarkDate(trainee.remark.updated_at)}
                                         {trainee.remark.author_name && (
                                             <>
                                                 {' by '}
                                                 <span className="font-medium">{trainee.remark.author_name}</span>
-                                                {trainee.remark.author_initials && (
-                                                    <span className="ml-1 text-muted-foreground">({trainee.remark.author_initials})</span>
-                                                )}
                                             </>
                                         )}
                                     </div>
@@ -184,30 +179,34 @@ export function TraineeRow({ trainee, courseId, onRemarkClick, onClaimClick, onA
             <TableCell>
                 {trainee.claimedBy ? (
                     <div className="flex items-center gap-2">
-                        <Badge
-                            variant="outline"
-                            className={
-                                trainee.claimedBy === 'You' ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-700'
-                            }
-                        >
-                            {trainee.claimedBy === 'You' ? (
-                                <>
-                                    <UserCheck className="mr-1 h-3 w-3" />
-                                    Claimed by you
-                                </>
-                            ) : (
-                                <>
-                                    <Users className="mr-1 h-3 w-3" />
-                                    Claimed by {trainee.claimedBy}
-                                </>
-                            )}
-                        </Badge>
-                        {trainee.claimedBy === 'You' && (
-                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleUnclaimTrainee} disabled={isUnclaiming}>
-                                <UserMinus className="mr-1 h-3 w-3" />
-                                {isUnclaiming ? 'Unclaiming...' : 'Unclaim'}
-                            </Button>
-                        )}
+                        <Tooltip delayDuration={200}>
+                            <Badge
+                                variant="outline"
+                                className={
+                                    trainee.claimedBy === 'You'
+                                        ? 'border-blue-200 bg-blue-50 text-blue-700'
+                                        : 'border-gray-200 bg-gray-50 text-gray-700'
+                                }
+                                onClick={handleUnclaimTrainee}
+                            >
+                                {trainee.claimedBy === 'You' ? (
+                                    <>
+                                        <TooltipTrigger className="flex">
+                                            <UserCheck className="mr-1 h-3 w-3" />
+                                            {isUnclaiming ? 'Unclaiming...' : 'Claimed by you'}
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Click to unclaim trainee</p>
+                                        </TooltipContent>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Users className="mr-1 h-3 w-3" />
+                                        Claimed by {trainee.claimedBy}
+                                    </>
+                                )}
+                            </Badge>
+                        </Tooltip>
                     </div>
                 ) : (
                     <Button variant="outline" size="sm" onClick={() => onClaimClick(trainee)}>
@@ -219,7 +218,7 @@ export function TraineeRow({ trainee, courseId, onRemarkClick, onClaimClick, onA
 
             <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-2">
-                    <Button size="sm" variant="outline" className="border-green-200 bg-green-50 text-green-700 hover:bg-green-100">
+                    <Button size="sm" variant="success">
                         <CheckCircle2 className="mr-1 h-3 w-3" />
                         Finish
                     </Button>
@@ -230,34 +229,51 @@ export function TraineeRow({ trainee, courseId, onRemarkClick, onClaimClick, onA
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
-                                <FileText className="mr-2 h-4 w-4" />
-                                View Profile
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                                <Calendar className="mr-2 h-4 w-4" />
-                                Schedule Session
+                            <DropdownMenuItem asChild>
+                                <Link href={`/users/${trainee.vatsimId}`}>
+                                    <FileText className="h-4 w-4" />
+                                    View Profile
+                                </Link>
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             {trainee.claimedBy !== 'You' && (
                                 <DropdownMenuItem onClick={() => onClaimClick(trainee)}>
-                                    <UserPlus className="mr-2 h-4 w-4" />
+                                    <UserPlus className="h-4 w-4" />
                                     Claim Trainee
                                 </DropdownMenuItem>
                             )}
                             <DropdownMenuItem onClick={() => onAssignClick(trainee)}>
-                                <Users className="mr-2 h-4 w-4" />
+                                <Users className="h-4 w-4" />
                                 Assign to Mentor
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive" onClick={handleRemoveTrainee} disabled={isRemoving}>
-                                <UserMinus className="mr-2 h-4 w-4" />
+                            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setRemoveOpen(true)}>
+                                <UserMinus className="h-4 w-4 text-destructive" />
                                 {isRemoving ? 'Removing...' : 'Remove from Course'}
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
             </TableCell>
+            <Dialog open={removeOpen} onOpenChange={setRemoveOpen}>
+                <DialogContent className="gap-6">
+                    <DialogHeader>
+                        <DialogTitle>Remove Trainee</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to remove <span className="font-medium">{trainee?.name}</span> from this course?
+                            <br />
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setRemoveOpen(false)} disabled={isRemoving}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleRemoveTrainee} disabled={isRemoving} variant={'destructive'}>
+                            {isRemoving ? 'Removing...' : 'Remove from Course'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </TableRow>
     );
 }
