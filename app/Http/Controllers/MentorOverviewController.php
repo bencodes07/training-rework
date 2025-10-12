@@ -140,13 +140,34 @@ class MentorOverviewController extends Controller
             $claimedBy = $primaryMentor->name;
         }
 
-        // Get remarks from course_trainees pivot table
+        // Get remarks from course_trainees pivot table with author information
         $pivot = DB::table('course_trainees')
-            ->where('course_id', $course->id)
-            ->where('user_id', $trainee->id)
+            ->leftJoin('users as remark_author', 'course_trainees.remark_author_id', '=', 'remark_author.id')
+            ->where('course_trainees.course_id', $course->id)
+            ->where('course_trainees.user_id', $trainee->id)
+            ->select(
+                'course_trainees.remarks',
+                'course_trainees.remark_updated_at',
+                'remark_author.first_name as author_first_name',
+                'remark_author.last_name as author_last_name'
+            )
             ->first();
 
-        $remarks = $pivot->remarks ?? '';
+        $remarkData = null;
+        if ($pivot && !empty($pivot->remarks)) {
+            $remarkData = [
+                'text' => $pivot->remarks,
+                'updated_at' => $pivot->remark_updated_at
+                    ? \Carbon\Carbon::parse($pivot->remark_updated_at)->toIso8601String()
+                    : null,
+                'author_initials' => $pivot->author_first_name && $pivot->author_last_name
+                    ? strtoupper(mb_substr($pivot->author_first_name, 0, 1) . mb_substr($pivot->author_last_name, 0, 1))
+                    : null,
+                'author_name' => $pivot->author_first_name && $pivot->author_last_name
+                    ? $pivot->author_first_name . ' ' . $pivot->author_last_name
+                    : null,
+            ];
+        }
 
         // Get last session date (placeholder - implement when you add training sessions table)
         $lastSession = null;
@@ -164,8 +185,110 @@ class MentorOverviewController extends Controller
             'nextStep' => $nextStep,
             'claimedBy' => $claimedBy,
             'soloStatus' => $soloStatus,
-            'remark' => $remarks,
+            'remark' => $remarkData,
         ];
+    }
+
+    /**
+     * Update remark for a trainee
+     */
+    public function updateRemark(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user->isMentor() && !$user->is_superuser) {
+            return back()->withErrors(['error' => 'Access denied']);
+        }
+
+        $request->validate([
+            'trainee_id' => 'required|integer|exists:users,id',
+            'course_id' => 'required|integer|exists:courses,id',
+            'remark' => 'nullable|string|max:1000',
+        ]);
+
+        $course = \App\Models\Course::findOrFail($request->course_id);
+
+        // Check if user can mentor this course
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('id', $course->id)->exists()) {
+            return back()->withErrors(['error' => 'You cannot modify this course']);
+        }
+
+        try {
+            DB::table('course_trainees')
+                ->where('course_id', $request->course_id)
+                ->where('user_id', $request->trainee_id)
+                ->update([
+                    'remarks' => $request->remark ?? '',
+                    'remark_author_id' => $user->id,
+                    'remark_updated_at' => now(),
+                ]);
+
+            \Log::info('Trainee remark updated', [
+                'mentor_id' => $user->id,
+                'trainee_id' => $request->trainee_id,
+                'course_id' => $request->course_id
+            ]);
+
+            return back()->with('success', 'Remark updated successfully');
+        } catch (\Exception $e) {
+            \Log::error('Error updating trainee remark', [
+                'mentor_id' => $user->id,
+                'trainee_id' => $request->trainee_id,
+                'course_id' => $request->course_id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors(['error' => 'An error occurred while updating the remark.']);
+        }
+    }
+
+    /**
+     * Remove trainee from course
+     */
+    public function removeTrainee(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user->isMentor() && !$user->is_superuser) {
+            return back()->withErrors(['error' => 'Access denied']);
+        }
+
+        $request->validate([
+            'trainee_id' => 'required|integer|exists:users,id',
+            'course_id' => 'required|integer|exists:courses,id',
+        ]);
+
+        $course = \App\Models\Course::findOrFail($request->course_id);
+        $trainee = \App\Models\User::findOrFail($request->trainee_id);
+
+        // Check if user can mentor this course
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('id', $course->id)->exists()) {
+            return back()->withErrors(['error' => 'You cannot modify this course']);
+        }
+
+        try {
+            // Remove from active trainees
+            $course->activeTrainees()->detach($trainee->id);
+
+            \Log::info('Trainee removed from course', [
+                'mentor_id' => $user->id,
+                'trainee_id' => $trainee->id,
+                'trainee_name' => $trainee->name,
+                'course_id' => $course->id,
+                'course_name' => $course->name
+            ]);
+
+            return back()->with('success', "Successfully removed {$trainee->name} from {$course->name}");
+        } catch (\Exception $e) {
+            \Log::error('Error removing trainee from course', [
+                'mentor_id' => $user->id,
+                'trainee_id' => $trainee->id,
+                'course_id' => $course->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors(['error' => 'An error occurred while removing the trainee.']);
+        }
     }
 
     /**

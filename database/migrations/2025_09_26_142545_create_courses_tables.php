@@ -78,6 +78,13 @@ return new class extends Migration
             $table->foreignId('course_id')->constrained()->onDelete('cascade');
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->text('remarks')->nullable();
+            $table->integer('remark_author_id')->nullable()->after('remarks');
+            $table->timestamp('remark_updated_at')->nullable()->after('remark_author_id');
+
+            $table->foreign('remark_author_id')
+                ->references('id')
+                ->on('users')
+                ->onDelete('set null');
             $table->timestamps();
             
             $table->unique(['course_id', 'user_id']);

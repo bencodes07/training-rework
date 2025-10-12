@@ -15,7 +15,7 @@ interface CourseDetailProps {
 
 export function CourseDetail({ course, onRemarkClick }: CourseDetailProps) {
     return (
-        <Card className='gap-0'>
+        <Card className="gap-0">
             <CardHeader className="border-b">
                 <div className="flex items-center justify-between">
                     <div>
@@ -59,7 +59,7 @@ export function CourseDetail({ course, onRemarkClick }: CourseDetailProps) {
                             </TableHeader>
                             <TableBody>
                                 {course.trainees.map((trainee) => (
-                                    <TraineeRow key={trainee.id} trainee={trainee} onRemarkClick={onRemarkClick} />
+                                    <TraineeRow key={trainee.id} trainee={trainee} courseId={course.id} onRemarkClick={onRemarkClick} />
                                 ))}
                             </TableBody>
                         </Table>

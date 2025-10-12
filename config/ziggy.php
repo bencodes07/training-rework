@@ -50,5 +50,7 @@ return [
 
         // Mentor Overview
         'overview',
+        'overview.update-remark',
+        'overview.remove-trainee'
     ],
 ];

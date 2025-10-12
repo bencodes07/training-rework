@@ -26,7 +26,6 @@ export default function MentorOverview({ courses, statistics }: Props) {
 
     const [selectedTrainee, setSelectedTrainee] = useState<Trainee | null>(null);
     const [isRemarkDialogOpen, setIsRemarkDialogOpen] = useState(false);
-    const [remarkText, setRemarkText] = useState('');
 
     const filteredCourses = courses.filter((course) => {
         if (activeCategory === 'EDMT_FAM') {
@@ -50,19 +49,12 @@ export default function MentorOverview({ courses, statistics }: Props) {
 
     const handleRemarkClick = (trainee: Trainee) => {
         setSelectedTrainee(trainee);
-        setRemarkText(trainee.remark);
         setIsRemarkDialogOpen(true);
-    };
-
-    const handleRemarkSave = () => {
-        // Handle save logic here
-        setIsRemarkDialogOpen(false);
     };
 
     const handleRemarkClose = () => {
         setIsRemarkDialogOpen(false);
         setSelectedTrainee(null);
-        setRemarkText('');
     };
 
     return (
@@ -83,11 +75,9 @@ export default function MentorOverview({ courses, statistics }: Props) {
 
                 <RemarkDialog
                     trainee={selectedTrainee}
+                    courseId={selectedCourse?.id || null}
                     isOpen={isRemarkDialogOpen}
                     onClose={handleRemarkClose}
-                    remarkText={remarkText}
-                    onRemarkChange={setRemarkText}
-                    onSave={handleRemarkSave}
                 />
             </div>
         </AppLayout>

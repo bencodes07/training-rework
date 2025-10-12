@@ -71,7 +71,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware(['can:mentor'])->group(function () {
         Route::get('overview', [MentorOverviewController::class, 'index'])
             ->name('overview');
+
+        Route::post('overview/update-remark', [MentorOverviewController::class, 'updateRemark'])
+            ->name('overview.update-remark');
+
+        Route::post('overview/remove-trainee', [MentorOverviewController::class, 'removeTrainee'])
+            ->name('overview.remove-trainee');
     });
+
+    
 });
 
 require __DIR__.'/settings.php';
