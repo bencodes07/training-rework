@@ -1,6 +1,7 @@
 import { CourseDetail } from '@/components/overview/course-detail';
 import { CourseFilter } from '@/components/overview/course-filter';
 import { RemarkDialog } from '@/components/overview/remark-dialog';
+import { ClaimConfirmDialog, AssignDialog } from '@/components/overview/claim-dialogs';
 import { StatisticsCards } from '@/components/overview/statistics-cards';
 import { useMentorStorage } from '@/hooks/use-mentor-storage';
 import AppLayout from '@/layouts/app-layout';
@@ -26,6 +27,8 @@ export default function MentorOverview({ courses, statistics }: Props) {
 
     const [selectedTrainee, setSelectedTrainee] = useState<Trainee | null>(null);
     const [isRemarkDialogOpen, setIsRemarkDialogOpen] = useState(false);
+    const [isClaimDialogOpen, setIsClaimDialogOpen] = useState(false);
+    const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
 
     const filteredCourses = courses.filter((course) => {
         if (activeCategory === 'EDMT_FAM') {
@@ -52,8 +55,28 @@ export default function MentorOverview({ courses, statistics }: Props) {
         setIsRemarkDialogOpen(true);
     };
 
+    const handleClaimClick = (trainee: Trainee) => {
+        setSelectedTrainee(trainee);
+        setIsClaimDialogOpen(true);
+    };
+
+    const handleAssignClick = (trainee: Trainee) => {
+        setSelectedTrainee(trainee);
+        setIsAssignDialogOpen(true);
+    };
+
     const handleRemarkClose = () => {
         setIsRemarkDialogOpen(false);
+        setSelectedTrainee(null);
+    };
+
+    const handleClaimClose = () => {
+        setIsClaimDialogOpen(false);
+        setSelectedTrainee(null);
+    };
+
+    const handleAssignClose = () => {
+        setIsAssignDialogOpen(false);
         setSelectedTrainee(null);
     };
 
@@ -71,13 +94,34 @@ export default function MentorOverview({ courses, statistics }: Props) {
                     onCourseSelect={setSelectedCourse}
                 />
 
-                {selectedCourse && <CourseDetail course={selectedCourse} onRemarkClick={handleRemarkClick} />}
+                {selectedCourse && (
+                    <CourseDetail
+                        course={selectedCourse}
+                        onRemarkClick={handleRemarkClick}
+                        onClaimClick={handleClaimClick}
+                        onAssignClick={handleAssignClick}
+                    />
+                )}
 
                 <RemarkDialog
                     trainee={selectedTrainee}
                     courseId={selectedCourse?.id || null}
                     isOpen={isRemarkDialogOpen}
                     onClose={handleRemarkClose}
+                />
+
+                <ClaimConfirmDialog
+                    trainee={selectedTrainee}
+                    courseId={selectedCourse?.id || null}
+                    isOpen={isClaimDialogOpen}
+                    onClose={handleClaimClose}
+                />
+
+                <AssignDialog
+                    trainee={selectedTrainee}
+                    courseId={selectedCourse?.id || null}
+                    isOpen={isAssignDialogOpen}
+                    onClose={handleAssignClose}
                 />
             </div>
         </AppLayout>

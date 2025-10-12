@@ -88,6 +88,14 @@ return new class extends Migration
             $table->timestamps();
             
             $table->unique(['course_id', 'user_id']);
+
+            $table->integer('claimed_by_mentor_id')->nullable()->after('remark_updated_at');
+            $table->timestamp('claimed_at')->nullable()->after('claimed_by_mentor_id');
+
+            $table->foreign('claimed_by_mentor_id')
+                ->references('id')
+                ->on('users')
+                ->onDelete('set null');
         });
 
         // Create waiting_list_entries table

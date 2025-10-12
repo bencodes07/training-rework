@@ -5,17 +5,20 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Trainee } from '@/types/mentor';
 import { router } from '@inertiajs/react';
-import { Calendar, CheckCircle2, Clock, Eye, FileText, MoreVertical, Plus, UserCheck, UserMinus } from 'lucide-react';
+import { Calendar, CheckCircle2, Clock, Eye, FileText, MoreVertical, Plus, UserCheck, UserMinus, UserPlus, Users } from 'lucide-react';
 import { useState } from 'react';
 
 interface TraineeRowProps {
     trainee: Trainee;
     courseId: number;
     onRemarkClick: (trainee: Trainee) => void;
+    onClaimClick: (trainee: Trainee) => void;
+    onAssignClick: (trainee: Trainee) => void;
 }
 
-export function TraineeRow({ trainee, courseId, onRemarkClick }: TraineeRowProps) {
+export function TraineeRow({ trainee, courseId, onRemarkClick, onClaimClick, onAssignClick }: TraineeRowProps) {
     const [isRemoving, setIsRemoving] = useState(false);
+    const [isUnclaiming, setIsUnclaiming] = useState(false);
 
     const handleRemoveTrainee = () => {
         if (!confirm(`Are you sure you want to remove ${trainee.name} from this course?`)) {
@@ -24,13 +27,27 @@ export function TraineeRow({ trainee, courseId, onRemarkClick }: TraineeRowProps
 
         setIsRemoving(true);
         router.post(
-            route('mentor.remove-trainee'),
+            route('overview.remove-trainee'),
             {
                 trainee_id: trainee.id,
                 course_id: courseId,
             },
             {
                 onFinish: () => setIsRemoving(false),
+            },
+        );
+    };
+
+    const handleUnclaimTrainee = () => {
+        setIsUnclaiming(true);
+        router.post(
+            route('overview.unclaim-trainee'),
+            {
+                trainee_id: trainee.id,
+                course_id: courseId,
+            },
+            {
+                onFinish: () => setIsUnclaiming(false),
             },
         );
     };
@@ -129,11 +146,11 @@ export function TraineeRow({ trainee, courseId, onRemarkClick }: TraineeRowProps
                         <TooltipTrigger asChild>
                             <button
                                 onClick={() => onRemarkClick(trainee)}
-                                className="w-full max-w-56 rounded p-1 text-left transition-colors hover:bg-muted/50"
+                                className="w-full rounded p-1 text-left transition-colors hover:bg-muted/50"
                             >
                                 {trainee.remark && trainee.remark.text ? (
                                     <div>
-                                        <div className="line-clamp-2 truncate text-sm">{trainee.remark.text}</div>
+                                        <div className="line-clamp-2 text-sm">{trainee.remark.text}</div>
                                         <div className="mt-1 text-xs text-muted-foreground">Click to edit</div>
                                     </div>
                                 ) : (
@@ -166,24 +183,35 @@ export function TraineeRow({ trainee, courseId, onRemarkClick }: TraineeRowProps
 
             <TableCell>
                 {trainee.claimedBy ? (
-                    <Badge
-                        variant="outline"
-                        className={
-                            trainee.claimedBy === 'You' ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-700'
-                        }
-                    >
-                        {trainee.claimedBy === 'You' ? (
-                            <>
-                                <UserCheck className="mr-1 h-3 w-3" />
-                                Claimed by you
-                            </>
-                        ) : (
-                            <>Claimed by {trainee.claimedBy}</>
+                    <div className="flex items-center gap-2">
+                        <Badge
+                            variant="outline"
+                            className={
+                                trainee.claimedBy === 'You' ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-700'
+                            }
+                        >
+                            {trainee.claimedBy === 'You' ? (
+                                <>
+                                    <UserCheck className="mr-1 h-3 w-3" />
+                                    Claimed by you
+                                </>
+                            ) : (
+                                <>
+                                    <Users className="mr-1 h-3 w-3" />
+                                    Claimed by {trainee.claimedBy}
+                                </>
+                            )}
+                        </Badge>
+                        {trainee.claimedBy === 'You' && (
+                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleUnclaimTrainee} disabled={isUnclaiming}>
+                                <UserMinus className="mr-1 h-3 w-3" />
+                                {isUnclaiming ? 'Unclaiming...' : 'Unclaim'}
+                            </Button>
                         )}
-                    </Badge>
+                    </div>
                 ) : (
-                    <Button variant="outline" size="sm">
-                        <Eye className="mr-1 h-3 w-3" />
+                    <Button variant="outline" size="sm" onClick={() => onClaimClick(trainee)}>
+                        <UserPlus className="mr-1 h-3 w-3" />
                         Claim
                     </Button>
                 )}
@@ -191,7 +219,7 @@ export function TraineeRow({ trainee, courseId, onRemarkClick }: TraineeRowProps
 
             <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-2">
-                    <Button size="sm" variant="default" className="border-green-200 bg-green-50 text-green-700 hover:bg-green-100">
+                    <Button size="sm" variant="outline" className="border-green-200 bg-green-50 text-green-700 hover:bg-green-100">
                         <CheckCircle2 className="mr-1 h-3 w-3" />
                         Finish
                     </Button>
@@ -203,12 +231,27 @@ export function TraineeRow({ trainee, courseId, onRemarkClick }: TraineeRowProps
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                             <DropdownMenuItem>
-                                <FileText className="h-4 w-4" />
+                                <FileText className="mr-2 h-4 w-4" />
                                 View Profile
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                                <Calendar className="mr-2 h-4 w-4" />
+                                Schedule Session
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            {trainee.claimedBy !== 'You' && (
+                                <DropdownMenuItem onClick={() => onClaimClick(trainee)}>
+                                    <UserPlus className="mr-2 h-4 w-4" />
+                                    Claim Trainee
+                                </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onClick={() => onAssignClick(trainee)}>
+                                <Users className="mr-2 h-4 w-4" />
+                                Assign to Mentor
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem className="text-destructive" onClick={handleRemoveTrainee} disabled={isRemoving}>
-                                <UserMinus className="h-4 w-4 text-destructive" />
+                                <UserMinus className="mr-2 h-4 w-4" />
                                 {isRemoving ? 'Removing...' : 'Remove from Course'}
                             </DropdownMenuItem>
                         </DropdownMenuContent>

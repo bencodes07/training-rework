@@ -77,9 +77,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::post('overview/remove-trainee', [MentorOverviewController::class, 'removeTrainee'])
             ->name('overview.remove-trainee');
-    });
 
-    
+        Route::post('overview/update-remark', [MentorOverviewController::class, 'updateRemark'])
+            ->name('overview.update-remark');
+
+        Route::post('overview/remove-trainee', [MentorOverviewController::class, 'removeTrainee'])
+            ->name('overview.remove-trainee');
+
+        Route::post('overview/claim-trainee', [MentorOverviewController::class, 'claimTrainee'])
+            ->name('overview.claim-trainee');
+
+        Route::post('overview/unclaim-trainee', [MentorOverviewController::class, 'unclaimTrainee'])
+            ->name('overview.unclaim-trainee');
+
+        Route::post('overview/assign-trainee', [MentorOverviewController::class, 'assignTrainee'])
+            ->name('overview.assign-trainee');
+
+        Route::get('/course/{course}/mentors', [MentorOverviewController::class, 'getCourseMentors']);
+    });
 });
 
 require __DIR__.'/settings.php';

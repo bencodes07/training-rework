@@ -27,8 +27,15 @@ export interface Trainee {
     lastSession: string | null;
     nextStep: string;
     claimedBy: string | null;
+    claimedByMentorId: number | null;
     soloStatus: SoloStatus | null;
     remark: RemarkData | null;
+}
+
+export interface CourseMentor {
+    id: number;
+    name: string;
+    vatsim_id: number;
 }
 
 export interface MentorCourse {

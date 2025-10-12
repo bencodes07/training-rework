@@ -11,9 +11,11 @@ import { TraineeRow } from './trainee-row';
 interface CourseDetailProps {
     course: MentorCourse;
     onRemarkClick: (trainee: Trainee) => void;
+    onClaimClick: (trainee: Trainee) => void;
+    onAssignClick: (trainee: Trainee) => void;
 }
 
-export function CourseDetail({ course, onRemarkClick }: CourseDetailProps) {
+export function CourseDetail({ course, onRemarkClick, onClaimClick, onAssignClick }: CourseDetailProps) {
     return (
         <Card className="gap-0">
             <CardHeader className="border-b">
@@ -59,7 +61,14 @@ export function CourseDetail({ course, onRemarkClick }: CourseDetailProps) {
                             </TableHeader>
                             <TableBody>
                                 {course.trainees.map((trainee) => (
-                                    <TraineeRow key={trainee.id} trainee={trainee} courseId={course.id} onRemarkClick={onRemarkClick} />
+                                    <TraineeRow
+                                        key={trainee.id}
+                                        trainee={trainee}
+                                        courseId={course.id}
+                                        onRemarkClick={onRemarkClick}
+                                        onClaimClick={onClaimClick}
+                                        onAssignClick={onAssignClick}
+                                    />
                                 ))}
                             </TableBody>
                         </Table>

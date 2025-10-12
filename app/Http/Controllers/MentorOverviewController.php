@@ -131,13 +131,25 @@ class MentorOverviewController extends Controller
         // Check if trainee is claimed by current mentor
         $isClaimedByCurrentUser = $course->mentors->contains('id', $currentMentor->id);
 
-        // Get primary mentor (first mentor in the list, or implement your own logic)
-        $primaryMentor = $course->mentors->first();
+        // Get claimed mentor info from pivot table
+        $claimedMentorId = DB::table('course_trainees')
+            ->where('course_id', $course->id)
+            ->where('user_id', $trainee->id)
+            ->value('claimed_by_mentor_id');
+
         $claimedBy = null;
-        if ($isClaimedByCurrentUser) {
-            $claimedBy = 'You';
-        } elseif ($primaryMentor) {
-            $claimedBy = $primaryMentor->name;
+        $claimedByMentorId = null;
+
+        if ($claimedMentorId) {
+            $claimedMentor = \App\Models\User::find($claimedMentorId);
+            if ($claimedMentor) {
+                $claimedByMentorId = $claimedMentor->id;
+                if ($claimedMentor->id === $currentMentor->id) {
+                    $claimedBy = 'You';
+                } else {
+                    $claimedBy = $claimedMentor->name;
+                }
+            }
         }
 
         // Get remarks from course_trainees pivot table with author information
@@ -184,9 +196,39 @@ class MentorOverviewController extends Controller
             'lastSession' => $lastSession,
             'nextStep' => $nextStep,
             'claimedBy' => $claimedBy,
+            'claimedByMentorId' => $claimedByMentorId,
             'soloStatus' => $soloStatus,
             'remark' => $remarkData,
         ];
+    }
+
+    /**
+     * Get available mentors for a course
+     */
+    public function getCourseMentors(Request $request, $courseId)
+    {
+        $user = $request->user();
+
+        if (!$user->isMentor() && !$user->is_superuser) {
+            return response()->json(['error' => 'Access denied'], 403);
+        }
+
+        $course = \App\Models\Course::findOrFail($courseId);
+
+        // Check if user can mentor this course
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('id', $course->id)->exists()) {
+            return response()->json(['error' => 'Access denied'], 403);
+        }
+
+        $mentors = $course->mentors()->get()->map(function ($mentor) {
+            return [
+                'id' => $mentor->id,
+                'name' => $mentor->name,
+                'vatsim_id' => $mentor->vatsim_id,
+            ];
+        });
+
+        return response()->json($mentors);
     }
 
     /**
@@ -288,6 +330,210 @@ class MentorOverviewController extends Controller
             ]);
 
             return back()->withErrors(['error' => 'An error occurred while removing the trainee.']);
+        }
+    }
+
+    /**
+     * Claim a trainee (assign yourself as the responsible mentor)
+     */
+    public function claimTrainee(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user->isMentor() && !$user->is_superuser) {
+            return back()->withErrors(['error' => 'Access denied']);
+        }
+
+        $request->validate([
+            'trainee_id' => 'required|integer|exists:users,id',
+            'course_id' => 'required|integer|exists:courses,id',
+        ]);
+
+        $course = \App\Models\Course::findOrFail($request->course_id);
+        $trainee = \App\Models\User::findOrFail($request->trainee_id);
+
+        // Check if user can mentor this course
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('id', $course->id)->exists()) {
+            return back()->withErrors(['error' => 'You cannot claim trainees for this course']);
+        }
+
+        // Check if trainee is actually in this course
+        if (!$course->activeTrainees()->where('user_id', $trainee->id)->exists()) {
+            return back()->withErrors(['error' => 'Trainee is not in this course']);
+        }
+
+        try {
+            // Get current claimed mentor
+            $currentMentor = DB::table('course_trainees')
+                ->where('course_id', $course->id)
+                ->where('user_id', $trainee->id)
+                ->value('claimed_by_mentor_id');
+
+            // Update the claimed mentor
+            DB::table('course_trainees')
+                ->where('course_id', $course->id)
+                ->where('user_id', $trainee->id)
+                ->update([
+                    'claimed_by_mentor_id' => $user->id,
+                    'claimed_at' => now(),
+                ]);
+
+            \Log::info('Trainee claimed', [
+                'mentor_id' => $user->id,
+                'trainee_id' => $trainee->id,
+                'trainee_name' => $trainee->name,
+                'course_id' => $course->id,
+                'course_name' => $course->name,
+                'previous_mentor_id' => $currentMentor
+            ]);
+
+            return back()->with('success', "Successfully claimed {$trainee->name}");
+        } catch (\Exception $e) {
+            \Log::error('Error claiming trainee', [
+                'mentor_id' => $user->id,
+                'trainee_id' => $trainee->id,
+                'course_id' => $course->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors(['error' => 'An error occurred while claiming the trainee.']);
+        }
+    }
+
+    /**
+     * Assign a trainee to another mentor
+     */
+    public function assignTrainee(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user->isMentor() && !$user->is_superuser) {
+            return back()->withErrors(['error' => 'Access denied']);
+        }
+
+        $request->validate([
+            'trainee_id' => 'required|integer|exists:users,id',
+            'course_id' => 'required|integer|exists:courses,id',
+            'mentor_id' => 'required|integer|exists:users,id',
+        ]);
+
+        $course = \App\Models\Course::findOrFail($request->course_id);
+        $trainee = \App\Models\User::findOrFail($request->trainee_id);
+        $newMentor = \App\Models\User::findOrFail($request->mentor_id);
+
+        // Check if user can mentor this course
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('id', $course->id)->exists()) {
+            return back()->withErrors(['error' => 'You cannot assign trainees for this course']);
+        }
+
+        // Check if the new mentor can actually mentor this course
+        if (!$newMentor->is_superuser && !$newMentor->is_admin && !$newMentor->mentorCourses()->where('id', $course->id)->exists()) {
+            return back()->withErrors(['error' => 'Selected mentor cannot mentor this course']);
+        }
+
+        // Check if trainee is actually in this course
+        if (!$course->activeTrainees()->where('user_id', $trainee->id)->exists()) {
+            return back()->withErrors(['error' => 'Trainee is not in this course']);
+        }
+
+        try {
+            // Get current claimed mentor
+            $currentMentor = DB::table('course_trainees')
+                ->where('course_id', $course->id)
+                ->where('user_id', $trainee->id)
+                ->value('claimed_by_mentor_id');
+
+            // Update the claimed mentor
+            DB::table('course_trainees')
+                ->where('course_id', $course->id)
+                ->where('user_id', $trainee->id)
+                ->update([
+                    'claimed_by_mentor_id' => $newMentor->id,
+                    'claimed_at' => now(),
+                ]);
+
+            \Log::info('Trainee assigned to mentor', [
+                'assigning_mentor_id' => $user->id,
+                'new_mentor_id' => $newMentor->id,
+                'new_mentor_name' => $newMentor->name,
+                'trainee_id' => $trainee->id,
+                'trainee_name' => $trainee->name,
+                'course_id' => $course->id,
+                'course_name' => $course->name,
+                'previous_mentor_id' => $currentMentor
+            ]);
+
+            return back()->with('success', "Successfully assigned {$trainee->name} to {$newMentor->name}");
+        } catch (\Exception $e) {
+            \Log::error('Error assigning trainee', [
+                'mentor_id' => $user->id,
+                'trainee_id' => $trainee->id,
+                'course_id' => $course->id,
+                'new_mentor_id' => $request->mentor_id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors(['error' => 'An error occurred while assigning the trainee.']);
+        }
+    }
+
+    /**
+     * Unclaim a trainee (remove yourself as the responsible mentor)
+     */
+    public function unclaimTrainee(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user->isMentor() && !$user->is_superuser) {
+            return back()->withErrors(['error' => 'Access denied']);
+        }
+
+        $request->validate([
+            'trainee_id' => 'required|integer|exists:users,id',
+            'course_id' => 'required|integer|exists:courses,id',
+        ]);
+
+        $course = \App\Models\Course::findOrFail($request->course_id);
+        $trainee = \App\Models\User::findOrFail($request->trainee_id);
+
+        // Check if user can mentor this course
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('id', $course->id)->exists()) {
+            return back()->withErrors(['error' => 'You cannot unclaim trainees for this course']);
+        }
+
+        // Check if trainee is actually in this course
+        if (!$course->activeTrainees()->where('user_id', $trainee->id)->exists()) {
+            return back()->withErrors(['error' => 'Trainee is not in this course']);
+        }
+
+        try {
+            // Update the claimed mentor to null
+            DB::table('course_trainees')
+                ->where('course_id', $course->id)
+                ->where('user_id', $trainee->id)
+                ->update([
+                    'claimed_by_mentor_id' => null,
+                    'claimed_at' => null,
+                ]);
+
+            \Log::info('Trainee unclaimed', [
+                'mentor_id' => $user->id,
+                'trainee_id' => $trainee->id,
+                'trainee_name' => $trainee->name,
+                'course_id' => $course->id,
+                'course_name' => $course->name
+            ]);
+
+            return back()->with('success', "Successfully unclaimed {$trainee->name}");
+        } catch (\Exception $e) {
+            \Log::error('Error unclaiming trainee', [
+                'mentor_id' => $user->id,
+                'trainee_id' => $trainee->id,
+                'course_id' => $course->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors(['error' => 'An error occurred while unclaiming the trainee.']);
         }
     }
 
