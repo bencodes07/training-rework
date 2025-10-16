@@ -94,6 +94,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('overview.assign-trainee');
 
         Route::get('/course/{course}/mentors', [MentorOverviewController::class, 'getCourseMentors'])->name('overview.get-course-mentors');
+
+        Route::post('overview/add-mentor', [MentorOverviewController::class, 'addMentor'])
+            ->name('overview.add-mentor');
+
+        Route::post('overview/remove-mentor', [MentorOverviewController::class, 'removeMentor'])
+            ->name('overview.remove-mentor');
+
+        Route::get('overview/past-trainees/{course}', [MentorOverviewController::class, 'getPastTrainees'])
+            ->name('overview.past-trainees');
+
+        Route::post('overview/reactivate-trainee', [MentorOverviewController::class, 'reactivateTrainee'])
+            ->name('overview.reactivate-trainee');
+
+        Route::post('overview/add-trainee-to-course', [MentorOverviewController::class, 'addTraineeToCourse'])
+            ->name('overview.add-trainee-to-course');
     });
 });
 

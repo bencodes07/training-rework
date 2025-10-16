@@ -89,6 +89,16 @@ return new class extends Migration
             
             $table->unique(['course_id', 'user_id']);
 
+            $table->integer('custom_order')->nullable()->after('claimed_at');
+            $table->integer('custom_order_mentor_id')->nullable()->after('custom_order');
+
+            $table->foreign('custom_order_mentor_id')
+                ->references('id')
+                ->on('users')
+                ->onDelete('set null');
+
+            $table->index(['course_id', 'custom_order_mentor_id', 'custom_order']);
+
             $table->integer('claimed_by_mentor_id')->nullable()->after('remark_updated_at');
             $table->timestamp('claimed_at')->nullable()->after('claimed_by_mentor_id');
 

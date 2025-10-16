@@ -71,9 +71,13 @@ export function TraineeRow({ trainee, courseId, onRemarkClick, onClaimClick, onA
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 font-medium text-primary">
                         {trainee.initials}
                     </div>
-                    <div>
-                        <div className="font-medium">{trainee.name}</div>
-                        <div className="text-sm text-muted-foreground">{trainee.vatsimId}</div>
+                    <div className="flex flex-col">
+                        <Link href={`/users/${trainee.vatsimId}`} className="font-medium">
+                            {trainee.name}
+                        </Link>
+                        <a href={`https://stats.vatsim.net/stats/${trainee.vatsimId}`} target="_blank" className="text-sm text-muted-foreground">
+                            {trainee.vatsimId}
+                        </a>
                     </div>
                 </div>
             </TableCell>
@@ -140,7 +144,7 @@ export function TraineeRow({ trainee, courseId, onRemarkClick, onClaimClick, onA
 
             <TableCell>
                 <TooltipProvider>
-                    <Tooltip>
+                    <Tooltip delayDuration={500}>
                         <TooltipTrigger asChild>
                             <button
                                 onClick={() => onRemarkClick(trainee)}

@@ -546,4 +546,204 @@ class MentorOverviewController extends Controller
         $lastInitial = mb_substr($lastName, 0, 1);
         return strtoupper($firstInitial . $lastInitial);
     }
+
+    /**
+     * Add a mentor to a course
+     */
+    public function addMentor(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user->isMentor() && !$user->is_superuser) {
+            return back()->withErrors(['error' => 'Access denied']);
+        }
+
+        $request->validate([
+            'course_id' => 'required|integer|exists:courses,id',
+            'user_id' => 'required|integer|exists:users,id',
+        ]);
+
+        $course = \App\Models\Course::findOrFail($request->course_id);
+        $mentorToAdd = \App\Models\User::findOrFail($request->user_id);
+
+        // Check if user can manage this course
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
+            return back()->withErrors(['error' => 'You cannot modify this course']);
+        }
+
+        // Check if the user being added is eligible to be a mentor
+        if (!$mentorToAdd->isMentor() && !$mentorToAdd->is_superuser && !$mentorToAdd->is_admin) {
+            return back()->withErrors(['error' => 'This user does not have mentor privileges']);
+        }
+
+        try {
+            // Check if already a mentor
+            if ($course->mentors()->where('user_id', $mentorToAdd->id)->exists()) {
+                return back()->withErrors(['error' => 'This user is already a mentor for this course']);
+            }
+
+            $course->mentors()->attach($mentorToAdd->id);
+
+            \Log::info('Mentor added to course', [
+                'admin_id' => $user->id,
+                'new_mentor_id' => $mentorToAdd->id,
+                'new_mentor_name' => $mentorToAdd->name,
+                'course_id' => $course->id,
+                'course_name' => $course->name
+            ]);
+
+            return back()->with('success', "Successfully added {$mentorToAdd->name} as a mentor");
+        } catch (\Exception $e) {
+            \Log::error('Error adding mentor to course', [
+                'admin_id' => $user->id,
+                'new_mentor_id' => $request->user_id,
+                'course_id' => $course->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors(['error' => 'An error occurred while adding the mentor.']);
+        }
+    }
+
+    /**
+     * Remove a mentor from a course
+     */
+    public function removeMentor(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user->isMentor() && !$user->is_superuser) {
+            return back()->withErrors(['error' => 'Access denied']);
+        }
+
+        $request->validate([
+            'course_id' => 'required|integer|exists:courses,id',
+            'mentor_id' => 'required|integer|exists:users,id',
+        ]);
+
+        $course = \App\Models\Course::findOrFail($request->course_id);
+        $mentorToRemove = \App\Models\User::findOrFail($request->mentor_id);
+
+        // Check if user can manage this course
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
+            return back()->withErrors(['error' => 'You cannot modify this course']);
+        }
+
+        try {
+            // Check if this is the last mentor
+            if ($course->mentors()->count() <= 1) {
+                return back()->withErrors(['error' => 'Cannot remove the last mentor from a course']);
+            }
+
+            // Check if mentor exists on this course
+            if (!$course->mentors()->where('user_id', $mentorToRemove->id)->exists()) {
+                return back()->withErrors(['error' => 'This user is not a mentor for this course']);
+            }
+
+            $course->mentors()->detach($mentorToRemove->id);
+
+            // Update any trainees claimed by this mentor to be unclaimed
+            DB::table('course_trainees')
+                ->where('course_id', $course->id)
+                ->where('claimed_by_mentor_id', $mentorToRemove->id)
+                ->update([
+                    'claimed_by_mentor_id' => null,
+                    'claimed_at' => null,
+                ]);
+
+            \Log::info('Mentor removed from course', [
+                'admin_id' => $user->id,
+                'removed_mentor_id' => $mentorToRemove->id,
+                'removed_mentor_name' => $mentorToRemove->name,
+                'course_id' => $course->id,
+                'course_name' => $course->name
+            ]);
+
+            return back()->with('success', "Successfully removed {$mentorToRemove->name} as a mentor");
+        } catch (\Exception $e) {
+            \Log::error('Error removing mentor from course', [
+                'admin_id' => $user->id,
+                'mentor_id' => $request->mentor_id,
+                'course_id' => $course->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors(['error' => 'An error occurred while removing the mentor.']);
+        }
+    }
+
+    /**
+     * Add a trainee to a course
+     */
+    public function addTraineeToCourse(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user->isMentor() && !$user->is_superuser) {
+            return back()->withErrors(['error' => 'Access denied']);
+        }
+
+        $request->validate([
+            'course_id' => 'required|integer|exists:courses,id',
+            'user_id' => 'required|integer|exists:users,id',
+        ]);
+
+        $course = \App\Models\Course::findOrFail($request->course_id);
+        $trainee = \App\Models\User::findOrFail($request->user_id);
+
+        // Check if user can manage this course
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
+            return back()->withErrors(['error' => 'You cannot modify this course']);
+        }
+
+        try {
+            // Check if trainee is already active in this course
+            if ($course->activeTrainees()->where('user_id', $trainee->id)->exists()) {
+                return back()->withErrors(['error' => 'This trainee is already active in this course']);
+            }
+
+            // Check if trainee is a VATSIM user
+            if (!$trainee->isVatsimUser()) {
+                return back()->withErrors(['error' => 'This user does not have a VATSIM account']);
+            }
+
+            // Check if trainee meets course requirements (rating, etc.)
+            $validationService = app(\App\Services\CourseValidationService::class);
+            [$canJoin, $reason] = $validationService->canUserJoinCourse($course, $trainee);
+
+            if (!$canJoin) {
+                return back()->withErrors(['error' => $reason]);
+            }
+
+            // Remove from waiting list if present
+            \App\Models\WaitingListEntry::where('user_id', $trainee->id)
+                ->where('course_id', $course->id)
+                ->delete();
+
+            // Add trainee to active trainees
+            $course->activeTrainees()->attach($trainee->id, [
+                'claimed_by_mentor_id' => $user->id,
+                'claimed_at' => now(),
+            ]);
+
+            \Log::info('Trainee added to course', [
+                'mentor_id' => $user->id,
+                'trainee_id' => $trainee->id,
+                'trainee_name' => $trainee->name,
+                'course_id' => $course->id,
+                'course_name' => $course->name
+            ]);
+
+            return back()->with('success', "Successfully added {$trainee->name} to the course");
+        } catch (\Exception $e) {
+            \Log::error('Error adding trainee to course', [
+                'mentor_id' => $user->id,
+                'trainee_id' => $trainee->id,
+                'course_id' => $course->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors(['error' => 'An error occurred while adding the trainee.']);
+        }
+    }
 }
