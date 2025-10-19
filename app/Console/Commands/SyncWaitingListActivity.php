@@ -157,20 +157,23 @@ class SyncWaitingListActivity extends Command
 
         // Get connections from last 60 days
         $start = Carbon::now()->subDays(60)->format('Y-m-d');
-        $apiUrl = "https://api.vatsim.net/api/ratings/{$user->vatsim_id}/atcsessions/?start={$start}";
+        $apiUrl = "https://stats.vatsim-germany.org/api/atc/{$user->vatsim_id}/sessions/?start_date={$start}";
 
         try {
             $response = \Http::timeout(15)->retry(2, 1000)->get($apiUrl);
             
             if (!$response->successful()) {
-                Log::warning('VATSIM API request failed for waiting list', [
+                Log::warning('VATSIM Germany API request failed for waiting list', [
                     'vatsim_id' => $user->vatsim_id,
                     'status' => $response->status()
                 ]);
                 return -1;
             }
 
-            $connections = $response->json()['results'] ?? [];
+            $connections = $response->json();
+            if (!is_array($connections)) {
+                $connections = [];
+            }
 
             return match($position) {
                 'GND', 'TWR' => $this->calculateS1TowerHours($connections, $fir),
@@ -180,7 +183,7 @@ class SyncWaitingListActivity extends Command
             };
 
         } catch (\Exception $e) {
-            Log::error('Error fetching VATSIM connections for waiting list', [
+            Log::error('Error fetching VATSIM connections from vatsim-germany.org for waiting list', [
                 'vatsim_id' => $user->vatsim_id,
                 'error' => $e->getMessage()
             ]);
@@ -222,7 +225,7 @@ class SyncWaitingListActivity extends Command
                 
                 foreach ($stations as $station) {
                     if ($this->equalStr($callsign, $station)) {
-                        $totalMinutes += floatval($session['minutes_on_callsign'] ?? 0);
+                        $totalMinutes += floatval($session['minutes_online'] ?? 0);
                         break;
                     }
                 }
@@ -240,7 +243,7 @@ class SyncWaitingListActivity extends Command
     }
 
     /**
-     * Calculate APP hours (based on TWR sessions)
+     * Calculate APP hours (based on TWR sessions) - UPDATED FOR NEW API
      */
     protected function calculateAppHours(array $connections, string $airport): float
     {
@@ -250,7 +253,7 @@ class SyncWaitingListActivity extends Command
             $callsign = $session['callsign'] ?? '';
             
             if ($this->equalStr($callsign, "{$airport}_TWR")) {
-                $totalMinutes += floatval($session['minutes_on_callsign'] ?? 0);
+                $totalMinutes += floatval($session['minutes_online'] ?? 0);
             }
         }
 

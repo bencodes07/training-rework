@@ -171,7 +171,8 @@ class CheckRosterStatus extends Command
     protected function getLastSession(int $vatsimId): Carbon
     {
         $date = now()->subDays(365);
-        $apiUrl = "https://api.vatsim.net/api/ratings/{$vatsimId}/atcsessions/?start={$date->format('Y-m-d')}";
+        // UPDATED: Changed from api.vatsim.net to vatsim-germany.org API
+        $apiUrl = "https://stats.vatsim-germany.org/api/atc/{$vatsimId}/sessions/?start_date={$date->format('Y-m-d')}";
 
         try {
             $response = Http::timeout(15)->get($apiUrl);
@@ -180,7 +181,10 @@ class CheckRosterStatus extends Command
                 throw new \Exception("API request failed with status: " . $response->status());
             }
 
-            $connections = $response->json()['results'] ?? [];
+            $connections = $response->json();
+            if (!is_array($connections)) {
+                $connections = [];
+            }
             
             // Find most recent German session (callsign starts with ED or ET)
             foreach ($connections as $connection) {
@@ -188,7 +192,7 @@ class CheckRosterStatus extends Command
                 $prefix = substr($callsign, 0, 2);
                 
                 if (in_array($prefix, ['ED', 'ET'])) {
-                    $endTime = $connection['end'] ?? null;
+                    $endTime = $connection['disconnected_at'] ?? null;
                     if ($endTime) {
                         return Carbon::parse($endTime)->timezone('UTC');
                     }
@@ -199,7 +203,7 @@ class CheckRosterStatus extends Command
             return Carbon::createFromTimestamp(0)->timezone('UTC');
 
         } catch (\Exception $e) {
-            Log::error('Error fetching last session', [
+            Log::error('Error fetching last session from vatsim-germany.org', [
                 'vatsim_id' => $vatsimId,
                 'error' => $e->getMessage()
             ]);
@@ -220,7 +224,7 @@ class CheckRosterStatus extends Command
             }
 
             $data = $response->json();
-            $rating = $data['rating'] ?? 0;
+            $rating = $data['qualification_id'] ?? 0;
 
             if ($rating == 2) { // S1
                 $ratingChange = $data['lastratingchange'] ?? null;

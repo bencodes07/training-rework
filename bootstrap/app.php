@@ -27,34 +27,36 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withSchedule(function ($schedule) {
-        $schedule->command('endorsements:sync-activities', ['--limit' => 1])
-            ->everyThreeMinutes()
+        // Daily at 3 AM: Update endorsement activities (0 3 * * *)
+        $schedule->command('endorsements:sync-activities', ['--force'])
+            ->dailyAt('03:00')
             ->withoutOverlapping()
             ->runInBackground();
 
-        // Every 3 minutes starting at minute 1: Process endorsement removals (1-59/3 * * * *)
+        // Daily at 4 AM: Process endorsement removals (0 4 * * *)
         $schedule->command('endorsements:remove', ['--notify'])
-            ->cron('1-59/3 * * * *')
+            ->dailyAt('04:00')
             ->withoutOverlapping()
             ->runInBackground();
 
-        // Every 3 minutes starting at minute 2: Update waiting list activities (2-59/3 * * * *)
-        $schedule->command('waitinglist:sync-activity', ['--limit' => 1])
-            ->cron('2-59/3 * * * *')
+        // Daily at 5 AM: Update waiting list activities (0 5 * * *)
+        $schedule->command('waitinglist:sync-activity', ['--force'])
+            ->dailyAt('05:00')
             ->withoutOverlapping()
             ->runInBackground();
 
+        // Every hour: Check roster status (0 * * * *)
         $schedule->command('roster:check')
             ->hourly()
             ->withoutOverlapping()
             ->runInBackground();
 
-        /* 
-                // Daily at midnight: Clean waiting lists (0 0 * * *)
-                $schedule->command('waitinglist:clean')
-                    ->dailyAt('00:00')
-                    ->withoutOverlapping()
-                    ->runInBackground();
-         */
+        /*
+        // Daily at midnight: Clean waiting lists (0 0 * * *)
+        $schedule->command('waitinglist:clean')
+            ->dailyAt('00:00')
+            ->withoutOverlapping()
+            ->runInBackground();
+        */
     })
     ->create();

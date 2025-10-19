@@ -87,10 +87,10 @@ class VatsimActivityService
         
         return Cache::remember($cacheKey, now()->addHours(1), function () use ($vatsimId) {
             $start = Carbon::now()->subDays(180)->format('Y-m-d');
-            $apiUrl = "https://api.vatsim.net/api/ratings/{$vatsimId}/atcsessions/?start={$start}";
+            $apiUrl = "https://stats.vatsim-germany.org/api/atc/{$vatsimId}/sessions/?start_date={$start}";
             
             try {
-                Log::debug('Fetching VATSIM activity', [
+                Log::debug('Fetching VATSIM activity from vatsim-germany.org', [
                     'vatsim_id' => $vatsimId,
                     'url' => $apiUrl,
                     'start_date' => $start
@@ -101,7 +101,7 @@ class VatsimActivityService
                     ->get($apiUrl);
                 
                 if (!$response->successful()) {
-                    Log::warning('VATSIM API request failed', [
+                    Log::warning('VATSIM Germany API request failed', [
                         'vatsim_id' => $vatsimId,
                         'status' => $response->status(),
                         'body' => $response->body()
@@ -110,24 +110,23 @@ class VatsimActivityService
                 }
 
                 $data = $response->json();
-                
-                if (!isset($data['results']) || !is_array($data['results'])) {
-                    Log::warning('Unexpected VATSIM API response format', [
+                if (!is_array($data)) {
+                    Log::warning('Unexpected VATSIM Germany API response format', [
                         'vatsim_id' => $vatsimId,
-                        'data_keys' => array_keys($data ?? [])
+                        'data_type' => gettype($data)
                     ]);
                     return [];
                 }
 
-                Log::debug('VATSIM activity fetched successfully', [
+                Log::debug('VATSIM activity fetched successfully from vatsim-germany.org', [
                     'vatsim_id' => $vatsimId,
-                    'connections_count' => count($data['results'])
+                    'connections_count' => count($data)
                 ]);
 
-                return $data['results'];
+                return $data;
                 
             } catch (\Exception $e) {
-                Log::error('Error fetching VATSIM connections', [
+                Log::error('Error fetching VATSIM connections from vatsim-germany.org', [
                     'vatsim_id' => $vatsimId,
                     'error' => $e->getMessage(),
                     'url' => $apiUrl
@@ -138,7 +137,7 @@ class VatsimActivityService
     }
 
     /**
-     * Calculate activity based on endorsement and connections - UPDATED to track last activity date
+     * Calculate activity based on endorsement and connections
      */
     protected function calculateActivity(array $endorsement, array $connections): array
     {
@@ -160,7 +159,7 @@ class VatsimActivityService
                 
                 if (str_starts_with($callsign, $ctrlPrefix) || 
                     ($position === 'EDWW_W_CTR' && $callsign === 'EDWW_CTR')) {
-                    $minutes = floatval($connection['minutes_on_callsign'] ?? 0);
+                    $minutes = floatval($connection['minutes_online'] ?? 0);
                     $activityMinutes += $minutes;
 
                     // Update last activity date
@@ -195,7 +194,7 @@ class VatsimActivityService
                 
                 foreach ($connections as $connection) {
                     $callsign = $connection['callsign'] ?? '';
-                    $minutes = floatval($connection['minutes_on_callsign'] ?? 0);
+                    $minutes = floatval($connection['minutes_online'] ?? 0);
                     
                     // Check CTR topdown
                     $matchesCtr = false;
@@ -249,21 +248,19 @@ class VatsimActivityService
      */
     protected function parseConnectionDate(array $connection): ?Carbon
     {
-        // Try to get the date from the connection data
-        // The VATSIM API typically includes 'start' timestamp
-        if (isset($connection['start'])) {
+        if (isset($connection['disconnected_at'])) {
             try {
-                return Carbon::parse($connection['start']);
+                return Carbon::parse($connection['disconnected_at']);
             } catch (\Exception $e) {
-                Log::warning('Failed to parse connection start date', [
-                    'start' => $connection['start'],
+                Log::warning('Failed to parse disconnected_at date', [
+                    'disconnected_at' => $connection['disconnected_at'],
                     'error' => $e->getMessage()
                 ]);
             }
         }
 
         // Fallback: try other date fields that might be present
-        foreach (['end', 'created_at', 'date'] as $dateField) {
+        foreach (['connected_at', 'start', 'end', 'created_at', 'date'] as $dateField) {
             if (isset($connection[$dateField])) {
                 try {
                     return Carbon::parse($connection[$dateField]);
