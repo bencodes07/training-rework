@@ -172,7 +172,7 @@ class CheckRosterStatus extends Command
     {
         $date = now()->subDays(365);
         // UPDATED: Changed from api.vatsim.net to vatsim-germany.org API
-        $apiUrl = "https://stats.vatsim-germany.org/api/atc/{$vatsimId}/sessions/?cid={$vatsimId}?start_date={$date->format('Y-m-d')}";
+        $apiUrl = "https://stats.vatsim-germany.org/api/atc/{$vatsimId}/sessions/?cid={$vatsimId}&start_date={$date->format('Y-m-d')}";
 
         try {
             $response = Http::timeout(15)->get($apiUrl);

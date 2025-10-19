@@ -157,7 +157,7 @@ class SyncWaitingListActivity extends Command
 
         // Get connections from last 60 days
         $start = Carbon::now()->subDays(60)->format('Y-m-d');
-        $apiUrl = "https://stats.vatsim-germany.org/api/atc/{$user->vatsim_id}/sessions/?cid={$user->vatsim_id}?start_date={$start}";
+        $apiUrl = "https://stats.vatsim-germany.org/api/atc/{$user->vatsim_id}/sessions/?cid={$user->vatsim_id}&start_date={$start}";
 
         try {
             $response = \Http::timeout(15)->retry(2, 1000)->get($apiUrl);
