@@ -21,12 +21,36 @@ class MentorOverviewController extends Controller
         if ($user->is_superuser || $user->is_admin) {
             $courses = \App\Models\Course::with([
                 'mentorGroup',
+                'activeTrainees' => function ($query) use ($user) {
+                    // Order by custom order if set by current mentor, otherwise by name
+                    $query->orderByRaw("
+                        CASE 
+                            WHEN course_trainees.custom_order_mentor_id = ? AND course_trainees.custom_order IS NOT NULL 
+                            THEN course_trainees.custom_order 
+                            ELSE 999999 
+                        END ASC,
+                        users.first_name ASC,
+                        users.last_name ASC
+                    ", [$user->id]);
+                },
                 'activeTrainees.endorsementActivities',
                 'activeTrainees.familiarisations.sector'
             ])->get();
         } else {
             $courses = $user->mentorCourses()->with([
                 'mentorGroup',
+                'activeTrainees' => function ($query) use ($user) {
+                    // Order by custom order if set by current mentor, otherwise by name
+                    $query->orderByRaw("
+                        CASE 
+                            WHEN course_trainees.custom_order_mentor_id = ? AND course_trainees.custom_order IS NOT NULL 
+                            THEN course_trainees.custom_order 
+                            ELSE 999999 
+                        END ASC,
+                        users.first_name ASC,
+                        users.last_name ASC
+                    ", [$user->id]);
+                },
                 'activeTrainees.endorsementActivities',
                 'activeTrainees.familiarisations.sector'
             ])->get();

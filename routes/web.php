@@ -8,6 +8,7 @@ use App\Http\Controllers\CourseController;
 use App\Http\Controllers\WaitingListController;
 use App\Http\Controllers\FamiliarisationController;
 use App\Http\Controllers\UserSearchController;
+use App\Http\Controllers\TraineeOrderController;
 
 Route::get('/', function () {
     return redirect("/dashboard");
@@ -109,6 +110,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::post('overview/add-trainee-to-course', [MentorOverviewController::class, 'addTraineeToCourse'])
             ->name('overview.add-trainee-to-course');
+
+        Route::post('overview/update-trainee-order', [TraineeOrderController::class, 'updateOrder'])
+            ->name('overview.update-trainee-order');
+
+        Route::post('overview/reset-trainee-order', [TraineeOrderController::class, 'resetOrder'])
+            ->name('overview.reset-trainee-order');
     });
 });
 

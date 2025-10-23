@@ -230,19 +230,34 @@ export function TraineeDataTable({ trainees, courseId, courseType, isGNDCourse, 
     const moveTrainee = (index: number, direction: 'up' | 'down') => {
         const newData = [...data];
         const newIndex = direction === 'up' ? index - 1 : index + 1;
-        
+
         if (newIndex < 0 || newIndex >= newData.length) return;
-        
+
+        // Swap trainees
         [newData[index], newData[newIndex]] = [newData[newIndex], newData[index]];
+
+        // Update local state immediately for responsive UI
         setData(newData);
-        
-        // TODO: Persist order to backend
-        // router.post(route('overview.reorder-trainees'), {
-        //     course_id: courseId,
-        //     trainee_ids: newData.map(t => t.id),
-        // }, {
-        //     preserveScroll: true,
-        // });
+
+        // Persist order to backend
+        const traineeIds = newData.map((t) => t.id);
+
+        router.post(
+            route('overview.update-trainee-order'),
+            {
+                course_id: courseId,
+                trainee_ids: traineeIds,
+            },
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onError: (errors) => {
+                    console.error('Failed to update trainee order:', errors);
+                    // Revert to original order on error
+                    setData(trainees);
+                },
+            },
+        );
     };
 
     const columns: ColumnDef<Trainee>[] = [
