@@ -86,13 +86,7 @@ export function CourseDetail({ course, onRemarkClick, onClaimClick, onAssignClic
                             <Users className="mb-4 h-12 w-12 text-muted-foreground" />
                             <h3 className="mb-2 text-lg font-medium">No trainees yet</h3>
                             <p className="mb-4 text-sm text-muted-foreground">Add a trainee to this course to get started</p>
-                            <div className="flex items-center gap-2">
-                                <Input placeholder="VATSIM ID" className="w-40" />
-                                <Button>
-                                    <Plus className="mr-2 h-4 w-4" />
-                                    Add Trainee
-                                </Button>
-                            </div>
+                            <AddTrainee courseId={course.id} />
                         </div>
                     )}
                 </CardContent>

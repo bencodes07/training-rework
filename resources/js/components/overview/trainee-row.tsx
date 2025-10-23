@@ -104,8 +104,8 @@ export function TraineeRow({ trainee, courseId, onRemarkClick, onClaimClick, onA
                     ) : (
                         <div className="flex items-center gap-1">
                             <span className="text-sm text-muted-foreground">No sessions yet</span>
-                            <Button variant="ghost" size="sm" className="h-6 bg-green-50 px-2 text-green-700 hover:bg-green-100">
-                                <Plus className="h-3 w-3" />
+                            <Button variant="outline" size="icon" className="size-6">
+                                <Plus />
                             </Button>
                         </div>
                     )}
@@ -152,7 +152,7 @@ export function TraineeRow({ trainee, courseId, onRemarkClick, onClaimClick, onA
                             >
                                 {trainee.remark && trainee.remark.text ? (
                                     <div>
-                                        <div className="line-clamp-2 truncate text-sm">{trainee.remark.text}</div>
+                                        <div className="truncate text-sm hover:text-wrap">{trainee.remark.text}</div>
                                         <div className="mt-1 text-xs text-muted-foreground">Click to edit</div>
                                     </div>
                                 ) : (
