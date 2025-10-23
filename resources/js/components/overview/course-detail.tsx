@@ -1,15 +1,13 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getPositionColor, getTypeColor, getCourseTypeDisplay } from '@/lib/course-utils';
 import { MentorCourse, Trainee } from '@/types/mentor';
-import { Archive, Plus, Settings, Users } from 'lucide-react';
-import { TraineeRow } from './trainee-row';
+import { Archive, Settings, Users } from 'lucide-react';
 import { ManageMentorsModal } from './manage-mentors-modal';
 import { PastTraineesModal } from './past-trainees-modal';
 import { AddTrainee } from './add-trainee';
+import { TraineeDataTable } from './trainee-data-table';
 import { useState } from 'react';
 
 interface CourseDetailProps {
@@ -54,33 +52,15 @@ export function CourseDetail({ course, onRemarkClick, onClaimClick, onAssignClic
 
                 <CardContent className="p-0">
                     {course.trainees.length > 0 ? (
-                        <div className="overflow-x-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="pl-6">Trainee</TableHead>
-                                        <TableHead>Progress</TableHead>
-                                        <TableHead>Solo</TableHead>
-                                        <TableHead>Next Step</TableHead>
-                                        <TableHead>Remark</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {course.trainees.map((trainee) => (
-                                        <TraineeRow
-                                            key={trainee.id}
-                                            trainee={trainee}
-                                            courseId={course.id}
-                                            onRemarkClick={onRemarkClick}
-                                            onClaimClick={onClaimClick}
-                                            onAssignClick={onAssignClick}
-                                        />
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </div>
+                        <TraineeDataTable
+                            trainees={course.trainees}
+                            courseId={course.id}
+                            isGNDCourse={course.position === 'GND'}
+                            courseType={course.type}
+                            onRemarkClick={onRemarkClick}
+                            onClaimClick={onClaimClick}
+                            onAssignClick={onAssignClick}
+                        />
                     ) : (
                         <div className="flex flex-col items-center justify-center py-12 text-center">
                             <Users className="mb-4 h-12 w-12 text-muted-foreground" />
