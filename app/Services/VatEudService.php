@@ -342,6 +342,119 @@ class VatEudService
     }
 
     /**
+     * Create a solo endorsement
+     */
+    public function createSoloEndorsement(int $userCid, string $position, string $expireAt, int $instructorCid): array
+    {
+        if (config('services.vateud.use_mock', false)) {
+            Log::info('Mock: Creating solo endorsement', [
+                'user_cid' => $userCid,
+                'position' => $position,
+                'expire_at' => $expireAt,
+                'instructor_cid' => $instructorCid,
+            ]);
+            return ['success' => true];
+        }
+
+        try {
+            Log::info('Creating solo endorsement', [
+                'user_cid' => $userCid,
+                'position' => $position,
+                'expire_at' => $expireAt,
+                'instructor_cid' => $instructorCid,
+            ]);
+
+            $response = Http::withHeaders($this->headers)
+                ->timeout(10)
+                ->post("{$this->baseUrl}/facility/endorsements/solo", [
+                    'user_cid' => $userCid,
+                    'position' => $position,
+                    'expire_at' => $expireAt,
+                    'instructor_cid' => $instructorCid,
+                ]);
+
+            if ($response->successful()) {
+                // Clear cache to force refresh
+                Cache::forget('vateud:solo_endorsements');
+
+                Log::info('Solo endorsement created successfully', [
+                    'user_cid' => $userCid,
+                    'position' => $position,
+                ]);
+
+                return ['success' => true];
+            }
+
+            $errorMessage = $response->json()['message'] ?? 'Failed to create solo endorsement';
+
+            Log::error('Failed to create solo endorsement', [
+                'user_cid' => $userCid,
+                'position' => $position,
+                'status' => $response->status(),
+                'error' => $errorMessage,
+                'body' => $response->body(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $errorMessage
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Exception creating solo endorsement', [
+                'user_cid' => $userCid,
+                'position' => $position,
+                'instructor_cid' => $instructorCid,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Remove a solo endorsement
+     */
+    public function removeSoloEndorsement(int $soloId): bool
+    {
+        if (config('services.vateud.use_mock', false)) {
+            Log::info('Mock: Removing solo endorsement', ['solo_id' => $soloId]);
+            return true;
+        }
+
+        try {
+            $response = Http::withHeaders($this->headers)
+                ->delete("{$this->baseUrl}/facility/endorsements/solo/{$soloId}");
+
+            if ($response->successful()) {
+                // Clear cache to force refresh
+                Cache::forget('vateud:solo_endorsements');
+
+                Log::info('Solo endorsement removed successfully', ['solo_id' => $soloId]);
+                return true;
+            }
+
+            Log::error('Failed to remove solo endorsement', [
+                'solo_id' => $soloId,
+                'status' => $response->status(),
+                'body' => $response->body()
+            ]);
+
+            return false;
+        } catch (\Exception $e) {
+            Log::error('Error removing solo endorsement', [
+                'solo_id' => $soloId,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
+
+    /**
      * Refresh endorsement cache (force refetch from API)
      */
     public function refreshEndorsementCache(): void

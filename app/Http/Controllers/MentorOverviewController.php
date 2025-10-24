@@ -139,12 +139,19 @@ class MentorOverviewController extends Controller
         $soloStatus = null;
         if ($solo) {
             $expiryDate = \Carbon\Carbon::parse($solo['expiry']);
-            $daysRemaining = max(0, $expiryDate->diffInDays(now(), false) * -1);
-            $daysUsed = $solo['max_days'] - $daysRemaining;
+            $now = \Carbon\Carbon::now();
+
+            $daysRemaining = max(0, ceil($now->diffInHours($expiryDate, false) / 24));
+
+            // Days used = actual elapsed time since solo was created
+            $daysUsed = (int) ($solo['position_days'] ?? 0);
+
+            $extensionDaysLeft = 90 - $daysUsed;
 
             $soloStatus = [
                 'remaining' => (int) $daysRemaining,
-                'used' => (int) $daysUsed,
+                'used' => $daysUsed,
+                'extensionDaysLeft' => $extensionDaysLeft,
                 'expiry' => $expiryDate->format('Y-m-d'),
             ];
         }

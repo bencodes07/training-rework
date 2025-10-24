@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable, VisibilityState } from '@tanstack/react-table';
+import { SoloModal } from './solo-modal';
 
 interface TraineeDataTableProps {
     trainees: Trainee[];
@@ -176,6 +177,13 @@ export function TraineeDataTable({ trainees, course, onRemarkClick, onClaimClick
     const [isUnclaiming, setIsUnclaiming] = useState<number | null>(null);
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
+    const [soloModalOpen, setSoloModalOpen] = useState(false);
+    const [selectedTraineeForSolo, setSelectedTraineeForSolo] = useState<Trainee | null>(null);
+
+    const [grantModalOpen, setGrantModalOpen] = useState(false);
+    const [selectedTraineeForGrant, setSelectedTraineeForGrant] = useState<Trainee | null>(null);
+    const [isGrantingEndorsement, setIsGrantingEndorsement] = useState(false);
+
     // Update data when trainees prop changes
     useEffect(() => {
         setData(trainees);
@@ -204,10 +212,6 @@ export function TraineeDataTable({ trainees, course, onRemarkClick, onClaimClick
             },
         );
     };
-
-    const [grantModalOpen, setGrantModalOpen] = useState(false);
-    const [selectedTraineeForGrant, setSelectedTraineeForGrant] = useState<Trainee | null>(null);
-    const [isGrantingEndorsement, setIsGrantingEndorsement] = useState(false);
 
     const handleGrantEndorsement = () => {
         if (!selectedTraineeForGrant) return;
@@ -356,21 +360,34 @@ export function TraineeDataTable({ trainees, course, onRemarkClick, onClaimClick
             cell: ({ row }) => {
                 const trainee = row.original;
                 return trainee.soloStatus ? (
-                    <Badge
+                    <Button
+                        onClick={() => {
+                            setSelectedTraineeForSolo(trainee);
+                            setSoloModalOpen(true);
+                        }}
                         variant="outline"
+                        size="sm"
                         className={
                             trainee.soloStatus.remaining < 10
-                                ? 'border-red-200 bg-red-50 text-red-700'
+                                ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
                                 : trainee.soloStatus.remaining < 20
-                                  ? 'border-yellow-200 bg-yellow-50 text-yellow-700'
-                                  : 'border-green-200 bg-green-50 text-green-700'
+                                  ? 'border-yellow-200 bg-yellow-50 text-yellow-700 hover:bg-yellow-100'
+                                  : 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
                         }
                     >
                         <Clock className="mr-1 h-3 w-3" />
                         {trainee.soloStatus.remaining} days
-                    </Badge>
+                    </Button>
                 ) : (
-                    <Button variant="ghost" size="sm" className="h-7 text-xs">
+                    <Button
+                        onClick={() => {
+                            setSelectedTraineeForSolo(trainee);
+                            setSoloModalOpen(true);
+                        }}
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                    >
                         <Plus className="mr-1 h-3 w-3" />
                         Add Solo
                     </Button>
@@ -633,6 +650,15 @@ export function TraineeDataTable({ trainees, course, onRemarkClick, onClaimClick
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            <SoloModal
+                trainee={selectedTraineeForSolo}
+                courseId={course.id}
+                isOpen={soloModalOpen}
+                onClose={() => {
+                    setSoloModalOpen(false);
+                    setSelectedTraineeForSolo(null);
+                }}
+            />
         </div>
     );
 }

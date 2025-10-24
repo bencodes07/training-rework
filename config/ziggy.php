@@ -67,6 +67,10 @@ return [
         'overview.update-trainee-order',
         'overview.reset-trainee-order',
 
-        'overview.grant-endorsement'
+        'overview.grant-endorsement',
+
+        'overview.add-solo',
+        'overview.extend-solo',
+        'overview.remove-solo'
     ],
 ];

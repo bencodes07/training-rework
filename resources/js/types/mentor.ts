@@ -1,38 +1,28 @@
-// types/mentor.ts
-// Updated to match Laravel backend structure with correct type codes
+export interface SoloStatus {
+    remaining: number; // Days until expiry (calculated from expiry - today)
+    used: number; // Days since solo was created (position_days from API)
+    extensionDaysLeft: number; // Always 31 (maximum extension allowed at one time)
+    expiry: string; // Expiry date (YYYY-MM-DD format)
+}
 
 export interface Trainee {
     id: number;
     name: string;
+    vatsimId: number;
     initials: string;
-    vatsimId: string;
-    progress: boolean[]; // Array of pass/fail for each session
-    lastSession: string | null; // ISO date string
-    nextStep: string | null;
-    claimedBy: string | null; // "You" or mentor name, null if unclaimed
+    progress: boolean[];
+    lastSession: string | null;
+    nextStep: string;
+    claimedBy: string | null;
     claimedByMentorId: number | null;
-
-    // Solo status for rating courses (RTG)
-    soloStatus: {
-        remaining: number;
-        used: number;
-        expiry: string; // YYYY-MM-DD format
-    } | null;
-
-    // Remark data from course_trainees pivot table
+    soloStatus: SoloStatus | null;
+    endorsementStatus: string | null;
     remark: {
         text: string;
-        updated_at: string | null; // ISO date string
+        updated_at: string | null;
         author_initials: string | null;
         author_name: string | null;
     } | null;
-
-    // New properties for different course types
-    // For ground/visitor courses (GST)
-    endorsementStatus?: string | null; // e.g., "Issued", null
-
-    // For endorsement courses (EDMT)
-    moodleStatus?: 'completed' | 'in-progress' | 'not-started' | null;
 }
 
 export interface MentorCourse {
@@ -42,7 +32,7 @@ export interface MentorCourse {
     type: 'EDMT' | 'RTG' | 'GST' | 'FAM' | 'RST';
     soloStation?: string;
 
-    activeTrainees: number; // Count of active trainees
+    activeTrainees: number;
     trainees: Trainee[];
 }
 
@@ -53,13 +43,11 @@ export interface MentorStatistics {
     waitingList: number;
 }
 
-// For the mentor overview page
 export interface MentorOverviewProps {
     courses: MentorCourse[];
     statistics: MentorStatistics;
 }
 
-// For available mentors in a course
 export interface Mentor {
     id: number;
     name: string;
@@ -67,39 +55,33 @@ export interface Mentor {
     email: string;
 }
 
-// For assign trainee modal
 export interface AssignTraineeData {
     trainee_id: number;
     course_id: number;
     mentor_id: number;
 }
 
-// For claim trainee
 export interface ClaimTraineeData {
     trainee_id: number;
     course_id: number;
 }
 
-// For unclaim trainee
 export interface UnclaimTraineeData {
     trainee_id: number;
     course_id: number;
 }
 
-// For remove trainee
 export interface RemoveTraineeData {
     trainee_id: number;
     course_id: number;
 }
 
-// For update remark
 export interface UpdateRemarkData {
     trainee_id: number;
     course_id: number;
     remark: string;
 }
 
-// Helper function to get display name for course type
 export function getCourseTypeDisplay(type: MentorCourse['type']): string {
     const typeMap: Record<MentorCourse['type'], string> = {
         EDMT: 'Endorsement',
@@ -111,7 +93,6 @@ export function getCourseTypeDisplay(type: MentorCourse['type']): string {
     return typeMap[type] || type;
 }
 
-// Helper to determine which columns to show
 export function getVisibleColumnsForCourseType(type: MentorCourse['type']) {
     return {
         solo: type === 'RTG', // Rating courses show solo

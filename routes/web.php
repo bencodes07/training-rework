@@ -9,6 +9,7 @@ use App\Http\Controllers\WaitingListController;
 use App\Http\Controllers\FamiliarisationController;
 use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\TraineeOrderController;
+use App\Http\Controllers\SoloController;
 
 Route::get('/', function () {
     return redirect("/dashboard");
@@ -79,26 +80,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('overview/remove-trainee', [MentorOverviewController::class, 'removeTrainee'])
             ->name('overview.remove-trainee');
 
-        Route::post('overview/update-remark', [MentorOverviewController::class, 'updateRemark'])
-            ->name('overview.update-remark');
-
-        Route::post('overview/remove-trainee', [MentorOverviewController::class, 'removeTrainee'])
-            ->name('overview.remove-trainee');
-
         Route::post('overview/claim-trainee', [MentorOverviewController::class, 'claimTrainee'])
             ->name('overview.claim-trainee');
-
         Route::post('overview/unclaim-trainee', [MentorOverviewController::class, 'unclaimTrainee'])
             ->name('overview.unclaim-trainee');
-
         Route::post('overview/assign-trainee', [MentorOverviewController::class, 'assignTrainee'])
             ->name('overview.assign-trainee');
 
         Route::get('/course/{course}/mentors', [MentorOverviewController::class, 'getCourseMentors'])->name('overview.get-course-mentors');
-
         Route::post('overview/add-mentor', [MentorOverviewController::class, 'addMentor'])
             ->name('overview.add-mentor');
-
         Route::post('overview/remove-mentor', [MentorOverviewController::class, 'removeMentor'])
             ->name('overview.remove-mentor');
 
@@ -113,12 +104,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::post('overview/update-trainee-order', [TraineeOrderController::class, 'updateOrder'])
             ->name('overview.update-trainee-order');
-
         Route::post('overview/reset-trainee-order', [TraineeOrderController::class, 'resetOrder'])
             ->name('overview.reset-trainee-order');
 
         Route::post('overview/grant-endorsement', [MentorOverviewController::class, 'grantEndorsement'])
             ->name('overview.grant-endorsement');
+
+        Route::post('overview/solo/add', [SoloController::class, 'addSolo'])->name('overview.add-solo');
+        Route::post('overview/solo/extend', [SoloController::class, 'extendSolo'])->name('overview.extend-solo');
+        Route::post('overview/solo/remove', [SoloController::class, 'removeSolo'])->name('overview.remove-solo');
     });
 });
 
