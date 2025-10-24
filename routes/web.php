@@ -116,6 +116,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::post('overview/reset-trainee-order', [TraineeOrderController::class, 'resetOrder'])
             ->name('overview.reset-trainee-order');
+
+        Route::post('overview/grant-endorsement', [MentorOverviewController::class, 'grantEndorsement'])
+            ->name('overview.grant-endorsement');
     });
 });
 

@@ -66,5 +66,7 @@ return [
 
         'overview.update-trainee-order',
         'overview.reset-trainee-order',
+
+        'overview.grant-endorsement'
     ],
 ];

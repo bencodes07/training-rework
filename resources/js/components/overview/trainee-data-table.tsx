@@ -4,7 +4,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Trainee } from '@/types/mentor';
+import { MentorCourse, Trainee } from '@/types/mentor';
 import { Link, router } from '@inertiajs/react';
 import {
     CheckCircle2,
@@ -23,19 +23,11 @@ import {
     Award,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import {
-    ColumnDef,
-    flexRender,
-    getCoreRowModel,
-    useReactTable,
-    VisibilityState,
-} from '@tanstack/react-table';
+import { ColumnDef, flexRender, getCoreRowModel, useReactTable, VisibilityState } from '@tanstack/react-table';
 
 interface TraineeDataTableProps {
     trainees: Trainee[];
-    courseId: number;
-    courseType: string;
-    isGNDCourse: boolean;
+    course: MentorCourse;
     onRemarkClick: (trainee: Trainee) => void;
     onClaimClick: (trainee: Trainee) => void;
     onAssignClick: (trainee: Trainee) => void;
@@ -81,7 +73,7 @@ function TraineeRowActions({
                     setIsRemoving(false);
                     setRemoveOpen(false);
                 },
-            }
+            },
         );
     };
 
@@ -179,7 +171,7 @@ function TraineeRowActions({
     );
 }
 
-export function TraineeDataTable({ trainees, courseId, courseType, isGNDCourse, onRemarkClick, onClaimClick, onAssignClick }: TraineeDataTableProps) {
+export function TraineeDataTable({ trainees, course, onRemarkClick, onClaimClick, onAssignClick }: TraineeDataTableProps) {
     const [data, setData] = useState<Trainee[]>(trainees);
     const [isUnclaiming, setIsUnclaiming] = useState<number | null>(null);
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -192,12 +184,12 @@ export function TraineeDataTable({ trainees, courseId, courseType, isGNDCourse, 
     // Set column visibility based on course type
     useEffect(() => {
         const visibility: VisibilityState = {
-            solo: courseType === 'RTG' && !isGNDCourse,
-            endorsement: courseType === 'GST' || (courseType === 'RTG' && isGNDCourse),
-            moodleStatus: courseType === 'EDMT',
+            solo: course.type === 'RTG' && course.position !== 'GND',
+            endorsement: course.type === 'GST' || (course.type === 'RTG' && course.position === 'GND'),
+            moodleStatus: course.type === 'EDMT',
         };
         setColumnVisibility(visibility);
-    }, [courseType, isGNDCourse]);
+    }, [course]);
 
     const handleUnclaimTrainee = (trainee: Trainee) => {
         setIsUnclaiming(trainee.id);
@@ -205,11 +197,38 @@ export function TraineeDataTable({ trainees, courseId, courseType, isGNDCourse, 
             route('overview.unclaim-trainee'),
             {
                 trainee_id: trainee.id,
-                course_id: courseId,
+                course_id: course.id,
             },
             {
                 onFinish: () => setIsUnclaiming(null),
-            }
+            },
+        );
+    };
+
+    const [grantModalOpen, setGrantModalOpen] = useState(false);
+    const [selectedTraineeForGrant, setSelectedTraineeForGrant] = useState<Trainee | null>(null);
+    const [isGrantingEndorsement, setIsGrantingEndorsement] = useState(false);
+
+    const handleGrantEndorsement = () => {
+        if (!selectedTraineeForGrant) return;
+
+        setIsGrantingEndorsement(true);
+        router.post(
+            route('overview.grant-endorsement'),
+            {
+                trainee_id: selectedTraineeForGrant.id,
+                course_id: course.id,
+            },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                only: ['courses'],
+                onFinish: () => {
+                    setIsGrantingEndorsement(false);
+                    setGrantModalOpen(false);
+                    setSelectedTraineeForGrant(null);
+                },
+            },
         );
     };
 
@@ -245,7 +264,7 @@ export function TraineeDataTable({ trainees, courseId, courseType, isGNDCourse, 
         router.post(
             route('overview.update-trainee-order'),
             {
-                course_id: courseId,
+                course_id: course.id,
                 trainee_ids: traineeIds,
             },
             {
@@ -366,15 +385,24 @@ export function TraineeDataTable({ trainees, courseId, courseType, isGNDCourse, 
             cell: ({ row }) => {
                 const trainee = row.original;
                 const endorsementStatus = (trainee as any).endorsementStatus;
+
                 return endorsementStatus ? (
                     <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
                         <Award className="mr-1 h-3 w-3" />
                         {endorsementStatus}
                     </Badge>
                 ) : (
-                    <Button variant="ghost" size="sm" className="h-7 text-xs">
-                        <Plus className="mr-1 h-3 w-3" />
-                        Add Endorsement
+                    <Button
+                        onClick={() => {
+                            setSelectedTraineeForGrant(trainee);
+                            setGrantModalOpen(true);
+                        }}
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                    >
+                        <CheckCircle2 className="h-3 w-3" />
+                        Grant Endorsement
                     </Button>
                 );
             },
@@ -521,7 +549,7 @@ export function TraineeDataTable({ trainees, courseId, courseType, isGNDCourse, 
                 return (
                     <TraineeRowActions
                         trainee={trainee}
-                        courseId={courseId}
+                        courseId={course.id}
                         rowIndex={index}
                         totalRows={data.length}
                         onRemarkClick={onRemarkClick}
@@ -552,10 +580,7 @@ export function TraineeDataTable({ trainees, courseId, courseType, isGNDCourse, 
                     {table.getHeaderGroups().map((headerGroup) => (
                         <TableRow key={headerGroup.id}>
                             {headerGroup.headers.map((header) => (
-                                <TableHead
-                                    key={header.id}
-                                    className={header.id === 'trainee' ? 'pl-6' : ''}
-                                >
+                                <TableHead key={header.id} className={header.id === 'trainee' ? 'pl-6' : ''}>
                                     {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                                 </TableHead>
                             ))}
@@ -567,10 +592,7 @@ export function TraineeDataTable({ trainees, courseId, courseType, isGNDCourse, 
                         table.getRowModel().rows.map((row) => (
                             <TableRow key={row.id}>
                                 {row.getVisibleCells().map((cell) => (
-                                    <TableCell 
-                                        key={cell.id} 
-                                        className={cell.column.id === 'trainee' ? 'pl-6' : ''}
-                                    >
+                                    <TableCell key={cell.id} className={cell.column.id === 'trainee' ? 'pl-6' : ''}>
                                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                     </TableCell>
                                 ))}
@@ -585,6 +607,32 @@ export function TraineeDataTable({ trainees, courseId, courseType, isGNDCourse, 
                     )}
                 </TableBody>
             </Table>
+            <Dialog open={grantModalOpen} onOpenChange={setGrantModalOpen}>
+                <DialogContent className="gap-6">
+                    <DialogHeader>
+                        <DialogTitle>Grant Endorsement</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to grant <span className="font-medium">{selectedTraineeForGrant?.name}</span> the{' '}
+                            <span className="font-monospace">{course.soloStation}</span> endorsement?
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button
+                            variant={'outline'}
+                            disabled={isGrantingEndorsement}
+                            onClick={() => {
+                                setGrantModalOpen(false);
+                                setSelectedTraineeForGrant(null);
+                            }}
+                        >
+                            Cancel
+                        </Button>
+                        <Button onClick={handleGrantEndorsement} disabled={isGrantingEndorsement} variant="success">
+                            {isGrantingEndorsement ? 'Granting...' : 'Grant Endorsement'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

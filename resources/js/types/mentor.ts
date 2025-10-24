@@ -29,7 +29,7 @@ export interface Trainee {
 
     // New properties for different course types
     // For ground/visitor courses (GST)
-    endorsementStatus?: string | null; // e.g., "Issued", "Valid", "Expired"
+    endorsementStatus?: string | null; // e.g., "Issued", null
 
     // For endorsement courses (EDMT)
     moodleStatus?: 'completed' | 'in-progress' | 'not-started' | null;
@@ -40,6 +40,7 @@ export interface MentorCourse {
     name: string;
     position: string; // e.g., "TWR", "APP", "CTR", "GND"
     type: 'EDMT' | 'RTG' | 'GST' | 'FAM' | 'RST';
+    soloStation?: string;
 
     activeTrainees: number; // Count of active trainees
     trainees: Trainee[];

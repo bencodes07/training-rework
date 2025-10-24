@@ -54,9 +54,7 @@ export function CourseDetail({ course, onRemarkClick, onClaimClick, onAssignClic
                     {course.trainees.length > 0 ? (
                         <TraineeDataTable
                             trainees={course.trainees}
-                            courseId={course.id}
-                            isGNDCourse={course.position === 'GND'}
-                            courseType={course.type}
+                            course={course}
                             onRemarkClick={onRemarkClick}
                             onClaimClick={onClaimClick}
                             onAssignClick={onAssignClick}

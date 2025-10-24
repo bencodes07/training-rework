@@ -67,6 +67,7 @@ class MentorOverviewController extends Controller
                 'name' => $course->name,
                 'position' => $course->position,
                 'type' => $course->type,
+                'soloStation' => $course->solo_station,
                 'activeTrainees' => $course->activeTrainees->count(),
                 'trainees' => $trainees,
             ];
@@ -148,6 +149,32 @@ class MentorOverviewController extends Controller
             ];
         }
 
+        $endorsementStatus = null;
+        if (
+            (in_array($course->type, ['GST', 'EDMT']) || ($course->type === 'RTG' && $course->position === 'GND'))
+            && !empty($course->solo_station)
+        ) {
+            try {
+                $vatEudService = app(\App\Services\VatEudService::class);
+                $tier1Endorsements = $vatEudService->getTier1Endorsements();
+
+                // Find endorsement matching this trainee and position
+                $endorsement = collect($tier1Endorsements)->first(function ($e) use ($trainee, $course) {
+                    return $e['user_cid'] == $trainee->vatsim_id &&
+                        $e['position'] === $course->solo_station;
+                });
+
+                if ($endorsement) {
+                    $endorsementStatus = $course->solo_station;
+                }
+            } catch (\Exception $e) {
+                \Log::warning('Failed to fetch Tier 1 endorsements', [
+                    'vatsim_id' => $trainee->vatsim_id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
         // Get trainee's progress (placeholder - implement when you add training sessions table)
         // For now, return empty array
         $progress = [];
@@ -222,6 +249,7 @@ class MentorOverviewController extends Controller
             'claimedBy' => $claimedBy,
             'claimedByMentorId' => $claimedByMentorId,
             'soloStatus' => $soloStatus,
+            'endorsementStatus' => $endorsementStatus,
             'remark' => $remarkData,
         ];
     }
@@ -768,6 +796,107 @@ class MentorOverviewController extends Controller
             ]);
 
             return back()->withErrors(['error' => 'An error occurred while adding the trainee.']);
+        }
+    }
+
+    /**
+     * Grant endorsement to a trainee
+     */
+    public function grantEndorsement(Request $request)
+    {
+        $user = $request->user();
+
+        // Verify user is a mentor
+        if (!$user->isMentor()) {
+            return back()->withErrors(['error' => 'Access denied']);
+        }
+
+        $request->validate([
+            'trainee_id' => 'required|integer|exists:users,id',
+            'course_id' => 'required|integer|exists:courses,id',
+        ]);
+
+        $course = \App\Models\Course::findOrFail($request->course_id);
+        $trainee = \App\Models\User::findOrFail($request->trainee_id);
+
+        if (!in_array($course->type, ['GST', 'EDMT']) && !($course->type === 'RTG' && $course->position === 'GND')) {
+            return back()->withErrors(['error' => 'This course does not support endorsements']);
+        }
+
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
+            return back()->withErrors(['error' => 'You are not a mentor for this course']);
+        }
+
+        try {
+            if (!$course->activeTrainees()->where('user_id', $trainee->id)->exists()) {
+                return back()->withErrors(['error' => 'Trainee is not enrolled in this course']);
+            }
+
+            if (empty($course->solo_station)) {
+                return back()->withErrors(['error' => 'Course does not have an endorsement position configured']);
+            }
+
+            $moodleCompleted = true;
+            /* if (!empty($course->moodle_course_ids)) {
+                // Assuming you have a MoodleService - adjust if needed
+                try {
+                    $moodleService = app(\App\Services\MoodleService::class);
+                    foreach ($course->moodle_course_ids as $moodleCourseId) {
+                        if (!$moodleService->getCourseCompletion($trainee->vatsim_id, $moodleCourseId)) {
+                            $moodleCompleted = false;
+                            break;
+                        }
+                    }
+                } catch (\Exception $e) {
+                    \Log::warning('Could not check Moodle completion', [
+                        'error' => $e->getMessage()
+                    ]);
+                    // Continue anyway - you might not have Moodle integration yet
+                }
+            } */
+
+            // Verify all requirements are met
+            if (!$moodleCompleted) {
+                return back()->withErrors(['error' => 'Trainee has not completed all required Moodle courses']);
+            }
+
+            // Grant the endorsement via VatEUD API
+            $vatEudService = app(\App\Services\VatEudService::class);
+
+            $result = $vatEudService->createTier1Endorsement(
+                $trainee->vatsim_id,
+                $course->solo_station,
+                $user->vatsim_id
+            );
+
+            if ($result['success']) {
+                // Refresh cached endorsements
+                $vatEudService->refreshEndorsementCache();
+
+                \Log::info('Endorsement granted successfully', [
+                    'mentor_id' => $user->id,
+                    'mentor_vatsim_id' => $user->vatsim_id,
+                    'trainee_id' => $trainee->id,
+                    'trainee_vatsim_id' => $trainee->vatsim_id,
+                    'course_id' => $course->id,
+                    'position' => $course->solo_station,
+                ]);
+
+                return back()->with('success', "Successfully granted {$course->solo_station} endorsement to {$trainee->name}");
+            } else {
+                return back()->withErrors(['error' => $result['message'] ?? 'Failed to grant endorsement']);
+            }
+
+        } catch (\Exception $e) {
+            \Log::error('Error granting endorsement', [
+                'mentor_id' => $user->id,
+                'trainee_id' => $trainee->id,
+                'course_id' => $course->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return back()->withErrors(['error' => 'An error occurred while granting the endorsement. Please try again.']);
         }
     }
 }

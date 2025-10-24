@@ -86,6 +86,78 @@ class VatEudService
     }
 
     /**
+     * Create a Tier 1 endorsement
+     */
+    public function createTier1Endorsement(int $userCid, string $position, int $instructorCid): array
+    {
+        if (config('services.vateud.use_mock', false)) {
+            Log::info('Mock: Creating Tier 1 endorsement', [
+                'user_cid' => $userCid,
+                'position' => $position,
+                'instructor_cid' => $instructorCid,
+            ]);
+            return ['success' => true];
+        }
+
+        try {
+            Log::info('Creating Tier 1 endorsement', [
+                'user_cid' => $userCid,
+                'position' => $position,
+                'instructor_cid' => $instructorCid,
+            ]);
+
+            $response = Http::withHeaders($this->headers)
+                ->timeout(10)
+                ->post("{$this->baseUrl}/facility/endorsements/tier-1", [
+                    'user_cid' => $userCid,
+                    'position' => $position,
+                    'instructor_cid' => $instructorCid,
+                ]);
+
+            if ($response->successful()) {
+                // Clear cache to force refresh
+                Cache::forget('vateud:tier1_endorsements');
+
+                Log::info('Tier 1 endorsement created successfully', [
+                    'user_cid' => $userCid,
+                    'position' => $position,
+                ]);
+
+                return ['success' => true];
+            }
+
+            $errorMessage = $response->json()['message'] ?? 'Failed to create endorsement';
+
+            Log::error('Failed to create Tier 1 endorsement', [
+                'user_cid' => $userCid,
+                'position' => $position,
+                'status' => $response->status(),
+                'error' => $errorMessage,
+                'body' => $response->body(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $errorMessage
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Exception creating Tier 1 endorsement', [
+                'user_cid' => $userCid,
+                'position' => $position,
+                'instructor_cid' => $instructorCid,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
      * Get Tier 2 endorsements from VatEUD
      */
     public function getTier2Endorsements(): array
@@ -267,6 +339,18 @@ class VatEudService
             ]);
             return false;
         }
+    }
+
+    /**
+     * Refresh endorsement cache (force refetch from API)
+     */
+    public function refreshEndorsementCache(): void
+    {
+        Cache::forget('vateud:tier1_endorsements');
+        Cache::forget('vateud:tier2_endorsements');
+        Cache::forget('vateud:solo_endorsements');
+
+        Log::info('Endorsement cache cleared');
     }
 
     /**
