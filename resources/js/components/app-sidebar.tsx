@@ -52,7 +52,7 @@ const mentorSection = {
     items: [
         {
             title: 'Overview',
-            href: route('overview'),
+            href: route('overview.index'),
             icon: Users,
         },
         {

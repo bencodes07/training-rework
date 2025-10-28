@@ -13,7 +13,7 @@ import { useEffect, useState } from 'react';
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Mentor Overview',
-        href: route('overview'),
+        href: route('overview.index'),
     },
 ];
 

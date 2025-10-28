@@ -421,61 +421,73 @@ class TrainingLog extends Model
         return [
             'theory' => [
                 'rating' => $this->theory,
+                'rating_display' => $this->theory_display,
                 'positives' => $this->theory_positives,
                 'negatives' => $this->theory_negatives,
             ],
             'phraseology' => [
                 'rating' => $this->phraseology,
+                'rating_display' => $this->phraseology_display,
                 'positives' => $this->phraseology_positives,
                 'negatives' => $this->phraseology_negatives,
             ],
             'coordination' => [
                 'rating' => $this->coordination,
+                'rating_display' => $this->coordination_display,
                 'positives' => $this->coordination_positives,
                 'negatives' => $this->coordination_negatives,
             ],
             'tag_management' => [
                 'rating' => $this->tag_management,
+                'rating_display' => $this->tag_management_display,
                 'positives' => $this->tag_management_positives,
                 'negatives' => $this->tag_management_negatives,
             ],
             'situational_awareness' => [
                 'rating' => $this->situational_awareness,
+                'rating_display' => $this->situational_awareness_display,
                 'positives' => $this->situational_awareness_positives,
                 'negatives' => $this->situational_awareness_negatives,
             ],
             'problem_recognition' => [
                 'rating' => $this->problem_recognition,
+                'rating_display' => $this->problem_recognition_display,
                 'positives' => $this->problem_recognition_positives,
                 'negatives' => $this->problem_recognition_negatives,
             ],
             'traffic_planning' => [
                 'rating' => $this->traffic_planning,
+                'rating_display' => $this->traffic_planning_display,
                 'positives' => $this->traffic_planning_positives,
                 'negatives' => $this->traffic_planning_negatives,
             ],
             'reaction' => [
                 'rating' => $this->reaction,
+                'rating_display' => $this->reaction_display,
                 'positives' => $this->reaction_positives,
                 'negatives' => $this->reaction_negatives,
             ],
             'separation' => [
                 'rating' => $this->separation,
+                'rating_display' => $this->separation_display,
                 'positives' => $this->separation_positives,
                 'negatives' => $this->separation_negatives,
             ],
             'efficiency' => [
                 'rating' => $this->efficiency,
+                'rating_display' => $this->efficiency_display,
                 'positives' => $this->efficiency_positives,
                 'negatives' => $this->efficiency_negatives,
             ],
             'ability_to_work_under_pressure' => [
                 'rating' => $this->ability_to_work_under_pressure,
+                'rating_display' => $this->ability_to_work_under_pressure_display,
                 'positives' => $this->ability_to_work_under_pressure_positives,
                 'negatives' => $this->ability_to_work_under_pressure_negatives,
             ],
             'motivation' => [
                 'rating' => $this->motivation,
+                'rating_display' => $this->motivation_display,
                 'positives' => $this->motivation_positives,
                 'negatives' => $this->motivation_negatives,
             ],

@@ -49,7 +49,7 @@ return [
         'users.data',
 
         // Mentor Overview
-        'overview',
+        'overview.index',
         
         'overview.update-remark',
         
