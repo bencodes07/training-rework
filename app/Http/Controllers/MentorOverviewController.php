@@ -597,16 +597,6 @@ class MentorOverviewController extends Controller
     }
 
     /**
-     * Get user initials
-     */
-    protected function getInitials(string $firstName, string $lastName): string
-    {
-        $firstInitial = mb_substr($firstName, 0, 1);
-        $lastInitial = mb_substr($lastName, 0, 1);
-        return strtoupper($firstInitial . $lastInitial);
-    }
-
-    /**
      * Add a mentor to a course
      */
     public function addMentor(Request $request)
@@ -766,13 +756,13 @@ class MentorOverviewController extends Controller
                 return back()->withErrors(['error' => 'This user does not have a VATSIM account']);
             }
 
-            // Check if trainee meets course requirements (rating, etc.)
+            /* // Check if trainee meets course requirements (rating, etc.)
             $validationService = app(\App\Services\CourseValidationService::class);
             [$canJoin, $reason] = $validationService->canUserJoinCourse($course, $trainee);
 
             if (!$canJoin) {
                 return back()->withErrors(['error' => $reason]);
-            }
+            } */
 
             // Remove from waiting list if present
             \App\Models\WaitingListEntry::where('user_id', $trainee->id)
@@ -905,5 +895,241 @@ class MentorOverviewController extends Controller
 
             return back()->withErrors(['error' => 'An error occurred while granting the endorsement. Please try again.']);
         }
+    }
+
+    /**
+     * Finish a trainee's course
+     */
+    public function finishCourse(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user->isMentor() && !$user->is_superuser) {
+            return back()->withErrors(['error' => 'Access denied']);
+        }
+
+        $request->validate([
+            'trainee_id' => 'required|integer|exists:users,id',
+            'course_id' => 'required|integer|exists:courses,id',
+        ]);
+
+        $course = \App\Models\Course::findOrFail($request->course_id);
+        $trainee = \App\Models\User::findOrFail($request->trainee_id);
+
+        // Check if user can mentor this course
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
+            return back()->withErrors(['error' => 'You cannot modify this course']);
+        }
+
+        // Check if trainee is actually in this course
+        if (!$course->activeTrainees()->where('user_id', $trainee->id)->exists()) {
+            return back()->withErrors(['error' => 'Trainee is not in this course']);
+        }
+
+        try {
+            DB::transaction(function () use ($course, $trainee, $user) {
+                // Remove from active trainees
+                $course->activeTrainees()->detach($trainee->id);
+
+                // Get endorsement groups for this course from the pivot table
+                $endorsementGroups = DB::table('course_endorsement_groups')
+                    ->where('course_id', $course->id)
+                    ->pluck('endorsement_group_name')
+                    ->toArray();
+
+                // If course has endorsement groups, grant them
+                if (!empty($endorsementGroups)) {
+                    $this->grantEndorsements($trainee, $endorsementGroups, $user);
+                }
+
+                // Handle familiarisation logic
+                if ($course->type === 'RTG' && $course->position === 'CTR') {
+                    $this->addFIRFamiliarisations($trainee, $course, $user);
+                } elseif ($course->type === 'FAM' && $course->familiarisation_sector_id) {
+                    $this->addSingleFamiliarisation($trainee, $course, $user);
+                }
+            });
+
+            \Log::info('Course finished for trainee', [
+                'mentor_id' => $user->id,
+                'trainee_id' => $trainee->id,
+                'trainee_name' => $trainee->name,
+                'course_id' => $course->id,
+                'course_name' => $course->name
+            ]);
+
+            return back()->with('success', "Successfully finished {$course->name} for {$trainee->name}");
+        } catch (\Exception $e) {
+            \Log::error('Error finishing course', [
+                'mentor_id' => $user->id,
+                'trainee_id' => $trainee->id,
+                'course_id' => $course->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return back()->withErrors(['error' => 'An error occurred while finishing the course. Please try again.']);
+        }
+    }
+
+    /**
+     * Grant endorsements to a trainee
+     */
+    protected function grantEndorsements(\App\Models\User $trainee, array $endorsementGroups, \App\Models\User $mentor): void
+    {
+        try {
+            $vatEudService = app(\App\Services\VatEudService::class);
+
+            // Get existing tier 1 endorsements for the trainee
+            $existingEndorsements = collect($vatEudService->getTier1Endorsements())
+                ->where('user_cid', $trainee->vatsim_id)
+                ->pluck('position')
+                ->toArray();
+
+            foreach ($endorsementGroups as $position) {
+                // Skip if trainee already has this endorsement
+                if (in_array($position, $existingEndorsements)) {
+                    \Log::info('Trainee already has endorsement, skipping', [
+                        'trainee_id' => $trainee->id,
+                        'position' => $position
+                    ]);
+                    continue;
+                }
+
+                // Create the endorsement
+                $result = $vatEudService->createTier1Endorsement(
+                    $trainee->vatsim_id,
+                    $position,
+                    $mentor->vatsim_id
+                );
+
+                if ($result['success']) {
+                    \Log::info('Tier 1 endorsement granted on course completion', [
+                        'trainee_id' => $trainee->id,
+                        'trainee_vatsim_id' => $trainee->vatsim_id,
+                        'position' => $position,
+                        'mentor_id' => $mentor->id,
+                        'mentor_vatsim_id' => $mentor->vatsim_id
+                    ]);
+                } else {
+                    \Log::warning('Failed to grant Tier 1 endorsement on course completion', [
+                        'trainee_id' => $trainee->id,
+                        'position' => $position,
+                        'error' => $result['message'] ?? 'Unknown error'
+                    ]);
+                }
+            }
+
+            // Refresh cached endorsements
+            $vatEudService->refreshEndorsementCache();
+
+        } catch (\Exception $e) {
+            \Log::error('Error granting endorsements', [
+                'trainee_id' => $trainee->id,
+                'endorsement_groups' => $endorsementGroups,
+                'error' => $e->getMessage()
+            ]);
+            // Don't throw - we still want to finish the course even if endorsement grant fails
+        }
+    }
+
+    /**
+     * Add all familiarisations for a FIR (for CTR courses)
+     */
+    protected function addFIRFamiliarisations(\App\Models\User $trainee, \App\Models\Course $course, \App\Models\User $mentor): void
+    {
+        try {
+            // Extract FIR code from mentor group name (e.g., "EDGG Mentor" -> "EDGG")
+            if (!$course->mentor_group_id) {
+                \Log::warning('No mentor group for CTR course, cannot determine FIR', [
+                    'course_id' => $course->id
+                ]);
+                return;
+            }
+
+            $mentorGroup = \App\Models\Role::find($course->mentor_group_id);
+            if (!$mentorGroup) {
+                \Log::warning('Mentor group not found', [
+                    'mentor_group_id' => $course->mentor_group_id
+                ]);
+                return;
+            }
+
+            // Extract FIR code from mentor group name (first 4 characters)
+            $fir = substr($mentorGroup->name, 0, 4);
+
+            // Get all sectors for this FIR
+            $sectors = \App\Models\FamiliarisationSector::where('fir', $fir)->get();
+
+            foreach ($sectors as $sector) {
+                // Check if familiarisation already exists
+                if (
+                    !\App\Models\Familiarisation::where('user_id', $trainee->id)
+                        ->where('familiarisation_sector_id', $sector->id)
+                        ->exists()
+                ) {
+
+                    \App\Models\Familiarisation::create([
+                        'user_id' => $trainee->id,
+                        'familiarisation_sector_id' => $sector->id,
+                    ]);
+
+                    \Log::info('Familiarisation added on course completion', [
+                        'trainee_id' => $trainee->id,
+                        'sector_id' => $sector->id,
+                        'sector_name' => $sector->name,
+                        'fir' => $fir,
+                        'mentor_id' => $mentor->id
+                    ]);
+                }
+            }
+        } catch (\Exception $e) {
+            \Log::error('Error adding FIR familiarisations', [
+                'trainee_id' => $trainee->id,
+                'course_id' => $course->id,
+                'error' => $e->getMessage()
+            ]);
+            // Don't throw - we still want to finish the course
+        }
+    }
+
+    /**
+     * Add a single familiarisation (for FAM courses)
+     */
+    protected function addSingleFamiliarisation(\App\Models\User $trainee, \App\Models\Course $course, \App\Models\User $mentor): void
+    {
+        try {
+            // Create familiarisation if it doesn't exist
+            $familiarisation = \App\Models\Familiarisation::firstOrCreate([
+                'user_id' => $trainee->id,
+                'familiarisation_sector_id' => $course->familiarisation_sector_id,
+            ]);
+
+            if ($familiarisation->wasRecentlyCreated) {
+                \Log::info('Familiarisation added on FAM course completion', [
+                    'trainee_id' => $trainee->id,
+                    'sector_id' => $course->familiarisation_sector_id,
+                    'course_id' => $course->id,
+                    'mentor_id' => $mentor->id
+                ]);
+            }
+        } catch (\Exception $e) {
+            \Log::error('Error adding single familiarisation', [
+                'trainee_id' => $trainee->id,
+                'course_id' => $course->id,
+                'error' => $e->getMessage()
+            ]);
+            // Don't throw - we still want to finish the course
+        }
+    }
+
+    /**
+     * Get user initials
+     */
+    protected function getInitials(string $firstName, string $lastName): string
+    {
+        $firstInitial = mb_substr($firstName, 0, 1);
+        $lastInitial = mb_substr($lastName, 0, 1);
+        return strtoupper($firstInitial . $lastInitial);
     }
 }

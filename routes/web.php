@@ -80,6 +80,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('overview/remove-trainee', [MentorOverviewController::class, 'removeTrainee'])
             ->name('overview.remove-trainee');
 
+        Route::post('overview/finish-trainee', [MentorOverviewController::class, 'finishCourse'])
+            ->name('overview.finish-trainee');
+
         Route::post('overview/claim-trainee', [MentorOverviewController::class, 'claimTrainee'])
             ->name('overview.claim-trainee');
         Route::post('overview/unclaim-trainee', [MentorOverviewController::class, 'unclaimTrainee'])

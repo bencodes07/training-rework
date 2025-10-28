@@ -20,6 +20,7 @@ interface TraineeRowProps {
 export function TraineeRow({ trainee, courseId, onRemarkClick, onClaimClick, onAssignClick }: TraineeRowProps) {
     const [isRemoving, setIsRemoving] = useState(false);
     const [isUnclaiming, setIsUnclaiming] = useState(false);
+
     const [removeOpen, setRemoveOpen] = useState(false);
 
     const handleRemoveTrainee = () => {

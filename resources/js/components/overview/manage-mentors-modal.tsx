@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { CourseMentor, MentorCourse } from '@/types/mentor';
+import { Mentor, MentorCourse } from '@/types/mentor';
 import { router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { Loader2, UserMinus, UserPlus, X } from 'lucide-react';
@@ -31,11 +31,11 @@ interface ManageMentorsModalProps {
 }
 
 export function ManageMentorsModal({ course, isOpen, onClose }: ManageMentorsModalProps) {
-    const [mentors, setMentors] = useState<CourseMentor[]>([]);
+    const [mentors, setMentors] = useState<Mentor[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isRemoving, setIsRemoving] = useState<number | null>(null);
     const [isAdding, setIsAdding] = useState(false);
-    
+
     // Add mentor state
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<User[]>([]);
@@ -73,9 +73,7 @@ export function ManageMentorsModal({ course, isOpen, onClose }: ManageMentorsMod
 
             if (response.data.success) {
                 // Filter out users who are already mentors
-                const filtered = response.data.users.filter(
-                    (user: User) => !mentors.some((m) => m.id === user.id)
-                );
+                const filtered = response.data.users.filter((user: User) => !mentors.some((m) => m.id === user.id));
                 setSearchResults(filtered);
             }
         } catch (error) {
@@ -105,7 +103,7 @@ export function ManageMentorsModal({ course, isOpen, onClose }: ManageMentorsMod
                 onFinish: () => {
                     setIsAdding(false);
                 },
-            }
+            },
         );
     };
 
@@ -126,7 +124,7 @@ export function ManageMentorsModal({ course, isOpen, onClose }: ManageMentorsMod
                 onFinish: () => {
                     setIsRemoving(null);
                 },
-            }
+            },
         );
     };
 
@@ -142,9 +140,7 @@ export function ManageMentorsModal({ course, isOpen, onClose }: ManageMentorsMod
             <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Manage Mentors - {course?.name}</DialogTitle>
-                    <DialogDescription>
-                        Add or remove mentors who can access this course's trainees
-                    </DialogDescription>
+                    <DialogDescription>Add or remove mentors who can access this course's trainees</DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-6 py-4">
@@ -153,10 +149,7 @@ export function ManageMentorsModal({ course, isOpen, onClose }: ManageMentorsMod
                         <div className="mb-4 flex items-center justify-between">
                             <h3 className="text-sm font-medium">Current Mentors ({mentors.length})</h3>
                             {!showAddSection && (
-                                <Button
-                                    size="sm"
-                                    onClick={() => setShowAddSection(true)}
-                                >
+                                <Button size="sm" onClick={() => setShowAddSection(true)}>
                                     <UserPlus className="mr-2 h-4 w-4" />
                                     Add Mentor
                                 </Button>
@@ -180,9 +173,7 @@ export function ManageMentorsModal({ course, isOpen, onClose }: ManageMentorsMod
                                     <TableBody>
                                         {mentors.map((mentor) => (
                                             <TableRow key={mentor.id}>
-                                                <TableCell className="font-medium">
-                                                    {mentor.name}
-                                                </TableCell>
+                                                <TableCell className="font-medium">{mentor.name}</TableCell>
                                                 <TableCell>
                                                     <Badge variant="outline">{mentor.vatsim_id}</Badge>
                                                 </TableCell>
@@ -250,15 +241,8 @@ export function ManageMentorsModal({ course, isOpen, onClose }: ManageMentorsMod
                                             }
                                         }}
                                     />
-                                    <Button
-                                        onClick={handleSearch}
-                                        disabled={isSearching || searchQuery.length < 2}
-                                    >
-                                        {isSearching ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                            'Search'
-                                        )}
+                                    <Button onClick={handleSearch} disabled={isSearching || searchQuery.length < 2}>
+                                        {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Search'}
                                     </Button>
                                 </div>
                             </div>
@@ -268,21 +252,12 @@ export function ManageMentorsModal({ course, isOpen, onClose }: ManageMentorsMod
                                     <Label>Search Results</Label>
                                     <div className="space-y-2">
                                         {searchResults.map((user) => (
-                                            <div
-                                                key={user.id}
-                                                className="flex items-center justify-between rounded-lg border p-3"
-                                            >
+                                            <div key={user.id} className="flex items-center justify-between rounded-lg border p-3">
                                                 <div>
                                                     <div className="font-medium">{user.name}</div>
-                                                    <div className="text-sm text-muted-foreground">
-                                                        VATSIM ID: {user.vatsim_id}
-                                                    </div>
+                                                    <div className="text-sm text-muted-foreground">VATSIM ID: {user.vatsim_id}</div>
                                                 </div>
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() => handleAddMentor(user)}
-                                                    disabled={isAdding}
-                                                >
+                                                <Button size="sm" onClick={() => handleAddMentor(user)} disabled={isAdding}>
                                                     {isAdding ? (
                                                         <Loader2 className="h-4 w-4 animate-spin" />
                                                     ) : (

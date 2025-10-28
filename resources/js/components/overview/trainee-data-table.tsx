@@ -55,7 +55,9 @@ function TraineeRowActions({
     onMoveDown: () => void;
 }) {
     const [isRemoving, setIsRemoving] = useState(false);
+    const [isFinishing, setIsFinishing] = useState(false);
     const [removeOpen, setRemoveOpen] = useState(false);
+    const [finishOpen, setFinishOpen] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
 
     const isFirst = rowIndex === 0;
@@ -78,22 +80,34 @@ function TraineeRowActions({
         );
     };
 
+    const handleFinishTrainee = () => {
+        setIsFinishing(true);
+        router.post(
+            route('overview.finish-trainee'),
+            {
+                trainee_id: trainee.id,
+                course_id: courseId,
+            },
+            {
+                onFinish: () => setIsFinishing(false),
+            },
+        );
+    };
+
     const handleMoveUp = (e: React.MouseEvent) => {
         e.preventDefault();
         onMoveUp();
-        // Keep dropdown open
     };
 
     const handleMoveDown = (e: React.MouseEvent) => {
         e.preventDefault();
         onMoveDown();
-        // Keep dropdown open
     };
 
     return (
         <>
             <div className="flex items-center justify-end gap-2">
-                <Button size="sm" variant="success">
+                <Button size="sm" variant="success" onClick={() => setFinishOpen(true)}>
                     <CheckCircle2 className="mr-1 h-3 w-3" />
                     Finish
                 </Button>
@@ -164,6 +178,26 @@ function TraineeRowActions({
                         </Button>
                         <Button onClick={handleRemoveTrainee} disabled={isRemoving} variant="destructive">
                             {isRemoving ? 'Removing...' : 'Remove from Course'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            <Dialog open={finishOpen} onOpenChange={setFinishOpen}>
+                <DialogContent className="gap-6">
+                    <DialogHeader>
+                        <DialogTitle>Complete Training</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to give <span className="font-medium">{trainee?.name}</span> all of the endorsements for this
+                            course?
+                            <br />
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setFinishOpen(false)} disabled={isFinishing}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleFinishTrainee} disabled={isFinishing} variant={'success'}>
+                            {isFinishing ? 'Completing...' : 'Complete Training'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
