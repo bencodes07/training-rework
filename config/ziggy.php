@@ -72,6 +72,8 @@ return [
 
         'overview.add-solo',
         'overview.extend-solo',
-        'overview.remove-solo'
+        'overview.remove-solo',
+
+        'training-logs.store'
     ],
 ];
