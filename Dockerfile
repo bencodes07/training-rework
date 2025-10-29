@@ -5,24 +5,33 @@ FROM php:8.4-alpine AS frontend
 RUN apk add --no-cache nodejs npm \
     icu-dev \
     libzip-dev \
-    zip
+    zip \
+    curl
 
 # Install PHP extensions
 RUN docker-php-ext-install intl zip
 
 WORKDIR /app
 
-# Install composer
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+# Install composer and verify installation
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
+    && chmod +x /usr/local/bin/composer \
+    && composer --version
+
+# Copy composer files first for better layer caching
+COPY composer.json composer.lock ./
+
+# Install PHP dependencies
+RUN composer install --no-dev --optimize-autoloader --no-scripts --no-autoloader
 
 # Copy all application files
 COPY . .
 
+# Complete composer setup
+RUN composer dump-autoload --optimize --no-dev
+
 # Remove any cached bootstrap files
 RUN rm -f bootstrap/cache/*.php
-
-# Install PHP dependencies
-RUN composer install --no-dev --optimize-autoloader
 
 # Install Node.js dependencies
 RUN npm ci
@@ -40,6 +49,7 @@ RUN apt-get update && \
     zip \
     libpq-dev \
     libicu-dev \
+    curl \
     && docker-php-ext-install intl zip pdo_mysql pdo_pgsql \
     && rm -rf /var/lib/apt/lists/*
 
@@ -57,17 +67,24 @@ RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
 # Set the working directory
 WORKDIR /var/www/html
 
-# Install composer
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+# Install composer and verify
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
+    && chmod +x /usr/local/bin/composer
+
+# Copy composer files first
+COPY composer.json composer.lock ./
+
+# Install project dependencies (no scripts to avoid errors before all files are copied)
+RUN composer install --optimize-autoloader --no-dev --no-scripts
 
 # Copy the application code
 COPY . .
 
+# Run composer scripts now that all files are present
+RUN composer dump-autoload --optimize --no-dev
+
 # Remove any cached bootstrap files that might have been copied
 RUN rm -f bootstrap/cache/*.php
-
-# Install project dependencies
-RUN composer install --optimize-autoloader --no-dev
 
 # Copy built assets from frontend stage
 COPY --from=frontend /app/public/build ./public/build
