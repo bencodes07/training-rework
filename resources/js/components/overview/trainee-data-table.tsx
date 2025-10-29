@@ -25,6 +25,7 @@ import {
 import { useState, useEffect } from 'react';
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable, VisibilityState } from '@tanstack/react-table';
 import { SoloModal } from './solo-modal';
+import { ProgressModal } from './progress-modal';
 
 interface TraineeDataTableProps {
     trainees: Trainee[];
@@ -218,6 +219,9 @@ export function TraineeDataTable({ trainees, course, onRemarkClick, onClaimClick
     const [selectedTraineeForGrant, setSelectedTraineeForGrant] = useState<Trainee | null>(null);
     const [isGrantingEndorsement, setIsGrantingEndorsement] = useState(false);
 
+    const [progressModalOpen, setProgressModalOpen] = useState(false);
+    const [selectedTraineeForProgress, setSelectedTraineeForProgress] = useState<Trainee | null>(null);
+
     // Update data when trainees prop changes
     useEffect(() => {
         setData(trainees);
@@ -356,25 +360,60 @@ export function TraineeDataTable({ trainees, course, onRemarkClick, onClaimClick
                     <div className="space-y-1">
                         {trainee.progress.length > 0 ? (
                             <div className="flex items-center gap-1">
-                                {trainee.progress.map((passed, idx) => (
+                                {trainee.progress.slice(0, 5).map((passed, idx) => (
                                     <div
                                         key={idx}
                                         className={`h-2 w-2 rounded-full ${passed ? 'bg-green-500' : 'bg-red-500'}`}
                                         title={`Session ${idx + 1}: ${passed ? 'Passed' : 'Failed'}`}
                                     />
                                 ))}
-                                <Button variant="ghost" size="sm" className="ml-1 h-6 px-2">
+                                {trainee.progress.length > 5 && (
+                                    <span className="ml-1 text-xs text-muted-foreground">+{trainee.progress.length - 5}</span>
+                                )}
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="ml-1 h-6 px-2"
+                                    onClick={() => {
+                                        setSelectedTraineeForProgress(trainee);
+                                        setProgressModalOpen(true);
+                                    }}
+                                >
                                     <Eye className="mr-1 h-3 w-3" />
                                     Details
                                 </Button>
-                                <Button variant="ghost" size="sm" className="h-6 bg-green-50 px-2 text-green-700 hover:bg-green-100">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 bg-green-50 px-2 text-green-700 hover:bg-green-100"
+                                    onClick={() => {
+                                        router.visit(
+                                            route('training-logs.create', {
+                                                traineeId: trainee.id,
+                                                courseId: course.id,
+                                            }),
+                                        );
+                                    }}
+                                >
                                     <Plus className="h-3 w-3" />
                                 </Button>
                             </div>
                         ) : (
                             <div className="flex items-center gap-1">
                                 <span className="text-sm text-muted-foreground">No sessions yet</span>
-                                <Button variant="outline" size="icon" className="size-6">
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="size-6"
+                                    onClick={() => {
+                                        router.visit(
+                                            route('training-logs.create', {
+                                                traineeId: trainee.id,
+                                                courseId: course.id,
+                                            }),
+                                        );
+                                    }}
+                                >
                                     <Plus className="h-3 w-3" />
                                 </Button>
                             </div>
@@ -691,6 +730,15 @@ export function TraineeDataTable({ trainees, course, onRemarkClick, onClaimClick
                 onClose={() => {
                     setSoloModalOpen(false);
                     setSelectedTraineeForSolo(null);
+                }}
+            />
+            <ProgressModal
+                trainee={selectedTraineeForProgress}
+                courseId={course.id}
+                isOpen={progressModalOpen}
+                onClose={() => {
+                    setProgressModalOpen(false);
+                    setSelectedTraineeForProgress(null);
                 }}
             />
         </div>

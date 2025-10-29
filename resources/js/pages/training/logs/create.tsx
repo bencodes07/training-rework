@@ -48,6 +48,7 @@ interface TrainingLogCreateProps {
     sessionTypes: { value: string; label: string }[];
     ratingOptions: { value: number; label: string }[];
     trafficLevels: { value: string; label: string }[];
+    continueDraft?: boolean;
 }
 
 interface LogFormData {
@@ -105,7 +106,15 @@ interface LogFormData {
     next_step: string;
 }
 
-export default function CreateTrainingLog({ trainee, course, categories, sessionTypes, ratingOptions, trafficLevels }: TrainingLogCreateProps) {
+export default function CreateTrainingLog({
+    trainee,
+    course,
+    categories,
+    sessionTypes,
+    ratingOptions,
+    trafficLevels,
+    continueDraft = false,
+}: TrainingLogCreateProps) {
     const [showAdditionalDetails, setShowAdditionalDetails] = useState(false);
     const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
     const storageKey = `training-log-draft-${trainee.id}-${course.id}`;
@@ -168,7 +177,19 @@ export default function CreateTrainingLog({ trainee, course, categories, session
     // Load draft from localStorage
     useEffect(() => {
         const savedDraft = localStorage.getItem(storageKey);
-        if (savedDraft) {
+        if (savedDraft && !continueDraft) {
+            // Don't auto-load if user chose "Start Fresh"
+            try {
+                const parsedDraft = JSON.parse(savedDraft);
+                setData(parsedDraft);
+            } catch (error) {
+                console.error('Failed to load draft:', error);
+            }
+        } else if (!continueDraft) {
+            // Clear draft if starting fresh
+            localStorage.removeItem(storageKey);
+        } else if (continueDraft && savedDraft) {
+            // Load draft if continuing
             try {
                 const parsedDraft = JSON.parse(savedDraft);
                 setData(parsedDraft);
@@ -176,7 +197,7 @@ export default function CreateTrainingLog({ trainee, course, categories, session
                 console.error('Failed to load draft:', error);
             }
         }
-    }, [storageKey, setData]);
+    }, [storageKey, setData, continueDraft]);
 
     // Auto-save with debounce
     const debouncedData = useDebounce(data, 1000);

@@ -182,9 +182,19 @@ class MentorOverviewController extends Controller
             }
         }
 
-        // Get trainee's progress (placeholder - implement when you add training sessions table)
-        // For now, return empty array
-        $progress = [];
+        $trainingLogs = \App\Models\TrainingLog::where('trainee_id', $trainee->id)
+            ->where('course_id', $course->id)
+            ->orderBy('session_date', 'desc')
+            ->take(10)
+            ->get();
+
+        $progress = $trainingLogs->map(function ($log) {
+            return $log->result;
+        })->reverse()->values()->toArray();
+
+        $lastSession = $trainingLogs->isNotEmpty()
+            ? $trainingLogs->first()->session_date->toIso8601String()
+            : null;
 
         // Check if trainee is claimed by current mentor
         $isClaimedByCurrentUser = $course->mentors->contains('id', $currentMentor->id);

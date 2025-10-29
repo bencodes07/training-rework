@@ -81,6 +81,8 @@ class TrainingLogController extends Controller
 
         $categories = $this->getEvaluationCategories();
 
+        $continueDraft = $request->query('continue') === '1';
+
         return Inertia::render('training/logs/create', [
             'trainee' => [
                 'id' => $trainee->id,
@@ -97,6 +99,7 @@ class TrainingLogController extends Controller
             'sessionTypes' => $this->getSessionTypes(),
             'ratingOptions' => $this->getRatingOptions(),
             'trafficLevels' => $this->getTrafficLevels(),
+            'continueDraft' => $continueDraft,
         ]);
     }
 
