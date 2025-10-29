@@ -5,19 +5,15 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { 
-    CheckCircle2, 
-    ChevronDown, 
-    Info, 
-    Loader2, 
-} from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { WYSIWYGEditor } from '@/components/logs/wysiwyg-editor';
+import { CheckCircle2, XCircle, ChevronDown, Info, Loader2, InfoIcon } from 'lucide-react';
+import { useState, useEffect, Fragment } from 'react';
 import { useDebounce } from '@/hooks/use-debounce';
-import { MarkdownEditor } from '@/components/logs/markdown-editor';
 import { cn } from '@/lib/utils';
 import { BreadcrumbItem } from '@/types';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -114,12 +110,12 @@ export default function CreateTrainingLog({ trainee, course, categories, session
     const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
     const storageKey = `training-log-draft-${trainee.id}-${course.id}`;
 
-    const { data, setData, post, processing, errors, reset } = useForm<LogFormData>({
+    const { data, setData, post, processing, errors } = useForm<LogFormData>({
         trainee_id: trainee.id,
         course_id: course.id,
         session_date: new Date().toISOString().split('T')[0],
-        position: course.position,
-        type: 'O',
+        position: '',
+        type: '',
         traffic_level: '',
         traffic_complexity: '',
         runway_configuration: '',
@@ -180,7 +176,7 @@ export default function CreateTrainingLog({ trainee, course, categories, session
                 console.error('Failed to load draft:', error);
             }
         }
-    }, []);
+    }, [storageKey, setData]);
 
     // Auto-save with debounce
     const debouncedData = useDebounce(data, 1000);
@@ -196,7 +192,7 @@ export default function CreateTrainingLog({ trainee, course, categories, session
                 console.error('Failed to save draft:', error);
             }
         }
-    }, [debouncedData]);
+    }, [debouncedData, storageKey]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -206,34 +202,42 @@ export default function CreateTrainingLog({ trainee, course, categories, session
     };
 
     const RatingButton = ({ value, label, selected, onClick }: { value: number; label: string; selected: boolean; onClick: () => void }) => {
-        const colors = {
-            4: 'border-green-500 bg-green-500 text-white hover:bg-green-600',
-            3: 'border-blue-500 bg-blue-500 text-white hover:bg-blue-600',
-            2: 'border-yellow-500 bg-yellow-500 text-white hover:bg-yellow-600',
-            1: 'border-red-500 bg-red-500 text-white hover:bg-red-600',
-            0: 'border-gray-300 bg-gray-100 text-gray-700 hover:bg-gray-200',
+        const getColorClasses = () => {
+            if (!selected) return '';
+
+            switch (value) {
+                case 4:
+                    return 'border-2 border-green-500 bg-green-500 text-white hover:bg-green-600 hover:text-white';
+                case 3:
+                    return 'border-2 border-blue-500 bg-blue-500 text-white hover:bg-blue-600 hover:text-white';
+                case 2:
+                    return 'border-2 border-yellow-500 bg-yellow-500 text-white hover:bg-yellow-600 hover:text-white';
+                case 1:
+                    return 'border-2 border-red-500 bg-red-500 text-white hover:bg-red-600 hover:text-white';
+                default:
+                    return 'border-2 dark:border-primary';
+            }
         };
 
         return (
-            <TooltipProvider>
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <button
-                            type="button"
-                            onClick={onClick}
-                            className={cn(
-                                'flex h-10 w-10 items-center justify-center rounded-lg border-2 text-sm font-semibold transition-all',
-                                selected ? colors[value as keyof typeof colors] : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300 hover:bg-gray-50'
-                            )}
-                        >
-                            {value === 0 ? '—' : value}
-                        </button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p className="font-medium">{label}</p>
-                    </TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
+            <Tooltip delayDuration={200}>
+                <TooltipTrigger asChild>
+                    <Button
+                        type="button"
+                        onClick={onClick}
+                        variant={'outline'}
+                        className={cn(
+                            'flex size-8 items-center justify-center rounded-lg text-base font-bold transition-all duration-200',
+                            getColorClasses(),
+                        )}
+                    >
+                        {value === 0 ? '—' : value}
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>{label}</p>
+                </TooltipContent>
+            </Tooltip>
         );
     };
 
@@ -241,34 +245,36 @@ export default function CreateTrainingLog({ trainee, course, categories, session
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Training Log - ${trainee.name}`} />
 
-            <div className="container mx-auto max-w-5xl px-4 py-6">
-                {/* Header */}
-                <div className="mb-6 flex items-start justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold tracking-tight">New Training Log</h1>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                            {trainee.name} • {course.name}
-                        </p>
-                    </div>
-                    {autoSaveStatus === 'saved' && (
-                        <div className="flex items-center gap-2 text-sm text-green-600">
-                            <CheckCircle2 className="h-4 w-4" />
-                            <span>Saved</span>
-                        </div>
-                    )}
-                    {autoSaveStatus === 'saving' && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <span>Saving...</span>
-                        </div>
-                    )}
-                </div>
-
+            <div className="flex h-full flex-1 flex-col gap-6 overflow-x-auto rounded-xl p-4">
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    {/* Basic Info */}
+                    {/* Basic Session Information */}
                     <Card>
-                        <CardContent className="pt-6">
-                            <div className="grid gap-4 sm:grid-cols-3">
+                        <CardContent className="gap-0">
+                            <div className="mb-6 flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-xl font-semibold">Session Information</h2>
+                                    <p className="mt-1 flex gap-1 text-sm text-muted-foreground">
+                                        {trainee.name} • <Badge variant={'outline'}>{course.name}</Badge>
+                                    </p>
+                                </div>
+                                {autoSaveStatus !== 'idle' && (
+                                    <Badge variant={autoSaveStatus === 'saved' ? 'default' : 'secondary'}>
+                                        {autoSaveStatus === 'saving' ? (
+                                            <>
+                                                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                                Saving...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <CheckCircle2 className="mr-1 h-3 w-3" />
+                                                Saved
+                                            </>
+                                        )}
+                                    </Badge>
+                                )}
+                            </div>
+
+                            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="session_date">Date *</Label>
                                     <Input
@@ -277,6 +283,7 @@ export default function CreateTrainingLog({ trainee, course, categories, session
                                         value={data.session_date}
                                         onChange={(e) => setData('session_date', e.target.value)}
                                         max={new Date().toISOString().split('T')[0]}
+                                        className={errors.session_date ? 'border-red-500' : ''}
                                     />
                                     {errors.session_date && <p className="text-sm text-red-600">{errors.session_date}</p>}
                                 </div>
@@ -287,17 +294,31 @@ export default function CreateTrainingLog({ trainee, course, categories, session
                                         id="position"
                                         value={data.position}
                                         onChange={(e) => setData('position', e.target.value)}
-                                        placeholder="EDDF_APP"
+                                        placeholder="e.g., EDDF_N_APP"
                                         maxLength={25}
+                                        className={errors.position ? 'border-red-500' : ''}
                                     />
                                     {errors.position && <p className="text-sm text-red-600">{errors.position}</p>}
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label htmlFor="type">Type</Label>
+                                    <Label htmlFor="session_duration">Duration (minutes)</Label>
+                                    <Input
+                                        id="session_duration"
+                                        type="number"
+                                        value={data.session_duration}
+                                        onChange={(e) => setData('session_duration', e.target.value)}
+                                        placeholder="90"
+                                        min="1"
+                                        max="480"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="type">Session Type</Label>
                                     <Select value={data.type} onValueChange={(value) => setData('type', value)}>
                                         <SelectTrigger id="type">
-                                            <SelectValue />
+                                            <SelectValue placeholder="Select type..." />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {sessionTypes.map((type) => (
@@ -310,227 +331,285 @@ export default function CreateTrainingLog({ trainee, course, categories, session
                                 </div>
                             </div>
 
-                            {/* Additional Details */}
-                            <Collapsible open={showAdditionalDetails} onOpenChange={setShowAdditionalDetails} className="mt-4">
-                                <CollapsibleTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="w-full justify-between">
-                                        <span className="text-sm font-medium">Additional Details</span>
-                                        <ChevronDown className={cn('h-4 w-4 transition-transform', showAdditionalDetails && 'rotate-180')} />
-                                    </Button>
-                                </CollapsibleTrigger>
-                                <CollapsibleContent className="mt-4 space-y-4">
-                                    <div className="grid gap-4 sm:grid-cols-2">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="traffic_level">Traffic Level</Label>
-                                            <Select value={data.traffic_level} onValueChange={(value) => setData('traffic_level', value)}>
-                                                <SelectTrigger id="traffic_level">
-                                                    <SelectValue placeholder="Not specified" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="">Not specified</SelectItem>
-                                                    {trafficLevels.map((level) => (
-                                                        <SelectItem key={level.value} value={level.value}>
-                                                            {level.label}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                            {/* Additional Details - Collapsible */}
+                            <div className="mt-6">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAdditionalDetails(!showAdditionalDetails)}
+                                    className="flex w-full items-center justify-between rounded-lg border bg-muted/30 p-4 text-left transition-colors hover:bg-muted/50"
+                                >
+                                    <span className="font-medium">Additional Session Details</span>
+                                    <ChevronDown className={cn('h-5 w-5 transition-transform duration-200', showAdditionalDetails && 'rotate-180')} />
+                                </button>
+
+                                {showAdditionalDetails && (
+                                    <div className="mt-4 space-y-4 rounded-lg border bg-muted/10 p-4">
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="traffic_level">Traffic Level</Label>
+                                                <Select
+                                                    value={data.traffic_level || 'none'}
+                                                    onValueChange={(value) => setData('traffic_level', value === 'none' ? '' : value)}
+                                                >
+                                                    <SelectTrigger id="traffic_level">
+                                                        <SelectValue placeholder="Not specified" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="none">Not specified</SelectItem>
+                                                        {trafficLevels.map((level) => (
+                                                            <SelectItem key={level.value} value={level.value}>
+                                                                {level.label}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label htmlFor="traffic_complexity">Traffic Complexity</Label>
+                                                <Select
+                                                    value={data.traffic_complexity || 'none'}
+                                                    onValueChange={(value) => setData('traffic_complexity', value === 'none' ? '' : value)}
+                                                >
+                                                    <SelectTrigger id="traffic_complexity">
+                                                        <SelectValue placeholder="Not specified" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="none">Not specified</SelectItem>
+                                                        {trafficLevels.map((level) => (
+                                                            <SelectItem key={level.value} value={level.value}>
+                                                                {level.label}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label htmlFor="runway_configuration">Runway Configuration</Label>
+                                                <Input
+                                                    id="runway_configuration"
+                                                    value={data.runway_configuration}
+                                                    onChange={(e) => setData('runway_configuration', e.target.value)}
+                                                    placeholder="e.g., 25L/07R"
+                                                    maxLength={50}
+                                                />
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label htmlFor="surrounding_stations">Surrounding Stations</Label>
+                                                <Input
+                                                    id="surrounding_stations"
+                                                    value={data.surrounding_stations}
+                                                    onChange={(e) => setData('surrounding_stations', e.target.value)}
+                                                    placeholder="e.g., EDDF_C_TWR, EDDF_C_GND"
+                                                />
+                                            </div>
                                         </div>
 
                                         <div className="space-y-2">
-                                            <Label htmlFor="traffic_complexity">Complexity</Label>
-                                            <Select value={data.traffic_complexity} onValueChange={(value) => setData('traffic_complexity', value)}>
-                                                <SelectTrigger id="traffic_complexity">
-                                                    <SelectValue placeholder="Not specified" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="">Not specified</SelectItem>
-                                                    {trafficLevels.map((level) => (
-                                                        <SelectItem key={level.value} value={level.value}>
-                                                            {level.label}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            <Label htmlFor="session_duration">Duration (min)</Label>
-                                            <Input
-                                                id="session_duration"
-                                                type="number"
-                                                value={data.session_duration}
-                                                onChange={(e) => setData('session_duration', e.target.value)}
-                                                placeholder="90"
-                                                min="1"
-                                                max="480"
+                                            <Label htmlFor="special_procedures">Special Procedures</Label>
+                                            <WYSIWYGEditor
+                                                value={data.special_procedures}
+                                                onChange={(value) => setData('special_procedures', value)}
+                                                placeholder="Describe any special procedures used..."
+                                                minHeight="120px"
                                             />
                                         </div>
 
                                         <div className="space-y-2">
-                                            <Label htmlFor="runway_configuration">Runway Config</Label>
-                                            <Input
-                                                id="runway_configuration"
-                                                value={data.runway_configuration}
-                                                onChange={(e) => setData('runway_configuration', e.target.value)}
-                                                placeholder="25L/07R"
-                                                maxLength={50}
+                                            <Label htmlFor="airspace_restrictions">Airspace Restrictions</Label>
+                                            <WYSIWYGEditor
+                                                value={data.airspace_restrictions}
+                                                onChange={(value) => setData('airspace_restrictions', value)}
+                                                placeholder="Note any airspace restrictions..."
+                                                minHeight="120px"
                                             />
                                         </div>
                                     </div>
-
-                                    <div className="space-y-2">
-                                        <Label htmlFor="surrounding_stations">Surrounding Stations</Label>
-                                        <Input
-                                            id="surrounding_stations"
-                                            value={data.surrounding_stations}
-                                            onChange={(e) => setData('surrounding_stations', e.target.value)}
-                                            placeholder="EDDF_TWR, EDDF_GND"
-                                        />
-                                    </div>
-                                </CollapsibleContent>
-                            </Collapsible>
+                                )}
+                            </div>
                         </CardContent>
                     </Card>
 
-                    {/* Evaluation Categories */}
+                    {/* Performance Evaluation */}
                     <div className="space-y-4">
-                        <h2 className="text-lg font-semibold">Evaluation</h2>
-                        {categories.map((category) => (
-                            <Card key={category.name}>
-                                <CardContent className="pt-6">
-                                    <div className="mb-4 flex items-start justify-between gap-4">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2">
-                                                <h3 className="font-medium">{category.label}</h3>
-                                                <TooltipProvider>
+                        <h2 className="text-2xl font-bold">Performance Evaluation</h2>
+
+                        <div className="space-y-4">
+                            <Card className="overflow-hidden">
+                                <CardContent className="space-y-8">
+                                    {categories.map((category, index) => (
+                                        <Fragment key={category.name}>
+                                            <div className="mb-6 flex items-center justify-between">
+                                                <div className="flex items-center justify-center gap-3">
+                                                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-lg font-bold text-primary dark:bg-primary/20">
+                                                        {index + 1}
+                                                    </div>
+                                                    <h3 className="text-center text-lg font-semibold">{category.label}</h3>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <Info className="h-4 w-4 text-muted-foreground" />
+                                                            <InfoIcon className="size-3 text-blue-500" />
                                                         </TooltipTrigger>
-                                                        <TooltipContent className="max-w-xs">
-                                                            <p className="text-sm">{category.description}</p>
+                                                        <TooltipContent>
+                                                            <p>{category.description}</p>
                                                         </TooltipContent>
                                                     </Tooltip>
-                                                </TooltipProvider>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    {ratingOptions.map((option) => (
+                                                        <RatingButton
+                                                            key={option.value}
+                                                            value={option.value}
+                                                            label={option.label}
+                                                            selected={data[category.name as keyof LogFormData] === option.value}
+                                                            onClick={() => setData(category.name as keyof LogFormData, option.value as any)}
+                                                        />
+                                                    ))}
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            {ratingOptions.map((option) => (
-                                                <RatingButton
-                                                    key={option.value}
-                                                    value={option.value}
-                                                    label={option.label}
-                                                    selected={data[category.name as keyof LogFormData] === option.value}
-                                                    onClick={() => setData(category.name as keyof LogFormData, option.value as any)}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
 
-                                    <div className="grid gap-4 sm:grid-cols-2">
-                                        <div className="space-y-2">
-                                            <Label className="text-green-700">Strengths</Label>
-                                            <MarkdownEditor
-                                                value={data[`${category.name}_positives` as keyof LogFormData] as string}
-                                                onChange={(value) => setData(`${category.name}_positives` as keyof LogFormData, value as any)}
-                                                placeholder="What went well..."
-                                            />
-                                        </div>
+                                            <div className="grid gap-4 md:grid-cols-2">
+                                                <div className="space-y-2">
+                                                    <Label className="flex items-center gap-2 text-base text-green-700">
+                                                        <CheckCircle2 className="h-4 w-4" />
+                                                        Strengths
+                                                    </Label>
+                                                    <WYSIWYGEditor
+                                                        value={data[`${category.name}_positives` as keyof LogFormData] as string}
+                                                        onChange={(value) => setData(`${category.name}_positives` as keyof LogFormData, value as any)}
+                                                        placeholder=""
+                                                        minHeight="150px"
+                                                    />
+                                                </div>
 
-                                        <div className="space-y-2">
-                                            <Label className="text-amber-700">Areas to Improve</Label>
-                                            <MarkdownEditor
-                                                value={data[`${category.name}_negatives` as keyof LogFormData] as string}
-                                                onChange={(value) => setData(`${category.name}_negatives` as keyof LogFormData, value as any)}
-                                                placeholder="What needs work..."
-                                            />
-                                        </div>
-                                    </div>
+                                                <div className="space-y-2">
+                                                    <Label className="flex items-center gap-2 text-base text-amber-700">
+                                                        <Info className="h-4 w-4" />
+                                                        Areas for Improvement
+                                                    </Label>
+                                                    <WYSIWYGEditor
+                                                        value={data[`${category.name}_negatives` as keyof LogFormData] as string}
+                                                        onChange={(value) => setData(`${category.name}_negatives` as keyof LogFormData, value as any)}
+                                                        placeholder=""
+                                                        minHeight="150px"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </Fragment>
+                                    ))}
                                 </CardContent>
                             </Card>
-                        ))}
+                        </div>
                     </div>
 
                     {/* Final Assessment */}
-                    <Card>
-                        <CardContent className="space-y-6 pt-6">
-                            <div className="space-y-2">
-                                <Label htmlFor="final_comment">Final Comment</Label>
-                                <MarkdownEditor
-                                    value={data.final_comment}
-                                    onChange={(value) => setData('final_comment', value)}
-                                    placeholder="Overall assessment..."
-                                />
-                            </div>
+                    <Card className="border-2">
+                        <CardContent className="gap-0">
+                            <h2 className="mb-6 text-2xl font-bold">Final Assessment</h2>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="internal_remarks" className="text-muted-foreground">
-                                    Internal Remarks (private)
-                                </Label>
-                                <MarkdownEditor
-                                    value={data.internal_remarks}
-                                    onChange={(value) => setData('internal_remarks', value)}
-                                    placeholder="Notes for mentors only..."
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="next_step">Next Step</Label>
-                                <Input
-                                    id="next_step"
-                                    value={data.next_step}
-                                    onChange={(e) => setData('next_step', e.target.value)}
-                                    placeholder="Continue with..."
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>Result *</Label>
-                                <div className="flex gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setData('result', true)}
-                                        className={cn(
-                                            'flex-1 rounded-lg border-2 py-3 font-medium transition-all',
-                                            data.result === true
-                                                ? 'border-green-500 bg-green-50 text-green-700'
-                                                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                                        )}
-                                    >
-                                        ✓ Passed
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setData('result', false)}
-                                        className={cn(
-                                            'flex-1 rounded-lg border-2 py-3 font-medium transition-all',
-                                            data.result === false
-                                                ? 'border-red-500 bg-red-50 text-red-700'
-                                                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                                        )}
-                                    >
-                                        ✗ Not Passed
-                                    </button>
+                            <div className="space-y-6">
+                                <div className="space-y-2">
+                                    <Label htmlFor="final_comment" className="text-base">
+                                        Overall Session Summary
+                                    </Label>
+                                    <WYSIWYGEditor
+                                        value={data.final_comment}
+                                        onChange={(value) => setData('final_comment', value)}
+                                        placeholder="Provide a comprehensive assessment of the trainee's overall performance during this session..."
+                                        minHeight="200px"
+                                    />
                                 </div>
-                                {errors.result && <p className="text-sm text-red-600">{errors.result}</p>}
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="next_step" className="text-base">
+                                        Next Training Step
+                                    </Label>
+                                    <Input
+                                        id="next_step"
+                                        value={data.next_step}
+                                        onChange={(e) => setData('next_step', e.target.value)}
+                                        placeholder="e.g., Continue with complex approach scenarios"
+                                    />
+                                </div>
+
+                                <Separator />
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="internal_remarks" className="flex items-center gap-2 text-base text-muted-foreground">
+                                        Internal Mentor Notes
+                                        <Badge variant="secondary" className="text-xs">
+                                            Private
+                                        </Badge>
+                                    </Label>
+                                    <WYSIWYGEditor
+                                        value={data.internal_remarks}
+                                        onChange={(value) => setData('internal_remarks', value)}
+                                        placeholder="Private notes for mentors only (not visible to trainee)..."
+                                        minHeight="150px"
+                                    />
+                                </div>
+
+                                <Separator />
+
+                                {/* Session Result */}
+                                <div className="flex flex-col space-y-3">
+                                    <Label className="text-lg font-semibold">Session Result *</Label>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <Button
+                                            type="button"
+                                            variant={data.result ? 'success' : 'outline'}
+                                            className="py-8"
+                                            onClick={() => setData('result', true)}
+                                        >
+                                            <CheckCircle2
+                                                className={cn(
+                                                    'h-12 w-12 transition-colors',
+                                                    data.result === true ? 'text-green-600' : 'text-gray-400 group-hover:text-green-500',
+                                                )}
+                                            />
+                                            <span
+                                                className={cn(
+                                                    'text-lg font-bold transition-colors',
+                                                    data.result === true ? 'text-green-700' : 'text-gray-600 group-hover:text-green-600',
+                                                )}
+                                            >
+                                                Passed
+                                            </span>
+                                        </Button>
+
+                                        <Button
+                                            type="button"
+                                            onClick={() => setData('result', false)}
+                                            className="py-8"
+                                            variant={!data.result ? 'destructive' : 'outline'}
+                                        >
+                                            <XCircle className="h-12 w-12 transition-colors" />
+                                            <span className="text-lg font-bold transition-colors">Not Passed</span>
+                                        </Button>
+                                    </div>
+                                    {errors.result && <p className="text-sm text-red-600">{errors.result}</p>}
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
 
-                    {/* Actions */}
-                    <div className="flex justify-end gap-3">
-                        <Button type="button" variant="outline" onClick={() => router.visit(route('overview.overview'))}>
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between rounded-xl border-2 bg-muted/30 p-6">
+                        <Button type="button" variant="outline" size="lg" onClick={() => router.visit(route('overview.overview'))}>
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={processing}>
+                        <Button type="submit" size="lg" disabled={processing} className="min-w-[200px]">
                             {processing ? (
                                 <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                                     Submitting...
                                 </>
                             ) : (
-                                'Submit Log'
+                                <>
+                                    <CheckCircle2 className="mr-2 h-5 w-5" />
+                                    Submit Training Log
+                                </>
                             )}
                         </Button>
                     </div>
