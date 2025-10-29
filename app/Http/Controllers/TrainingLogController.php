@@ -241,7 +241,7 @@ class TrainingLogController extends Controller
         $canViewInternal = $isLogMentor || $isCourseMentor || $isAdmin;
         $canEdit = ($isLogMentor || $isAdmin) && $log->mentor_id === $user->id;
 
-        return Inertia::render('training/logs/show', [
+        return Inertia::render('training/logs/view', [
             'log' => $this->formatLogForFrontend($log, $canViewInternal),
             'canEdit' => $canEdit,
             'canViewInternal' => $canViewInternal,

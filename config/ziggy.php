@@ -74,6 +74,9 @@ return [
         'overview.extend-solo',
         'overview.remove-solo',
 
-        'training-logs.store'
+        'training-logs.store',
+        'training-logs.index',
+        'training-logs.create',
+        'training-logs.edit'
     ],
 ];

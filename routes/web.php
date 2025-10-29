@@ -131,6 +131,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('create')
             ->middleware('can:create,App\Models\TrainingLog');
 
+        Route::get('/view/{traineeId}/{courseId}', [TrainingLogController::class, 'viewTraineeLogs'])
+            ->name('view');
+
         // Store new log
         Route::post('/', [TrainingLogController::class, 'store'])
             ->name('store')
