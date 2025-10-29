@@ -348,8 +348,8 @@ export default function ViewTrainingLog({ log, canEdit, canViewInternal, categor
                                     if (!evaluation) return null;
 
                                     return (
-                                        <Card key={category.name} className="overflow-hidden gap-0">
-                                            <CardHeader className="bg-muted/30 pb-3">
+                                        <Card key={category.name} className="gap-0 overflow-hidden">
+                                            <CardHeader className="pb-3">
                                                 <div className="flex items-start justify-between">
                                                     <div className="flex items-center gap-2">
                                                         <CardTitle className="text-base">{category.label}</CardTitle>
@@ -362,10 +362,7 @@ export default function ViewTrainingLog({ log, canEdit, canViewInternal, categor
                                                             </TooltipContent>
                                                         </Tooltip>
                                                     </div>
-                                                    <Badge 
-                                                        variant="outline" 
-                                                        className={cn('text-xs', getRatingColor(evaluation.rating))}
-                                                    >
+                                                    <Badge variant="outline" className={cn('text-xs', getRatingColor(evaluation.rating))}>
                                                         {evaluation.rating_display}
                                                     </Badge>
                                                 </div>
@@ -394,7 +391,7 @@ export default function ViewTrainingLog({ log, canEdit, canViewInternal, categor
                                                         )}
                                                     </div>
                                                 ) : (
-                                                    <p className="text-sm italic text-muted-foreground">No feedback provided.</p>
+                                                    <p className="text-sm text-muted-foreground italic">No feedback provided.</p>
                                                 )}
                                             </CardContent>
                                         </Card>

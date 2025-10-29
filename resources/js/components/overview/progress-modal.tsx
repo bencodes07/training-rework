@@ -45,6 +45,15 @@ interface ProgressModalProps {
 
 const DRAFT_STORAGE_KEY_PREFIX = 'training-log-draft-';
 
+// Format date to German format (DD.MM.YYYY)
+const formatGermanDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+};
+
 export function ProgressModal({ trainee, courseId, isOpen, onClose }: ProgressModalProps) {
     const [logs, setLogs] = useState<TrainingLog[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -52,40 +61,42 @@ export function ProgressModal({ trainee, courseId, isOpen, onClose }: ProgressMo
     const [showDraftOptions, setShowDraftOptions] = useState(false);
 
     useEffect(() => {
-      const fetchTraineeLogs = async () => {
-        if (!trainee || !courseId) return;
+        const fetchTraineeLogs = async () => {
+            if (!trainee || !courseId) return;
 
-        setIsLoading(true);
-        try {
-            const response = await fetch(route('api.training-logs.trainee', trainee.id));
-            if (response.ok) {
-                const data = await response.json();
-                // Filter logs for this specific course
-                const courseLogs = data.logs.filter((log: TrainingLog) => 
-                    log.mentor?.id // Only include logs that have a mentor (course-related)
-                );
-                setLogs(courseLogs);
+            setIsLoading(true);
+            try {
+                const response = await fetch(route('api.training-logs.trainee', trainee.id));
+                if (response.ok) {
+                    const data = await response.json();
+                    // Filter logs for this specific course and sort by date (most recent first)
+                    const courseLogs = data.logs
+                        .filter(
+                            (log: TrainingLog) => log.mentor?.id, // Only include logs that have a mentor (course-related)
+                        )
+                        .sort((a: TrainingLog, b: TrainingLog) => new Date(b.session_date).getTime() - new Date(a.session_date).getTime());
+                    setLogs(courseLogs);
+                }
+            } catch (error) {
+                console.error('Failed to fetch training logs:', error);
+            } finally {
+                setIsLoading(false);
             }
-        } catch (error) {
-            console.error('Failed to fetch training logs:', error);
-        } finally {
-            setIsLoading(false);
+        };
+
+        const checkForDraft = () => {
+            if (!trainee || !courseId) return;
+
+            const draftKey = `${DRAFT_STORAGE_KEY_PREFIX}${trainee.id}-${courseId}`;
+            const draft = localStorage.getItem(draftKey);
+            setHasDraft(!!draft);
+        };
+
+        if (isOpen && trainee && courseId) {
+            fetchTraineeLogs();
+            checkForDraft();
         }
-    };
-
-    const checkForDraft = () => {
-        if (!trainee || !courseId) return;
-        
-        const draftKey = `${DRAFT_STORAGE_KEY_PREFIX}${trainee.id}-${courseId}`;
-        const draft = localStorage.getItem(draftKey);
-        setHasDraft(!!draft);
-    };
-
-    if (isOpen && trainee && courseId) {
-      fetchTraineeLogs();
-      checkForDraft();
-  }
-  }, [isOpen, trainee, courseId]);
+    }, [isOpen, trainee, courseId]);
 
     const handleCreateNewLog = () => {
         if (!trainee || !courseId) return;
@@ -103,7 +114,7 @@ export function ProgressModal({ trainee, courseId, isOpen, onClose }: ProgressMo
 
     const handleStartFresh = () => {
         if (!trainee || !courseId) return;
-        
+
         const draftKey = `${DRAFT_STORAGE_KEY_PREFIX}${trainee.id}-${courseId}`;
         localStorage.removeItem(draftKey);
         setHasDraft(false);
@@ -112,14 +123,15 @@ export function ProgressModal({ trainee, courseId, isOpen, onClose }: ProgressMo
 
     const navigateToCreateLog = (continueDraft: boolean) => {
         if (!trainee || !courseId) return;
-        
-        router.visit(route('training-logs.create', {
-            traineeId: trainee.id,
-            courseId: courseId,
-            continue: continueDraft ? '1' : undefined
-        }));
-    };
 
+        router.visit(
+            route('training-logs.create', {
+                traineeId: trainee.id,
+                courseId: courseId,
+                continue: continueDraft ? '1' : undefined,
+            }),
+        );
+    };
     const getSessionTypeColor = (type: string) => {
         switch (type) {
             case 'O':
@@ -133,17 +145,10 @@ export function ProgressModal({ trainee, courseId, isOpen, onClose }: ProgressMo
         }
     };
 
-    const getRatingColor = (rating: number) => {
-        if (rating >= 3.5) return 'text-green-600';
-        if (rating >= 2.5) return 'text-blue-600';
-        if (rating >= 1.5) return 'text-yellow-600';
-        return 'text-red-600';
-    };
-
     return (
         <>
             <Dialog open={isOpen && !showDraftOptions} onOpenChange={onClose}>
-                <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+                <DialogContent className="flex max-h-[85vh] max-w-3xl flex-col">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-3">
                             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 font-medium text-primary">
@@ -151,9 +156,7 @@ export function ProgressModal({ trainee, courseId, isOpen, onClose }: ProgressMo
                             </div>
                             <div>
                                 <div>{trainee?.name}</div>
-                                <div className="text-sm font-normal text-muted-foreground">
-                                    Training Progress
-                                </div>
+                                <div className="text-sm font-normal text-muted-foreground">Training Progress</div>
                             </div>
                         </DialogTitle>
                     </DialogHeader>
@@ -182,19 +185,17 @@ export function ProgressModal({ trainee, courseId, isOpen, onClose }: ProgressMo
                             <div className="flex flex-col items-center justify-center py-12 text-center">
                                 <FileText className="mb-4 h-12 w-12 text-muted-foreground" />
                                 <h3 className="mb-2 text-lg font-medium">No training logs yet</h3>
-                                <p className="mb-4 text-sm text-muted-foreground">
-                                    Get started by creating a new training log.
-                                </p>
+                                <p className="mb-4 text-sm text-muted-foreground">Get started by creating a new training log.</p>
                             </div>
                         ) : (
-                            <div className="relative space-y-6 pl-8 before:absolute before:left-4 before:top-0 before:bottom-0 before:w-0.5 before:bg-border">
+                            <div className="relative space-y-6 pl-8 before:absolute before:top-0 before:bottom-0 before:left-4 before:w-0.5 before:bg-border">
                                 {logs.map((log) => (
                                     <div key={log.id} className="relative">
                                         {/* Timeline dot */}
-                                        <div 
+                                        <div
                                             className={cn(
-                                                "absolute -left-[23px] mt-1.5 h-4 w-4 rounded-full border-2 border-background",
-                                                log.result ? "bg-green-500" : "bg-red-500"
+                                                'absolute -left-[23px] mt-1.5 h-4 w-4 rounded-full border-2 border-background',
+                                                log.result ? 'bg-green-500' : 'bg-red-500',
                                             )}
                                         />
 
@@ -202,14 +203,11 @@ export function ProgressModal({ trainee, courseId, isOpen, onClose }: ProgressMo
                                         <div className="rounded-lg border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
                                             <div className="mb-3 flex items-start justify-between">
                                                 <div className="flex-1">
-                                                    <div className="mb-2 flex items-center gap-2 flex-wrap">
+                                                    <div className="mb-2 flex flex-wrap items-center gap-2">
                                                         <Badge variant="outline" className={getSessionTypeColor(log.type)}>
                                                             {log.type_display}
                                                         </Badge>
-                                                        <Badge 
-                                                            variant={log.result ? 'default' : 'destructive'}
-                                                            className="flex items-center gap-1"
-                                                        >
+                                                        <Badge variant={log.result ? 'default' : 'destructive'} className="flex items-center gap-1">
                                                             {log.result ? (
                                                                 <>
                                                                     <CheckCircle2 className="h-3 w-3" />
@@ -222,20 +220,12 @@ export function ProgressModal({ trainee, courseId, isOpen, onClose }: ProgressMo
                                                                 </>
                                                             )}
                                                         </Badge>
-                                                        {log.average_rating > 0 && (
-                                                            <span className={cn(
-                                                                "text-sm font-medium",
-                                                                getRatingColor(log.average_rating)
-                                                            )}>
-                                                                Avg: {log.average_rating.toFixed(1)}/4
-                                                            </span>
-                                                        )}
                                                     </div>
                                                     <h4 className="font-semibold">{log.position}</h4>
                                                     <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
                                                         <span className="flex items-center gap-1">
                                                             <Calendar className="h-3 w-3" />
-                                                            {new Date(log.session_date).toLocaleDateString()}
+                                                            {formatGermanDate(log.session_date)}
                                                         </span>
                                                         {log.session_duration && (
                                                             <span className="flex items-center gap-1">
@@ -245,27 +235,19 @@ export function ProgressModal({ trainee, courseId, isOpen, onClose }: ProgressMo
                                                         )}
                                                     </div>
                                                 </div>
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    onClick={() => router.visit(route('training-logs.show', log.id))}
-                                                >
+                                                <Button size="sm" variant="ghost" onClick={() => router.visit(route('training-logs.show', log.id))}>
                                                     <Eye className="h-4 w-4" />
                                                 </Button>
                                             </div>
 
                                             {log.next_step && (
                                                 <div className="mt-3 rounded-md bg-muted/50 p-3">
-                                                    <p className="text-sm font-medium text-muted-foreground mb-1">
-                                                        Next Step:
-                                                    </p>
+                                                    <p className="mb-1 text-sm font-medium text-muted-foreground">Next Step:</p>
                                                     <p className="text-sm">{log.next_step}</p>
                                                 </div>
                                             )}
 
-                                            <div className="mt-3 text-xs text-muted-foreground">
-                                                Mentor: {log.mentor.name}
-                                            </div>
+                                            <div className="mt-3 text-xs text-muted-foreground">Mentor: {log.mentor.name}</div>
                                         </div>
                                     </div>
                                 ))}
@@ -289,9 +271,7 @@ export function ProgressModal({ trainee, courseId, isOpen, onClose }: ProgressMo
                             <AlertCircle className="h-5 w-5 text-yellow-500" />
                             Draft Found
                         </DialogTitle>
-                        <DialogDescription>
-                            You have an unsaved draft for {trainee?.name}. What would you like to do?
-                        </DialogDescription>
+                        <DialogDescription>You have an unsaved draft for {trainee?.name}. What would you like to do?</DialogDescription>
                     </DialogHeader>
 
                     <Alert>

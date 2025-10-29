@@ -383,9 +383,9 @@ export function TraineeDataTable({ trainees, course, onRemarkClick, onClaimClick
                                     Details
                                 </Button>
                                 <Button
-                                    variant="ghost"
+                                    variant="success"
                                     size="sm"
-                                    className="h-6 bg-green-50 px-2 text-green-700 hover:bg-green-100"
+                                    className="size-6"
                                     onClick={() => {
                                         router.visit(
                                             route('training-logs.create', {

@@ -76,7 +76,9 @@ return [
 
         'training-logs.store',
         'training-logs.index',
+        'training-logs.show',
         'training-logs.create',
-        'training-logs.edit'
+        'training-logs.edit',
+        'api.training-logs.trainee'
     ],
 ];

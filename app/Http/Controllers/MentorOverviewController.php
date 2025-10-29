@@ -196,6 +196,11 @@ class MentorOverviewController extends Controller
             ? $trainingLogs->first()->session_date->toIso8601String()
             : null;
 
+        // Get next step from most recent log
+        $nextStep = $trainingLogs->isNotEmpty() && $trainingLogs->first()->next_step
+            ? $trainingLogs->first()->next_step
+            : '';
+
         // Check if trainee is claimed by current mentor
         $isClaimedByCurrentUser = $course->mentors->contains('id', $currentMentor->id);
 
@@ -248,12 +253,6 @@ class MentorOverviewController extends Controller
                     : null,
             ];
         }
-
-        // Get last session date (placeholder - implement when you add training sessions table)
-        $lastSession = null;
-
-        // Get next step (placeholder - implement when you add training sessions table)
-        $nextStep = '';
 
         return [
             'id' => $trainee->id,
