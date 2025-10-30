@@ -252,27 +252,22 @@ class TrainingLogController extends Controller
         ]);
     }
 
-    /**
-     * Show the form for editing the specified training log
-     */
     public function edit(Request $request, int $id): Response
     {
         $user = $request->user();
         $log = TrainingLog::with(['trainee', 'mentor', 'course'])->findOrFail($id);
 
-        // Only the mentor who created the log or superusers can edit
-        if ($user->id !== $log->mentor_id && !$user->is_superuser) {
+        if ($user->id !== $log->mentor_id && !$user->is_superuser && !$user->is_admin) {
             abort(403, 'You do not have permission to edit this log.');
         }
 
-        // Check if user is still a mentor for this course
         if ($log->course && !$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $log->course_id)->exists()) {
             abort(403, 'You are no longer a mentor for this course.');
         }
 
         $categories = $this->getEvaluationCategories();
 
-        return Inertia::render('training/logs/edit', [
+        return Inertia::render('training/logs/create', [
             'log' => $this->formatLogForFrontend($log, true),
             'trainee' => [
                 'id' => $log->trainee->id,
@@ -289,6 +284,8 @@ class TrainingLogController extends Controller
             'sessionTypes' => $this->getSessionTypes(),
             'ratingOptions' => $this->getRatingOptions(),
             'trafficLevels' => $this->getTrafficLevels(),
+            'continueDraft' => false,
+            'isEditing' => true,
         ]);
     }
 

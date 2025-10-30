@@ -3,20 +3,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Trainee } from '@/types/mentor';
-import { router } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
-import { 
-    Loader2, 
-    Plus, 
-    FileEdit, 
-    Calendar, 
-    Clock, 
-    CheckCircle2, 
-    XCircle, 
-    AlertCircle,
-    Eye,
-    FileText
-} from 'lucide-react';
+import { Loader2, Plus, FileEdit, Calendar, Clock, CheckCircle2, XCircle, AlertCircle, Eye, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface TrainingLog {
@@ -235,9 +224,11 @@ export function ProgressModal({ trainee, courseId, isOpen, onClose }: ProgressMo
                                                         )}
                                                     </div>
                                                 </div>
-                                                <Button size="sm" variant="ghost" onClick={() => router.visit(route('training-logs.show', log.id))}>
-                                                    <Eye className="h-4 w-4" />
-                                                </Button>
+                                                <Link href={route('training-logs.show', log.id)}>
+                                                    <Button size="sm" variant="ghost">
+                                                        <Eye className="h-4 w-4" />
+                                                    </Button>
+                                                </Link>
                                             </div>
 
                                             {log.next_step && (

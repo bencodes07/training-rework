@@ -79,6 +79,7 @@ return [
         'training-logs.show',
         'training-logs.create',
         'training-logs.edit',
+        'training-logs.update',
         'api.training-logs.trainee'
     ],
 ];
