@@ -64,6 +64,8 @@ return [
         'overview.add-trainee-to-course',
         'overview.remove-trainee',
         'overview.finish-trainee',
+        'overview.past-trainees',
+        'overview.reactivate-trainee',
 
         'overview.update-trainee-order',
         'overview.reset-trainee-order',

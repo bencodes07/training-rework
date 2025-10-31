@@ -38,7 +38,7 @@ export function CourseDetail({ course, onRemarkClick, onClaimClick, onAssignClic
                             </CardDescription>
                         </div>
                         <div className="flex gap-2">
-                            <Button variant="outline" size="sm" disabled onClick={() => setIsPastTraineesOpen(true)}>
+                            <Button variant="outline" size="sm" onClick={() => setIsPastTraineesOpen(true)}>
                                 <Archive className="mr-2 h-4 w-4" />
                                 Past Trainees
                             </Button>
