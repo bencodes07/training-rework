@@ -106,6 +106,8 @@ return new class extends Migration
                 ->references('id')
                 ->on('users')
                 ->onDelete('set null');
+
+            $table->timestamp('completed_at')->nullable()->after('claimed_at');
         });
 
         // Create waiting_list_entries table
