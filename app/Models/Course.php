@@ -44,11 +44,6 @@ class Course extends Model
         return $this->belongsTo(FamiliarisationSector::class);
     }
 
-    public function activeTrainees(): BelongsToMany
-    {
-        return $this->belongsToMany(User::class, 'course_trainees');
-    }
-
     public function mentors(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'course_mentors');
@@ -113,5 +108,64 @@ class Course extends Model
         return $query->whereDoesntHave('activeTrainees', function ($q) use ($user) {
             $q->where('user_id', $user->id);
         });
+    }
+
+    /**
+     * Active trainees relationship - excludes completed trainees
+     */
+    public function activeTrainees()
+    {
+        return $this->belongsToMany(User::class, 'course_trainees')
+            ->withPivot([
+                'claimed_by_mentor_id',
+                'claimed_at',
+                'completed_at',
+                'remarks',
+                'remark_author_id',
+                'remark_updated_at',
+                'custom_order',
+                'custom_order_mentor_id'
+            ])
+            ->whereNull('course_trainees.completed_at') // Only get trainees who haven't completed
+            ->withTimestamps();
+    }
+
+    /**
+     * All trainees relationship - includes both active and completed
+     */
+    public function allTrainees()
+    {
+        return $this->belongsToMany(User::class, 'course_trainees')
+            ->withPivot([
+                'claimed_by_mentor_id',
+                'claimed_at',
+                'completed_at',
+                'remarks',
+                'remark_author_id',
+                'remark_updated_at',
+                'custom_order',
+                'custom_order_mentor_id'
+            ])
+            ->withTimestamps();
+    }
+
+    /**
+     * Completed trainees relationship
+     */
+    public function completedTrainees()
+    {
+        return $this->belongsToMany(User::class, 'course_trainees')
+            ->withPivot([
+                'claimed_by_mentor_id',
+                'claimed_at',
+                'completed_at',
+                'remarks',
+                'remark_author_id',
+                'remark_updated_at',
+                'custom_order',
+                'custom_order_mentor_id'
+            ])
+            ->whereNotNull('course_trainees.completed_at') // Only get completed trainees
+            ->withTimestamps();
     }
 }

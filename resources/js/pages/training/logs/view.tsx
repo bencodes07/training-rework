@@ -144,9 +144,7 @@ export default function ViewTrainingLog({ log, canEdit, canViewInternal, categor
                 <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
                         <h1 className="text-3xl font-bold">{log.position} Training Session</h1>
-                        {log.course && (
-                            <p className="mt-1 text-muted-foreground">{log.course.name}</p>
-                        )}
+                        {log.course && <p className="mt-1 text-muted-foreground">{log.course.name}</p>}
                     </div>
                     <div className="flex flex-col items-end gap-2">
                         <div className="flex flex-wrap items-center gap-2">
@@ -183,7 +181,7 @@ export default function ViewTrainingLog({ log, canEdit, canViewInternal, categor
                 <div className="gap-6">
                     {/* Main Content Area */}
                     <div className="space-y-6">
-                    <Card>
+                        <Card>
                             <CardHeader>
                                 <CardTitle>Session Information</CardTitle>
                             </CardHeader>
@@ -255,13 +253,17 @@ export default function ViewTrainingLog({ log, canEdit, canViewInternal, categor
                                 )}
 
                                 {/* Additional Details Section */}
-                                {(log.traffic_level || log.traffic_complexity || log.runway_configuration || 
-                                  log.surrounding_stations || log.special_procedures || log.airspace_restrictions) && (
+                                {(log.traffic_level ||
+                                    log.traffic_complexity ||
+                                    log.runway_configuration ||
+                                    log.surrounding_stations ||
+                                    log.special_procedures ||
+                                    log.airspace_restrictions) && (
                                     <>
                                         <Separator className="my-4" />
                                         <div>
                                             <h3 className="mb-3 text-sm font-semibold">Additional Details</h3>
-                                            
+
                                             {log.traffic_level && (
                                                 <div className="mb-3">
                                                     <p className="text-xs text-muted-foreground">Traffic Level</p>
@@ -401,19 +403,11 @@ export default function ViewTrainingLog({ log, canEdit, canViewInternal, categor
                         </div>
                     </div>
                 </div>
-
-                {/* Back Button */}
-                <div className="flex justify-start">
-                    <Button asChild variant="outline">
-                        <Link href={route('training-logs.index')}>
-                            Back to Training Logs
-                        </Link>
-                    </Button>
-                </div>
             </div>
 
-            <style dangerouslySetInnerHTML={{
-                __html: `
+            <style
+                dangerouslySetInnerHTML={{
+                    __html: `
                     .prose {
                         max-width: 100%;
                     }
@@ -490,8 +484,9 @@ export default function ViewTrainingLog({ log, canEdit, canViewInternal, categor
                     .dark .prose blockquote {
                         border-left-color: rgba(255, 255, 255, 0.2);
                     }
-                `
-            }} />
+                `,
+                }}
+            />
         </AppLayout>
     );
 }

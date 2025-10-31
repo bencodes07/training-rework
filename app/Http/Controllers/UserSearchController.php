@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class UserSearchController extends Controller
@@ -98,11 +99,16 @@ class UserSearchController extends Controller
 
         $currentUser = auth()->user();
 
+        // Check if current user can view this profile (must be a mentor)
+        if (!$currentUser->isMentor() && !$currentUser->isSuperuser() && !$currentUser->is_admin) {
+            abort(403, 'Only mentors can view user profiles.');
+        }
+
         // Get courses the current user is a mentor of (to determine visibility)
-        if ($currentUser->isSuperuser()) {
+        if ($currentUser->isSuperuser() || $currentUser->is_admin) {
             $mentorCourseIds = \App\Models\Course::pluck('id')->toArray();
         } else {
-            $mentorCourseIds = $currentUser->mentorCourses()->pluck('id')->toArray();
+            $mentorCourseIds = $currentUser->mentorCourses()->pluck('courses.id')->toArray();
         }
 
         // Debug logging
@@ -111,6 +117,7 @@ class UserSearchController extends Controller
             'viewing_user_vatsim' => $user->vatsim_id,
             'current_user_id' => $currentUser->id,
             'is_superuser' => $currentUser->isSuperuser(),
+            'is_admin' => $currentUser->is_admin,
             'mentor_course_ids' => $mentorCourseIds,
         ]);
 
@@ -118,18 +125,20 @@ class UserSearchController extends Controller
         $activeCourses = $user->activeCourses()
             ->with(['mentorGroup'])
             ->get()
-            ->map(function ($course) use ($mentorCourseIds, $user) {
+            ->map(function ($course) use ($mentorCourseIds, $user, $currentUser) {
+                $isMentor = in_array($course->id, $mentorCourseIds);
+
                 $courseData = [
                     'id' => $course->id,
                     'name' => $course->name,
                     'type' => $course->type,
                     'position' => $course->position,
-                    'is_mentor' => in_array($course->id, $mentorCourseIds),
+                    'is_mentor' => $isMentor,
                     'logs' => [],
                 ];
 
                 // Only include logs if current user is a mentor of this course
-                if (in_array($course->id, $mentorCourseIds)) {
+                if ($isMentor) {
                     try {
                         $logs = \App\Models\TrainingLog::where('course_id', $course->id)
                             ->where('trainee_id', $user->id)
@@ -145,17 +154,28 @@ class UserSearchController extends Controller
                                     'type' => $log->type ?? 'O',
                                     'type_display' => $log->type_display ?? 'Online',
                                     'result' => $log->result ?? false,
-                                    'mentor_name' => $log->mentor ? ($log->mentor->first_name . ' ' . $log->mentor->last_name) : 'Unknown',
+                                    'mentor_name' => $log->mentor ? $log->mentor->name : 'Unknown',
                                     'session_duration' => $log->session_duration ?? null,
+                                    'next_step' => $log->next_step ?? null,
+                                    'average_rating' => $log->average_rating ?? null,
                                 ];
                             });
 
-                        $courseData['logs'] = $logs;
+                        $courseData['logs'] = $logs->toArray();
+
+                        \Log::info('Loaded training logs for course', [
+                            'course_id' => $course->id,
+                            'user_id' => $user->id,
+                            'viewer_id' => $currentUser->id,
+                            'is_mentor' => $isMentor,
+                            'log_count' => $logs->count()
+                        ]);
                     } catch (\Exception $e) {
                         \Log::error('Error fetching training logs', [
                             'course_id' => $course->id,
                             'user_id' => $user->id,
-                            'error' => $e->getMessage()
+                            'error' => $e->getMessage(),
+                            'trace' => $e->getTraceAsString()
                         ]);
                         $courseData['logs'] = [];
                     }
@@ -164,10 +184,68 @@ class UserSearchController extends Controller
                 return $courseData;
             });
 
-        // Get completed courses - courses that were once active but aren't anymore
-        // We'll need to track this separately, for now return empty array
-        // In a full implementation, you'd have a course_history or similar table
-        $completedCourses = [];
+        // Get completed courses from course_trainees pivot table where completed_at is not null
+        $completedCourses = collect();
+
+        try {
+            $completedData = DB::table('course_trainees')
+                ->join('courses', 'course_trainees.course_id', '=', 'courses.id')
+                ->where('course_trainees.user_id', $user->id)
+                ->whereNotNull('course_trainees.completed_at')
+                ->select(
+                    'courses.*',
+                    'course_trainees.completed_at'
+                )
+                ->get();
+
+            foreach ($completedData as $courseData) {
+                // Only include if current user is a mentor of this course
+                if (in_array($courseData->id, $mentorCourseIds)) {
+                    // Get training logs for this course
+                    $logs = \App\Models\TrainingLog::where('trainee_id', $user->id)
+                        ->where('course_id', $courseData->id)
+                        ->with(['trainee', 'mentor'])
+                        ->orderBy('session_date', 'desc')
+                        ->limit(10)
+                        ->get()
+                        ->map(function ($log) {
+                            return [
+                                'id' => $log->id,
+                                'session_date' => $log->session_date->format('Y-m-d'),
+                                'position' => $log->position ?? 'N/A',
+                                'type' => $log->type ?? 'O',
+                                'type_display' => $log->type_display ?? 'Online',
+                                'result' => $log->result ?? false,
+                                'mentor_name' => $log->mentor ? $log->mentor->name : 'Unknown',
+                                'session_duration' => $log->session_duration ?? null,
+                                'next_step' => $log->next_step ?? null,
+                                'average_rating' => $log->average_rating ?? null,
+                            ];
+                        });
+
+                    // Count all training logs for this course
+                    $totalSessions = \App\Models\TrainingLog::where('trainee_id', $user->id)
+                        ->where('course_id', $courseData->id)
+                        ->count();
+
+                    $completedCourses->push([
+                        'id' => $courseData->id,
+                        'name' => $courseData->name,
+                        'type' => $courseData->type,
+                        'position' => $courseData->position,
+                        'completed_at' => \Carbon\Carbon::parse($courseData->completed_at)->format('Y-m-d'),
+                        'total_sessions' => $totalSessions,
+                        'logs' => $logs->toArray(),
+                    ]);
+                }
+            }
+        } catch (\Exception $e) {
+            \Log::error('Error fetching completed courses', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+            $completedCourses = collect();
+        }
         
         // Get endorsements
         $endorsements = $user->endorsementActivities()
@@ -232,8 +310,8 @@ class UserSearchController extends Controller
                 'is_staff' => $user->is_staff,
                 'is_superuser' => $user->is_superuser,
             ],
-            'active_courses' => $activeCourses,
-            'completed_courses' => $completedCourses,
+            'active_courses' => $activeCourses->values()->toArray(),
+            'completed_courses' => $completedCourses->toArray(),
             'endorsements' => $endorsements,
             'moodle_courses' => $moodleCourses,
             'familiarisations' => $familiarisations,

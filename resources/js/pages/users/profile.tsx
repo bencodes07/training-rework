@@ -2,12 +2,30 @@ import { Head } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { BreadcrumbItem } from '@/types';
 import { dashboard } from '@/routes';
-import { User, BookOpen, Award, Map, GraduationCap, Shield, TowerControl, Clock, Calendar, AlertCircle, CheckCircle, Radio } from 'lucide-react';
+import {
+    User,
+    BookOpen,
+    Award,
+    Map,
+    GraduationCap,
+    Shield,
+    Clock,
+    Calendar,
+    AlertCircle,
+    CheckCircle,
+    ExternalLink,
+    XCircle,
+    Eye,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Link } from '@inertiajs/react';
+import { getPositionIcon, getTypeColor } from '@/lib/course-utils';
 
 interface UserProfile {
     vatsim_id: number;
@@ -27,7 +45,9 @@ interface Course {
     type: string;
     position: string;
     is_mentor: boolean;
-    logs: TrainingLog[];
+    logs?: TrainingLog[];
+    completed_at?: string | null;
+    total_sessions?: number;
 }
 
 interface TrainingLog {
@@ -39,6 +59,8 @@ interface TrainingLog {
     result: boolean;
     mentor_name: string;
     session_duration?: number;
+    next_step?: string | null;
+    average_rating?: number | null;
 }
 
 interface Endorsement {
@@ -87,34 +109,16 @@ const getRatingDisplay = (rating: number): string => {
     return ratings[rating] || 'Unknown';
 };
 
-const getTypeColor = (type: string) => {
+const getSessionTypeColor = (type: string) => {
     switch (type) {
-        case 'RTG':
-            return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
-        case 'EDMT':
-            return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300';
-        case 'FAM':
-            return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
-        case 'GST':
-            return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
-        case 'RST':
-            return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300';
+        case 'O':
+            return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
+        case 'S':
+            return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
+        case 'L':
+            return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400';
         default:
-            return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
-    }
-};
-
-const getPositionIcon = (position: string) => {
-    switch (position) {
-        case 'GND':
-            return <Radio className="h-4 w-4" />;
-        case 'TWR':
-            return <TowerControl className="h-4 w-4" />;
-        case 'APP':
-        case 'CTR':
-            return <Shield className="h-4 w-4" />;
-        default:
-            return <Radio className="h-4 w-4" />;
+            return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400';
     }
 };
 
@@ -184,9 +188,35 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                                     <User className="h-8 w-8 text-primary" />
                                 </div>
                                 <div>
-                                    <CardTitle className="text-2xl">
-                                        {user.first_name} {user.last_name}
-                                    </CardTitle>
+                                    <div className="flex items-center gap-3">
+                                        <CardTitle className="text-2xl">
+                                            {user.first_name} {user.last_name}
+                                        </CardTitle>
+                                        <div className="flex gap-2">
+                                            <Button variant="outline" size="sm" asChild>
+                                                <a
+                                                    href={`https://stats.vatsim.net/stats/${user.vatsim_id}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex items-center gap-2"
+                                                >
+                                                    VATSIM Stats
+                                                    <ExternalLink className="h-3 w-3" />
+                                                </a>
+                                            </Button>
+                                            <Button variant="outline" size="sm" asChild>
+                                                <a
+                                                    href={`https://core.vateud.net/manage/controller/${user.vatsim_id}/view`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex items-center gap-2"
+                                                >
+                                                    VATEUD Core
+                                                    <ExternalLink className="h-3 w-3" />
+                                                </a>
+                                            </Button>
+                                        </div>
+                                    </div>
                                     <CardDescription className="mt-1 flex flex-wrap items-center gap-3">VATSIM ID: {user.vatsim_id}</CardDescription>
                                 </div>
                             </div>
@@ -251,126 +281,153 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                             Familiarisations
                         </TabsTrigger>
                     </TabsList>
-
                     {/* Active Courses Tab */}
                     <TabsContent value="active-courses" className="mt-4 space-y-4">
                         {active_courses.length > 0 ? (
-                            <div className="grid gap-4">
+                            <Accordion type="multiple" className="w-full space-y-4">
                                 {active_courses.map((course) => {
+                                    const hasLogs = course.is_mentor && course.logs && course.logs.length > 0;
+
                                     return (
-                                        <Card key={course.id}>
-                                            <CardHeader>
-                                                <div className="flex items-start justify-between">
-                                                    <div className="flex items-center gap-3">
-                                                        {getPositionIcon(course.position)}
-                                                        <div>
-                                                            <CardTitle className="text-base">{course.name}</CardTitle>
-                                                            <CardDescription className="mt-1 flex flex-wrap gap-2">
-                                                                <Badge variant="outline">{course.position}</Badge>
-                                                                <Badge className={getTypeColor(course.type)}>{course.type}</Badge>
-                                                            </CardDescription>
-                                                        </div>
-                                                    </div>
-                                                    {!course.is_mentor && (
-                                                        <Badge variant="secondary" className="text-xs">
-                                                            View Only
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            </CardHeader>
-                                            <CardContent>
-                                                {course.is_mentor ? (
-                                                    course.logs &&
-                                                    course.logs.length > 0 && (
-                                                        <div className="space-y-3">
-                                                            <div className="flex items-center justify-between">
-                                                                <h4 className="text-sm font-semibold">Recent Training Logs</h4>
-                                                                <a
-                                                                    href={`/training-logs/view/${user.vatsim_id}/${course.id}`}
-                                                                    className="text-sm text-primary hover:underline"
-                                                                >
-                                                                    View All →
-                                                                </a>
+                                        <AccordionItem key={course.id} value={`course-${course.id}`} className="border-none">
+                                            <Card className="py-0">
+                                                <CardHeader>
+                                                    <AccordionTrigger className="hover:no-underline [&[data-state=open]>div>svg]:rotate-180">
+                                                        <div className="flex w-full items-start justify-between pr-4">
+                                                            <div className="flex items-center gap-3">
+                                                                {getPositionIcon(course.position)}
+                                                                <div className="text-left">
+                                                                    <CardTitle className="text-base">{course.name}</CardTitle>
+                                                                    <CardDescription className="mt-1 flex flex-wrap gap-2">
+                                                                        <Badge variant="outline">{course.position}</Badge>
+                                                                        <Badge className={getTypeColor(course.type)}>{course.type}</Badge>
+                                                                        {hasLogs && (
+                                                                            <Badge variant="secondary" className="text-xs">
+                                                                                {course.logs?.length} log{course.logs?.length !== 1 ? 's' : ''}
+                                                                            </Badge>
+                                                                        )}
+                                                                    </CardDescription>
+                                                                </div>
                                                             </div>
-                                                            {course.logs.map((log) => (
-                                                                <div
-                                                                    key={log.id}
-                                                                    className={cn(
-                                                                        'rounded-lg border p-4 transition-colors hover:bg-muted/50',
-                                                                        log.result
-                                                                            ? 'border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-900/10'
-                                                                            : 'border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-900/10',
-                                                                    )}
-                                                                >
-                                                                    <div className="flex items-start justify-between">
-                                                                        <div className="flex-1">
-                                                                            <div className="flex items-center gap-2">
-                                                                                <span className="font-medium">{log.position}</span>
-                                                                                <Badge
-                                                                                    variant="outline"
+                                                            <div className="flex items-center gap-2">
+                                                                {!course.is_mentor && (
+                                                                    <Badge variant="secondary" className="text-xs">
+                                                                        View Only
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </AccordionTrigger>
+                                                </CardHeader>
+                                                <AccordionContent>
+                                                    <CardContent className="pt-0">
+                                                        {course.is_mentor ? (
+                                                            hasLogs ? (
+                                                                <div className="space-y-3">
+                                                                    <div className="flex items-center justify-between border-t pt-4">
+                                                                        <h4 className="text-sm font-semibold">Training History</h4>
+                                                                    </div>
+                                                                    {/* Timeline similar to progress modal */}
+                                                                    <div className="relative space-y-6 pl-8 before:absolute before:top-0 before:bottom-0 before:left-4 before:w-0.5 before:bg-border">
+                                                                        {course.logs?.map((log) => (
+                                                                            <div key={log.id} className="relative">
+                                                                                {/* Timeline dot */}
+                                                                                <div
                                                                                     className={cn(
-                                                                                        'text-xs',
-                                                                                        log.type === 'O' &&
-                                                                                            'border-blue-200 bg-blue-50 text-blue-700',
-                                                                                        log.type === 'S' &&
-                                                                                            'border-purple-200 bg-purple-50 text-purple-700',
-                                                                                        log.type === 'L' &&
-                                                                                            'border-green-200 bg-green-50 text-green-700',
+                                                                                        'absolute -left-[23px] mt-1.5 h-4 w-4 rounded-full border-2 border-background',
+                                                                                        log.result ? 'bg-green-500' : 'bg-red-500',
                                                                                     )}
-                                                                                >
-                                                                                    {log.type_display}
-                                                                                </Badge>
-                                                                                <Badge
-                                                                                    variant="outline"
-                                                                                    className={cn(
-                                                                                        'text-xs',
-                                                                                        log.result
-                                                                                            ? 'border-green-200 bg-green-50 text-green-700'
-                                                                                            : 'border-red-200 bg-red-50 text-red-700',
+                                                                                />
+
+                                                                                {/* Log Card */}
+                                                                                <div className="rounded-lg border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
+                                                                                    <div className="mb-3 flex items-start justify-between">
+                                                                                        <div className="flex-1">
+                                                                                            <div className="mb-2 flex flex-wrap items-center gap-2">
+                                                                                                <Badge
+                                                                                                    variant="outline"
+                                                                                                    className={getSessionTypeColor(log.type)}
+                                                                                                >
+                                                                                                    {log.type_display}
+                                                                                                </Badge>
+                                                                                                <Badge
+                                                                                                    variant={log.result ? 'default' : 'destructive'}
+                                                                                                    className="flex items-center gap-1"
+                                                                                                >
+                                                                                                    {log.result ? (
+                                                                                                        <>
+                                                                                                            <CheckCircle className="h-3 w-3" />
+                                                                                                            Passed
+                                                                                                        </>
+                                                                                                    ) : (
+                                                                                                        <>
+                                                                                                            <XCircle className="h-3 w-3" />
+                                                                                                            Not Passed
+                                                                                                        </>
+                                                                                                    )}
+                                                                                                </Badge>
+                                                                                            </div>
+                                                                                            <h4 className="font-semibold">{log.position}</h4>
+                                                                                            <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
+                                                                                                <span className="flex items-center gap-1">
+                                                                                                    <Calendar className="h-3 w-3" />
+                                                                                                    {new Date(log.session_date).toLocaleDateString(
+                                                                                                        'de',
+                                                                                                    )}
+                                                                                                </span>
+                                                                                                {log.session_duration && (
+                                                                                                    <span className="flex items-center gap-1">
+                                                                                                        <Clock className="h-3 w-3" />
+                                                                                                        {log.session_duration} min
+                                                                                                    </span>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        <Link href={route('training-logs.show', log.id)}>
+                                                                                            <Button size="sm" variant="ghost">
+                                                                                                <Eye className="h-4 w-4" />
+                                                                                            </Button>
+                                                                                        </Link>
+                                                                                    </div>
+
+                                                                                    {log.next_step && (
+                                                                                        <div className="mt-3 rounded-md bg-muted/50 p-3">
+                                                                                            <p className="mb-1 text-sm font-medium text-muted-foreground">
+                                                                                                Next Step:
+                                                                                            </p>
+                                                                                            <p className="text-sm">{log.next_step}</p>
+                                                                                        </div>
                                                                                     )}
-                                                                                >
-                                                                                    {log.result ? 'Passed' : 'Not Passed'}
-                                                                                </Badge>
+
+                                                                                    <div className="mt-3 text-xs text-muted-foreground">
+                                                                                        Mentor: {log.mentor_name}
+                                                                                    </div>
+                                                                                </div>
                                                                             </div>
-                                                                            <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
-                                                                                <span className="flex items-center gap-1">
-                                                                                    <Calendar className="h-3 w-3" />
-                                                                                    {new Date(log.session_date).toLocaleDateString()}
-                                                                                </span>
-                                                                                <span className="flex items-center gap-1">
-                                                                                    <User className="h-3 w-3" />
-                                                                                    {log.mentor_name}
-                                                                                </span>
-                                                                                {log.session_duration && (
-                                                                                    <span className="flex items-center gap-1">
-                                                                                        <Clock className="h-3 w-3" />
-                                                                                        {log.session_duration} min
-                                                                                    </span>
-                                                                                )}
-                                                                            </div>
-                                                                        </div>
-                                                                        <a
-                                                                            href={`/training-logs/${log.id}`}
-                                                                            className="text-sm text-primary hover:underline"
-                                                                        >
-                                                                            View Details
-                                                                        </a>
+                                                                        ))}
                                                                     </div>
                                                                 </div>
-                                                            ))}
-                                                        </div>
-                                                    )
-                                                ) : (
-                                                    <Alert>
-                                                        <AlertCircle className="h-4 w-4" />
-                                                        <AlertDescription>Training logs are only visible to mentors of this course</AlertDescription>
-                                                    </Alert>
-                                                )}
-                                            </CardContent>
-                                        </Card>
+                                                            ) : (
+                                                                <Alert className="border-t">
+                                                                    <AlertCircle className="h-4 w-4" />
+                                                                    <AlertDescription>No training logs yet for this course</AlertDescription>
+                                                                </Alert>
+                                                            )
+                                                        ) : (
+                                                            <Alert className="border-t">
+                                                                <AlertCircle className="h-4 w-4" />
+                                                                <AlertDescription>
+                                                                    Training logs are only visible to mentors of this course
+                                                                </AlertDescription>
+                                                            </Alert>
+                                                        )}
+                                                    </CardContent>
+                                                </AccordionContent>
+                                            </Card>
+                                        </AccordionItem>
                                     );
                                 })}
-                            </div>
+                            </Accordion>
                         ) : (
                             <Card>
                                 <CardContent className="flex flex-col items-center justify-center py-12">
@@ -381,34 +438,152 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                             </Card>
                         )}
                     </TabsContent>
-
-                    {/* Completed Courses Tab */}
                     <TabsContent value="completed-courses" className="mt-4 space-y-4">
                         {completed_courses.length > 0 ? (
-                            <div className="grid gap-4">
-                                {completed_courses.map((course) => (
-                                    <Card key={course.id}>
-                                        <CardHeader>
-                                            <div className="flex items-start justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    {getPositionIcon(course.position)}
-                                                    <div>
-                                                        <CardTitle className="text-base">{course.name}</CardTitle>
-                                                        <CardDescription className="mt-1 flex flex-wrap gap-2">
-                                                            <Badge variant="outline">{course.position}</Badge>
-                                                            <Badge className={getTypeColor(course.type)}>{course.type}</Badge>
-                                                        </CardDescription>
-                                                    </div>
-                                                </div>
-                                                <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
-                                                    <CheckCircle className="mr-1 h-3 w-3" />
-                                                    Completed
-                                                </Badge>
-                                            </div>
-                                        </CardHeader>
-                                    </Card>
-                                ))}
-                            </div>
+                            <Accordion type="multiple" className="w-full space-y-4">
+                                {completed_courses.map((course) => {
+                                    const hasLogs = course.total_sessions && course.total_sessions > 0;
+
+                                    return (
+                                        <AccordionItem key={course.id} value={`completed-course-${course.id}`} className="border-none">
+                                            <Card className="py-0">
+                                                <CardHeader>
+                                                    <AccordionTrigger className="hover:no-underline [&[data-state=open]>div>svg]:rotate-180">
+                                                        <div className="flex w-full items-start justify-between pr-4">
+                                                            <div className="flex items-center gap-3">
+                                                                {getPositionIcon(course.position)}
+                                                                <div className="text-left">
+                                                                    <CardTitle className="text-base">{course.name}</CardTitle>
+                                                                    <CardDescription className="mt-1 flex flex-wrap gap-2">
+                                                                        <Badge variant="outline">{course.position}</Badge>
+                                                                        <Badge className={getTypeColor(course.type)}>{course.type}</Badge>
+                                                                        {hasLogs && (
+                                                                            <Badge variant="secondary" className="text-xs">
+                                                                                {course.logs?.length} log{course.logs?.length !== 1 ? 's' : ''}
+                                                                            </Badge>
+                                                                        )}
+                                                                    </CardDescription>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                {!course.is_mentor && (
+                                                                    <Badge variant="secondary" className="text-xs">
+                                                                        View Only
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </AccordionTrigger>
+                                                </CardHeader>
+                                                <AccordionContent>
+                                                    <CardContent className="pt-0">
+                                                        {course.is_mentor ? (
+                                                            hasLogs ? (
+                                                                <div className="space-y-3">
+                                                                    <div className="flex items-center justify-between border-t pt-4">
+                                                                        <h4 className="text-sm font-semibold">Training History</h4>
+                                                                    </div>
+                                                                    {/* Timeline similar to progress modal */}
+                                                                    <div className="relative space-y-6 pl-8 before:absolute before:top-0 before:bottom-0 before:left-4 before:w-0.5 before:bg-border">
+                                                                        {course.logs?.map((log) => (
+                                                                            <div key={log.id} className="relative">
+                                                                                {/* Timeline dot */}
+                                                                                <div
+                                                                                    className={cn(
+                                                                                        'absolute -left-[23px] mt-1.5 h-4 w-4 rounded-full border-2 border-background',
+                                                                                        log.result ? 'bg-green-500' : 'bg-red-500',
+                                                                                    )}
+                                                                                />
+
+                                                                                {/* Log Card */}
+                                                                                <div className="rounded-lg border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
+                                                                                    <div className="mb-3 flex items-start justify-between">
+                                                                                        <div className="flex-1">
+                                                                                            <div className="mb-2 flex flex-wrap items-center gap-2">
+                                                                                                <Badge
+                                                                                                    variant="outline"
+                                                                                                    className={getSessionTypeColor(log.type)}
+                                                                                                >
+                                                                                                    {log.type_display}
+                                                                                                </Badge>
+                                                                                                <Badge
+                                                                                                    variant={log.result ? 'default' : 'destructive'}
+                                                                                                    className="flex items-center gap-1"
+                                                                                                >
+                                                                                                    {log.result ? (
+                                                                                                        <>
+                                                                                                            <CheckCircle className="h-3 w-3" />
+                                                                                                            Passed
+                                                                                                        </>
+                                                                                                    ) : (
+                                                                                                        <>
+                                                                                                            <XCircle className="h-3 w-3" />
+                                                                                                            Not Passed
+                                                                                                        </>
+                                                                                                    )}
+                                                                                                </Badge>
+                                                                                            </div>
+                                                                                            <h4 className="font-semibold">{log.position}</h4>
+                                                                                            <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
+                                                                                                <span className="flex items-center gap-1">
+                                                                                                    <Calendar className="h-3 w-3" />
+                                                                                                    {new Date(log.session_date).toLocaleDateString(
+                                                                                                        'de',
+                                                                                                    )}
+                                                                                                </span>
+                                                                                                {log.session_duration && (
+                                                                                                    <span className="flex items-center gap-1">
+                                                                                                        <Clock className="h-3 w-3" />
+                                                                                                        {log.session_duration} min
+                                                                                                    </span>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        <Link href={route('training-logs.show', log.id)}>
+                                                                                            <Button size="sm" variant="ghost">
+                                                                                                <Eye className="h-4 w-4" />
+                                                                                            </Button>
+                                                                                        </Link>
+                                                                                    </div>
+
+                                                                                    {log.next_step && (
+                                                                                        <div className="mt-3 rounded-md bg-muted/50 p-3">
+                                                                                            <p className="mb-1 text-sm font-medium text-muted-foreground">
+                                                                                                Next Step:
+                                                                                            </p>
+                                                                                            <p className="text-sm">{log.next_step}</p>
+                                                                                        </div>
+                                                                                    )}
+
+                                                                                    <div className="mt-3 text-xs text-muted-foreground">
+                                                                                        Mentor: {log.mentor_name}
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <Alert className="border-t">
+                                                                    <AlertCircle className="h-4 w-4" />
+                                                                    <AlertDescription>No training logs yet for this course</AlertDescription>
+                                                                </Alert>
+                                                            )
+                                                        ) : (
+                                                            <Alert className="border-t">
+                                                                <AlertCircle className="h-4 w-4" />
+                                                                <AlertDescription>
+                                                                    Training logs are only visible to mentors of this course
+                                                                </AlertDescription>
+                                                            </Alert>
+                                                        )}
+                                                    </CardContent>
+                                                </AccordionContent>
+                                            </Card>
+                                        </AccordionItem>
+                                    );
+                                })}
+                            </Accordion>
                         ) : (
                             <Card>
                                 <CardContent className="flex flex-col items-center justify-center py-12">
@@ -419,8 +594,6 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                             </Card>
                         )}
                     </TabsContent>
-
-                    {/* Endorsements Tab */}
                     <TabsContent value="endorsements" className="mt-4 space-y-4">
                         {endorsements.length > 0 ? (
                             <Card>
@@ -468,7 +641,6 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                             </Card>
                         )}
                     </TabsContent>
-
                     {/* Moodle Courses Tab */}
                     <TabsContent value="moodle" className="mt-4 space-y-4">
                         {moodle_courses.length > 0 ? (
@@ -524,7 +696,6 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                             </Card>
                         )}
                     </TabsContent>
-
                     {/* Familiarisations Tab */}
                     <TabsContent value="familiarisations" className="mt-4 space-y-4">
                         {Object.keys(familiarisations).length > 0 ? (

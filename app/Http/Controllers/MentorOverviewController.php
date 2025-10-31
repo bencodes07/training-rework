@@ -377,7 +377,7 @@ class MentorOverviewController extends Controller
         }
 
         try {
-            // Remove from active trainees
+            // Remove from active trainees (completely detach)
             $course->activeTrainees()->detach($trainee->id);
 
             \Log::info('Trainee removed from course', [
@@ -907,7 +907,7 @@ class MentorOverviewController extends Controller
     }
 
     /**
-     * Finish a trainee's course
+     * Finish a trainee's course (mark as completed instead of removing)
      */
     public function finishCourse(Request $request)
     {
@@ -937,8 +937,13 @@ class MentorOverviewController extends Controller
 
         try {
             DB::transaction(function () use ($course, $trainee, $user) {
-                // Remove from active trainees
-                $course->activeTrainees()->detach($trainee->id);
+                // Mark as completed instead of detaching
+                DB::table('course_trainees')
+                    ->where('course_id', $course->id)
+                    ->where('user_id', $trainee->id)
+                    ->update([
+                        'completed_at' => now(),
+                    ]);
 
                 // Get endorsement groups for this course from the pivot table
                 $endorsementGroups = DB::table('course_endorsement_groups')
@@ -978,6 +983,129 @@ class MentorOverviewController extends Controller
             ]);
 
             return back()->withErrors(['error' => 'An error occurred while finishing the course. Please try again.']);
+        }
+    }
+
+    /**
+     * Get past trainees for a course
+     */
+    public function getPastTrainees(Request $request, $courseId)
+    {
+        $user = $request->user();
+
+        if (!$user->isMentor() && !$user->is_superuser) {
+            return response()->json(['error' => 'Access denied'], 403);
+        }
+
+        $course = \App\Models\Course::findOrFail($courseId);
+
+        // Check if user can view this course
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
+            return response()->json(['error' => 'Access denied'], 403);
+        }
+
+        try {
+            // Get completed trainees from course_trainees pivot table
+            $pastTrainees = DB::table('course_trainees')
+                ->join('users', 'course_trainees.user_id', '=', 'users.id')
+                ->where('course_trainees.course_id', $courseId)
+                ->whereNotNull('course_trainees.completed_at')
+                ->select(
+                    'users.id',
+                    'users.vatsim_id',
+                    'users.first_name',
+                    'users.last_name',
+                    'course_trainees.completed_at'
+                )
+                ->orderBy('course_trainees.completed_at', 'desc')
+                ->get()
+                ->map(function ($trainee) {
+                    return [
+                        'id' => $trainee->id,
+                        'vatsim_id' => $trainee->vatsim_id,
+                        'name' => $trainee->first_name . ' ' . $trainee->last_name,
+                        'completed_at' => \Carbon\Carbon::parse($trainee->completed_at)->format('Y-m-d'),
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'trainees' => $pastTrainees
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error fetching past trainees', [
+                'course_id' => $courseId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json(['error' => 'Failed to fetch past trainees'], 500);
+        }
+    }
+
+    /**
+     * Reactivate a trainee (move from completed back to active)
+     */
+    public function reactivateTrainee(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user->isMentor() && !$user->is_superuser) {
+            return back()->withErrors(['error' => 'Access denied']);
+        }
+
+        $request->validate([
+            'trainee_id' => 'required|integer|exists:users,id',
+            'course_id' => 'required|integer|exists:courses,id',
+        ]);
+
+        $course = \App\Models\Course::findOrFail($request->course_id);
+        $trainee = \App\Models\User::findOrFail($request->trainee_id);
+
+        // Check if user can mentor this course
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
+            return back()->withErrors(['error' => 'You cannot modify this course']);
+        }
+
+        try {
+            // Check if trainee has a completed record for this course
+            $completed = DB::table('course_trainees')
+                ->where('course_id', $course->id)
+                ->where('user_id', $trainee->id)
+                ->whereNotNull('completed_at')
+                ->exists();
+
+            if (!$completed) {
+                return back()->withErrors(['error' => 'Trainee has not completed this course']);
+            }
+
+            // Reactivate by clearing completed_at and setting new claim
+            DB::table('course_trainees')
+                ->where('course_id', $course->id)
+                ->where('user_id', $trainee->id)
+                ->update([
+                    'completed_at' => null,
+                    'claimed_by_mentor_id' => $user->id,
+                    'claimed_at' => now(),
+                ]);
+
+            \Log::info('Trainee reactivated', [
+                'mentor_id' => $user->id,
+                'trainee_id' => $trainee->id,
+                'trainee_name' => $trainee->name,
+                'course_id' => $course->id,
+                'course_name' => $course->name
+            ]);
+
+            return back()->with('success', "Successfully reactivated {$trainee->name} for {$course->name}");
+        } catch (\Exception $e) {
+            \Log::error('Error reactivating trainee', [
+                'mentor_id' => $user->id,
+                'trainee_id' => $trainee->id,
+                'course_id' => $course->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors(['error' => 'An error occurred while reactivating the trainee.']);
         }
     }
 
