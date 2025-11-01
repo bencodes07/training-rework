@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MoodleSignupModal } from '@/components/courses/moodle-signup-modal';
 import { AlertCircle, BookOpen, Filter, Grid3X3, List, Search, X } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import SortableCoursesTable from '@/components/courses/courses-table';
@@ -43,16 +44,24 @@ export interface Course {
     waiting_list_activity?: number;
     can_join: boolean;
     join_error?: string;
+    moodle_completed?: boolean;
 }
 
 interface PageProps {
     courses: Course[];
     isVatsimUser: boolean;
-    userHasActiveRtgCourse: boolean; // NEW: Backend tells us if user has active RTG course
+    moodleSignedUp: boolean;
+    userHasActiveRtgCourse: boolean;
     error?: string;
 }
 
-export default function Courses({ courses: initialCourses = [], isVatsimUser, userHasActiveRtgCourse = false, error }: PageProps) {
+export default function Courses({
+    courses: initialCourses = [],
+    isVatsimUser,
+    moodleSignedUp = false,
+    userHasActiveRtgCourse = false,
+    error,
+}: PageProps) {
     const [courses, setCourses] = useState(initialCourses);
     const [searchTerm, setSearchTerm] = useState('');
     const [typeFilter, setTypeFilter] = useState('all');
@@ -61,40 +70,33 @@ export default function Courses({ courses: initialCourses = [], isVatsimUser, us
     const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
     const [showFilters, setShowFilters] = useState(false);
 
-    // Calculate if user currently has any RTG courses (including from local state updates)
     const currentUserHasActiveRtgCourse = useMemo(() => {
         const hasRtgFromWaitingList = courses.some((course) => course.type === 'RTG' && course.is_on_waiting_list);
         return userHasActiveRtgCourse || hasRtgFromWaitingList;
     }, [userHasActiveRtgCourse, courses]);
 
-    // Handle course updates from child components
     const handleCourseUpdate = useCallback((courseId: number, updates: Partial<Course>) => {
         setCourses((prev) => prev.map((course) => (course.id === courseId ? { ...course, ...updates } : course)));
     }, []);
 
     const filteredCourses = useMemo(() => {
         return courses.filter((course) => {
-            // Search filter
             const matchesSearch =
                 !searchTerm ||
                 course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 course.airport_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 course.airport_icao.toLowerCase().includes(searchTerm.toLowerCase());
 
-            // Type filter
             const matchesType = typeFilter === 'all' || course.type === typeFilter;
 
-            // FIR filter (based on mentor group)
             const matchesFir = firFilter === 'all' || (course.mentor_group && course.mentor_group.includes(firFilter));
 
-            // Tab filter
             let matchesTab = false;
             if (activeTab === 'all') {
                 matchesTab = true;
             } else if (activeTab === 'waiting') {
                 matchesTab = course.is_on_waiting_list;
             } else if (activeTab === 'available') {
-                // For "available" tab, course must be joinable AND not restricted by RTG rule
                 const isActuallyAvailable = course.can_join && !course.is_on_waiting_list;
                 const isNotBlockedByRtgRestriction = !(course.type === 'RTG' && currentUserHasActiveRtgCourse);
                 matchesTab = isActuallyAvailable && isNotBlockedByRtgRestriction;
@@ -129,7 +131,6 @@ export default function Courses({ courses: initialCourses = [], isVatsimUser, us
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Courses" />
             <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
-                {/* Error Message */}
                 {error && (
                     <div className="rounded-lg border border-red-200 bg-red-50 p-4">
                         <div className="flex items-center gap-2 text-red-800">
@@ -139,9 +140,7 @@ export default function Courses({ courses: initialCourses = [], isVatsimUser, us
                     </div>
                 )}
 
-                {/* Filters and View Toggle */}
                 <div className="flex flex-wrap items-center gap-3">
-                    {/* Search */}
                     <div className="relative min-w-[300px] flex-1">
                         <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
                         <Input
@@ -152,7 +151,6 @@ export default function Courses({ courses: initialCourses = [], isVatsimUser, us
                         />
                     </div>
 
-                    {/* Course Status Tabs */}
                     <Tabs value={activeTab} onValueChange={setActiveTab}>
                         <TabsList>
                             <TabsTrigger value="all">All</TabsTrigger>
@@ -161,7 +159,6 @@ export default function Courses({ courses: initialCourses = [], isVatsimUser, us
                         </TabsList>
                     </Tabs>
 
-                    {/* View Mode Toggle */}
                     <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
                         <Button variant={viewMode === 'grid' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('grid')}>
                             <Grid3X3 className="h-4 w-4" />
@@ -171,13 +168,11 @@ export default function Courses({ courses: initialCourses = [], isVatsimUser, us
                         </Button>
                     </div>
 
-                    {/* Advanced Filters Toggle */}
                     <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)} className={cn(showFilters && 'bg-muted')}>
                         <Filter className="mr-2 h-4 w-4" />
                         Filters
                     </Button>
 
-                    {/* Clear Filters - only show when advanced filters are active */}
                     {(typeFilter !== 'all' || firFilter !== 'all' || searchTerm) && (
                         <Button variant="ghost" size="sm" onClick={clearFilters} className="text-muted-foreground">
                             <X className="mr-1 h-4 w-4" />
@@ -186,7 +181,6 @@ export default function Courses({ courses: initialCourses = [], isVatsimUser, us
                     )}
                 </div>
 
-                {/* Advanced Filters (Collapsible) */}
                 {showFilters && (
                     <div className="rounded-lg border bg-muted/50 p-4">
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -225,7 +219,6 @@ export default function Courses({ courses: initialCourses = [], isVatsimUser, us
                     </div>
                 )}
 
-                {/* Course Display */}
                 {filteredCourses.length === 0 ? (
                     <Card className="py-12 text-center">
                         <CardContent>
@@ -253,6 +246,8 @@ export default function Courses({ courses: initialCourses = [], isVatsimUser, us
                     />
                 )}
             </div>
+
+            {isVatsimUser && !moodleSignedUp && <MoodleSignupModal isOpen={true} />}
         </AppLayout>
     );
 }

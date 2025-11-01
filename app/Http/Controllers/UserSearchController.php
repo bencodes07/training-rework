@@ -10,9 +10,6 @@ use Inertia\Inertia;
 
 class UserSearchController extends Controller
 {
-    /**
-     * Search for users by name or VATSIM ID
-     */
     public function search(Request $request)
     {
         $request->validate([
@@ -22,22 +19,16 @@ class UserSearchController extends Controller
         $query = trim($request->input('query'));
 
         try {
-            // Check if query is numeric (VATSIM ID search)
             if (is_numeric($query)) {
                 $users = User::where('vatsim_id', $query)
                     ->whereNotNull('vatsim_id')
                     ->limit(10)
                     ->get(['id', 'vatsim_id', 'first_name', 'last_name', 'email']);
             } else {
-                // Smart search by name (case-insensitive, partial matching)
                 $users = User::where(function ($q) use ($query) {
-                    // Search in first name
                     $q->whereRaw('LOWER(first_name) LIKE ?', ['%' . strtolower($query) . '%'])
-                        // Search in last name
                         ->orWhereRaw('LOWER(last_name) LIKE ?', ['%' . strtolower($query) . '%'])
-                        // Search in full name (first + last) - PostgreSQL syntax
                         ->orWhereRaw('LOWER(first_name || \' \' || last_name) LIKE ?', ['%' . strtolower($query) . '%'])
-                        // Search in reversed full name (last + first) - PostgreSQL syntax
                         ->orWhereRaw('LOWER(last_name || \' \' || first_name) LIKE ?', ['%' . strtolower($query) . '%']);
                 })
                     ->whereNotNull('vatsim_id')
@@ -88,9 +79,6 @@ class UserSearchController extends Controller
         }
     }
 
-    /**
-     * Show user profile page
-     */
     public function show(int $vatsimId)
     {
         $user = User::where('vatsim_id', $vatsimId)
@@ -99,19 +87,16 @@ class UserSearchController extends Controller
 
         $currentUser = auth()->user();
 
-        // Check if current user can view this profile (must be a mentor)
         if (!$currentUser->isMentor() && !$currentUser->isSuperuser() && !$currentUser->is_admin) {
             abort(403, 'Only mentors can view user profiles.');
         }
 
-        // Get courses the current user is a mentor of (to determine visibility)
         if ($currentUser->isSuperuser() || $currentUser->is_admin) {
             $mentorCourseIds = \App\Models\Course::pluck('id')->toArray();
         } else {
             $mentorCourseIds = $currentUser->mentorCourses()->pluck('courses.id')->toArray();
         }
 
-        // Debug logging
         \Log::info('User profile view', [
             'viewing_user_id' => $user->id,
             'viewing_user_vatsim' => $user->vatsim_id,
@@ -121,7 +106,6 @@ class UserSearchController extends Controller
             'mentor_course_ids' => $mentorCourseIds,
         ]);
 
-        // Get active courses with training logs for courses the current user mentors
         $activeCourses = $user->activeCourses()
             ->with(['mentorGroup'])
             ->get()
@@ -137,7 +121,6 @@ class UserSearchController extends Controller
                     'logs' => [],
                 ];
 
-                // Only include logs if current user is a mentor of this course
                 if ($isMentor) {
                     try {
                         $logs = \App\Models\TrainingLog::where('course_id', $course->id)
@@ -184,7 +167,6 @@ class UserSearchController extends Controller
                 return $courseData;
             });
 
-        // Get completed courses from course_trainees pivot table where completed_at is not null
         $completedCourses = collect();
 
         try {
@@ -199,9 +181,7 @@ class UserSearchController extends Controller
                 ->get();
 
             foreach ($completedData as $courseData) {
-                // Only include if current user is a mentor of this course
                 if (in_array($courseData->id, $mentorCourseIds)) {
-                    // Get training logs for this course
                     $logs = \App\Models\TrainingLog::where('trainee_id', $user->id)
                         ->where('course_id', $courseData->id)
                         ->with(['trainee', 'mentor'])
@@ -223,7 +203,6 @@ class UserSearchController extends Controller
                             ];
                         });
 
-                    // Count all training logs for this course
                     $totalSessions = \App\Models\TrainingLog::where('trainee_id', $user->id)
                         ->where('course_id', $courseData->id)
                         ->count();
@@ -247,7 +226,6 @@ class UserSearchController extends Controller
             $completedCourses = collect();
         }
         
-        // Get endorsements
         $endorsements = $user->endorsementActivities()
             ->get()
             ->map(function($activity) {
@@ -259,7 +237,6 @@ class UserSearchController extends Controller
                 ];
             });
 
-        // Get familiarisations grouped by FIR
         $familiarisations = $user->familiarisations()
             ->with('sector')
             ->get()
@@ -274,25 +251,35 @@ class UserSearchController extends Controller
                 })->values();
             });
 
-        // Get Moodle courses (would need integration with Moodle API)
-        // For now, we can get the course IDs from active courses
+        // Get Moodle courses for active courses only
         $moodleCourses = [];
+        $moodleService = app(\App\Services\MoodleService::class);
+
         foreach ($activeCourses as $course) {
             $fullCourse = \App\Models\Course::find($course['id']);
             if ($fullCourse && $fullCourse->moodle_course_ids) {
-                // Ensure moodle_course_ids is an array
                 $moodleIds = is_array($fullCourse->moodle_course_ids)
                     ? $fullCourse->moodle_course_ids
                     : json_decode($fullCourse->moodle_course_ids, true);
 
                 if (is_array($moodleIds)) {
                     foreach ($moodleIds as $moodleId) {
-                        $moodleCourses[] = [
-                            'id' => $moodleId,
-                            'name' => "Moodle Course {$moodleId}", // Would fetch real name from Moodle
-                            'passed' => false, // Would check actual completion status
-                            'link' => "https://moodle.vatsim-germany.org/course/view.php?id={$moodleId}",
-                        ];
+                        try {
+                            $courseName = $moodleService->getCourseName($moodleId);
+                            $isPassed = $moodleService->getCourseCompletion($user->vatsim_id, $moodleId);
+
+                            $moodleCourses[] = [
+                                'id' => $moodleId,
+                                'name' => $courseName ?? "Moodle Course {$moodleId}",
+                                'passed' => $isPassed,
+                                'link' => "https://moodle.vatsim-germany.org/course/view.php?id={$moodleId}",
+                            ];
+                        } catch (\Exception $e) {
+                            \Log::warning('Failed to fetch Moodle course info', [
+                                'moodle_id' => $moodleId,
+                                'error' => $e->getMessage()
+                            ]);
+                        }
                     }
                 }
             }

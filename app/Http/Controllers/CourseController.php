@@ -8,6 +8,7 @@ use App\Models\WaitingListEntry;
 use App\Services\CourseValidationService;
 use App\Services\WaitingListService;
 use App\Services\FamiliarisationService;
+use App\Services\MoodleService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
@@ -19,20 +20,20 @@ class CourseController extends Controller
     protected CourseValidationService $validationService;
     protected WaitingListService $waitingListService;
     protected FamiliarisationService $familiarisationService;
+    protected MoodleService $moodleService;
 
     public function __construct(
         CourseValidationService $validationService,
         WaitingListService $waitingListService,
-        FamiliarisationService $familiarisationService
+        FamiliarisationService $familiarisationService,
+        MoodleService $moodleService
     ) {
         $this->validationService = $validationService;
         $this->waitingListService = $waitingListService;
         $this->familiarisationService = $familiarisationService;
+        $this->moodleService = $moodleService;
     }
 
-    /**
-     * Show available courses for trainees
-     */
     public function index(Request $request): Response
     {
         $user = $request->user();
@@ -42,9 +43,12 @@ class CourseController extends Controller
                 'courses' => [],
                 'userWaitingLists' => [],
                 'isVatsimUser' => false,
+                'moodleSignedUp' => false,
                 'error' => 'VATSIM account required to view courses',
             ]);
         }
+
+        $moodleSignedUp = $this->moodleService->userExists($user->vatsim_id);
 
         try {
             if ($user->is_admin || $user->is_superuser) {
@@ -59,7 +63,6 @@ class CourseController extends Controller
                 $filteredCourses = $this->filterCoursesForUser($courses, $user);
             }
 
-            // Get user's current waiting list entries
             $waitingListEntries = WaitingListEntry::with('course')
                 ->where('user_id', $user->id)
                 ->get();
@@ -69,11 +72,10 @@ class CourseController extends Controller
                     $q->where('type', 'RTG');
                 })->exists();
 
-            // Format courses for frontend
-            $formattedCourses = $filteredCourses->map(function ($course) use ($user, $waitingListEntries) {
+            $formattedCourses = $filteredCourses->map(function ($course) use ($user, $waitingListEntries, $moodleSignedUp) {
                 $entry = $waitingListEntries->firstWhere('course_id', $course->id);
-                
-                return [
+
+                $courseData = [
                     'id' => $course->id,
                     'name' => $course->name,
                     'trainee_display_name' => $course->trainee_display_name,
@@ -93,11 +95,21 @@ class CourseController extends Controller
                     'can_join' => $this->validationService->canUserJoinCourse($course, $user)[0],
                     'join_error' => $this->validationService->canUserJoinCourse($course, $user)[1],
                 ];
+
+                if ($course->type === 'EDMT' && !empty($course->moodle_course_ids) && $moodleSignedUp) {
+                    $courseData['moodle_completed'] = $this->moodleService->checkAllCoursesCompleted(
+                        $user->vatsim_id,
+                        $course->moodle_course_ids
+                    );
+                }
+
+                return $courseData;
             });
 
             return Inertia::render('training/courses', [
                 'courses' => $formattedCourses,
                 'isVatsimUser' => true,
+                'moodleSignedUp' => $moodleSignedUp,
                 'userHasActiveRtgCourse' => $userHasActiveRtgCourse,
             ]);
 
@@ -105,14 +117,12 @@ class CourseController extends Controller
             return Inertia::render('training/courses', [
                 'courses' => [],
                 'isVatsimUser' => true,
+                'moodleSignedUp' => $moodleSignedUp ?? false,
                 'error' => 'Failed to load courses. Please try again.',
             ]);
         }
     }
 
-    /**
-     * Join or leave a waiting list
-     */
     public function toggleWaitingList(Request $request, Course $course): \Illuminate\Http\RedirectResponse
     {
         $user = $request->user();
@@ -125,13 +135,21 @@ class CourseController extends Controller
             ]);
         }
 
+        // Check if user is signed up on Moodle
+        if (!$this->moodleService->userExists($user->vatsim_id)) {
+            return back()->with('flash', [
+                'success' => false,
+                'message' => 'You must sign up on Moodle before joining a waiting list',
+                'action' => 'error'
+            ]);
+        }
+
         try {
             $entry = WaitingListEntry::where('user_id', $user->id)
                 ->where('course_id', $course->id)
                 ->first();
 
             if ($entry) {
-                // Leave waiting list
                 [$success, $message] = $this->waitingListService->leaveWaitingList($course, $user);
 
                 return back()->with('flash', [
@@ -140,11 +158,9 @@ class CourseController extends Controller
                     'action' => $success ? 'left' : 'error',
                 ]);
             } else {
-                // Join waiting list
                 [$success, $message] = $this->waitingListService->joinWaitingList($course, $user);
-                
+
                 if ($success) {
-                    // Refresh the entry to get the exact position
                     $newEntry = WaitingListEntry::where('user_id', $user->id)
                         ->where('course_id', $course->id)
                         ->first();
@@ -185,9 +201,6 @@ class CourseController extends Controller
         }
     }
 
-    /**
-     * Filter courses based on user's specific requirements - UPDATED
-     */
     protected function filterCoursesForUser($courses, User $user)
     {
         return $courses->filter(function ($course) use ($user) {
@@ -199,19 +212,16 @@ class CourseController extends Controller
                     if ($course->type === 'RST' && $isOnRoster) return false;
                     if ($course->type !== 'RST' && !$isOnRoster) return false;
                 } catch (\Exception $e) {
-                    // If roster check fails, allow all courses except RST
                     if ($course->type === 'RST') return false;
                 }
             } else {
                 if ($course->type === 'RTG') return false;
             }
 
-            // Check for active RTG courses
             if ($course->type === 'RTG' && $user->activeRatingCourses()->exists()) {
                 return false;
             }
 
-            // Check S3 rating change restrictions
             if ($user->rating === 3 && $course->type === 'RTG' && $course->position === 'APP') {
                 $minDays = config('services.training.s3_rating_change_days', 90);
                 if ($user->last_rating_change && 
