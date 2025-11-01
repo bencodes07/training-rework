@@ -143,7 +143,9 @@ export default function ViewTrainingLog({ log, canEdit, canViewInternal, categor
                 {/* Header Section */}
                 <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold">{log.position} Training Session</h1>
+                        <h1 className="text-3xl font-bold">
+                            <span className="font-monospace">{log.position}</span> Training Session
+                        </h1>
                         {log.course && <p className="mt-1 text-muted-foreground">{log.course.name}</p>}
                     </div>
                     <div className="flex flex-col items-end gap-2">

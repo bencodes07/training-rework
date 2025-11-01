@@ -210,7 +210,7 @@ export function ProgressModal({ trainee, courseId, isOpen, onClose }: ProgressMo
                                                             )}
                                                         </Badge>
                                                     </div>
-                                                    <h4 className="font-semibold">{log.position}</h4>
+                                                    <h4 className="font-monospace font-semibold">{log.position}</h4>
                                                     <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
                                                         <span className="flex items-center gap-1">
                                                             <Calendar className="h-3 w-3" />

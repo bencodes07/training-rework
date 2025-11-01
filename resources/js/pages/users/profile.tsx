@@ -35,7 +35,7 @@ interface UserProfile {
     rating: number;
     subdivision?: string;
     last_rating_change?: string;
-    is_staff: boolean;
+    is_mentor: boolean;
     is_superuser: boolean;
 }
 
@@ -221,8 +221,8 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                                 </div>
                             </div>
                             <div className="flex flex-col gap-2">
-                                {user.is_superuser && <Badge variant="destructive">Superuser</Badge>}
-                                {user.is_staff && <Badge variant="secondary">Staff</Badge>}
+                                {user.is_superuser && <Badge variant="destructive">Administrator</Badge>}
+                                {user.is_mentor && <Badge variant="secondary">Mentor</Badge>}
                             </div>
                         </div>
                     </CardHeader>

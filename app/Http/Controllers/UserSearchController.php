@@ -307,7 +307,7 @@ class UserSearchController extends Controller
                 'rating' => $user->rating,
                 'subdivision' => $user->subdivision,
                 'last_rating_change' => $user->last_rating_change?->format('Y-m-d'),
-                'is_staff' => $user->is_staff,
+                'is_mentor' => $user->isMentor(),
                 'is_superuser' => $user->is_superuser,
             ],
             'active_courses' => $activeCourses->values()->toArray(),
