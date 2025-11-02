@@ -21,6 +21,8 @@ import {
     ChevronDown,
     BookOpen,
     Award,
+    CheckCircle,
+    AlertCircle,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable, VisibilityState } from '@tanstack/react-table';
@@ -497,33 +499,55 @@ export function TraineeDataTable({ trainees, course, onRemarkClick, onClaimClick
                 );
             },
         },
-        // Moodle Status column - only for EDMT (Endorsement) courses
         {
             id: 'moodleStatus',
             accessorKey: 'moodleStatus',
             header: 'Moodle Status',
             cell: ({ row }) => {
                 const trainee = row.original;
-                const moodleStatus = (trainee as any).moodleStatus;
-                return moodleStatus ? (
-                    <Badge
-                        variant="outline"
-                        className={
-                            moodleStatus === 'completed'
-                                ? 'border-green-200 bg-green-50 text-green-700'
-                                : moodleStatus === 'in-progress'
-                                  ? 'border-blue-200 bg-blue-50 text-blue-700'
-                                  : 'border-gray-200 bg-gray-50 text-gray-700'
-                        }
-                    >
+                const moodleStatus = trainee.moodleStatus;
+
+                if (!moodleStatus) {
+                    return <span className="text-sm text-muted-foreground">—</span>;
+                }
+
+                const getStatusConfig = (status: string) => {
+                    switch (status) {
+                        case 'completed':
+                            return {
+                                className: 'border-green-200 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-900 dark:text-green-300',
+                                label: 'Completed',
+                                icon: <CheckCircle className="mr-1 h-3 w-3" />,
+                            };
+                        case 'in-progress':
+                            return {
+                                className: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900 dark:text-blue-300',
+                                label: 'In Progress',
+                                icon: <Clock className="mr-1 h-3 w-3" />,
+                            };
+                        case 'not-started':
+                            return {
+                                className: 'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300',
+                                label: 'Not Started',
+                                icon: <AlertCircle className="mr-1 h-3 w-3" />,
+                            };
+                        default:
+                            return {
+                                className:
+                                    'border-yellow-200 bg-yellow-50 text-yellow-700 dark:border-yellow-700 dark:bg-yellow-900 dark:text-yellow-300',
+                                label: 'Unknown',
+                                icon: <AlertCircle className="mr-1 h-3 w-3" />,
+                            };
+                    }
+                };
+
+                const config = getStatusConfig(moodleStatus);
+
+                return (
+                    <Badge variant="outline" className={config.className}>
                         <BookOpen className="mr-1 h-3 w-3" />
-                        {moodleStatus === 'completed' ? 'Completed' : moodleStatus === 'in-progress' ? 'In Progress' : 'Not Started'}
+                        {config.label}
                     </Badge>
-                ) : (
-                    <Button variant="ghost" size="sm" className="h-7 text-xs">
-                        <Plus className="mr-1 h-3 w-3" />
-                        Link Moodle
-                    </Button>
                 );
             },
         },

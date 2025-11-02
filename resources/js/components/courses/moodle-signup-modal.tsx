@@ -1,20 +1,30 @@
-import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, ExternalLink } from 'lucide-react';
+import { router } from '@inertiajs/react';
 
 interface MoodleSignupModalProps {
     isOpen: boolean;
-    onClose: () => void;
 }
 
-export function MoodleSignupModal({ isOpen, onClose }: MoodleSignupModalProps) {
+export function MoodleSignupModal({ isOpen }: MoodleSignupModalProps) {
     const handleGoToMoodle = () => {
         window.open('https://moodle.vatsim-germany.org/', '_blank');
-        onClose();
+    };
+
+    const handleBackToDashboard = () => {
+        router.visit(route('dashboard'));
     };
 
     return (
-        <AlertDialog open={isOpen} onOpenChange={onClose}>
+        <AlertDialog open={isOpen}>
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <div className="flex items-center gap-2">
@@ -30,8 +40,8 @@ export function MoodleSignupModal({ isOpen, onClose }: MoodleSignupModalProps) {
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <Button variant="outline" onClick={onClose}>
-                        I'll do this later
+                    <Button variant="outline" onClick={handleBackToDashboard}>
+                        Back to Dashboard
                     </Button>
                     <Button onClick={handleGoToMoodle}>
                         <ExternalLink className="mr-2 h-4 w-4" />

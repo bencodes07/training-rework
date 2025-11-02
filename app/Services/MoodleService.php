@@ -168,13 +168,13 @@ class MoodleService
             $response = Http::withHeaders([
                 'Authorization' => "Token {$this->apiKey}",
             ])
-            ->timeout(10)
-            ->get("{$this->baseUrl}/course/{$courseId}/user/{$vatsimId}/enrol");
+                ->timeout(10)
+                ->get("{$this->baseUrl}/course/{$courseId}/user/{$vatsimId}/enrol");
 
             if ($response->successful()) {
                 // Clear completion cache after enrollment
                 Cache::forget("moodle:completion:{$vatsimId}:{$courseId}");
-                
+
                 Log::info('User enrolled in Moodle course', [
                     'vatsim_id' => $vatsimId,
                     'course_id' => $courseId

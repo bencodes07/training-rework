@@ -164,13 +164,12 @@ class MentorOverviewController extends Controller
             try {
                 $vatEudService = app(\App\Services\VatEudService::class);
                 $tier1Endorsements = $vatEudService->getTier1Endorsements();
-
-                // Find endorsement matching this trainee and position
+    
                 $endorsement = collect($tier1Endorsements)->first(function ($e) use ($trainee, $course) {
                     return $e['user_cid'] == $trainee->vatsim_id &&
                         $e['position'] === $course->solo_station;
                 });
-
+    
                 if ($endorsement) {
                     $endorsementStatus = $course->solo_station;
                 }
@@ -179,6 +178,32 @@ class MentorOverviewController extends Controller
                     'vatsim_id' => $trainee->vatsim_id,
                     'error' => $e->getMessage()
                 ]);
+            }
+        }
+
+        $moodleStatus = null;
+        if ($course->type === 'EDMT' && !empty($course->moodle_course_ids)) {
+            try {
+                $moodleService = app(\App\Services\MoodleService::class);
+
+                // Check if user exists in Moodle
+                if (!$moodleService->userExists($trainee->vatsim_id)) {
+                    $moodleStatus = 'not-started';
+                } else {
+                    // Check if all required courses are completed
+                    $allCompleted = $moodleService->checkAllCoursesCompleted(
+                        $trainee->vatsim_id,
+                        $course->moodle_course_ids
+                    );
+                    $moodleStatus = $allCompleted ? 'completed' : 'in-progress';
+                }
+            } catch (\Exception $e) {
+                \Log::warning('Failed to check Moodle status for trainee', [
+                    'trainee_id' => $trainee->id,
+                    'vatsim_id' => $trainee->vatsim_id,
+                    'error' => $e->getMessage()
+                ]);
+                $moodleStatus = 'unknown';
             }
         }
 
@@ -265,6 +290,7 @@ class MentorOverviewController extends Controller
             'claimedBy' => $claimedBy,
             'claimedByMentorId' => $claimedByMentorId,
             'soloStatus' => $soloStatus,
+            'moodleStatus' => $moodleStatus,
             'endorsementStatus' => $endorsementStatus,
             'remark' => $remarkData,
         ];
@@ -783,6 +809,29 @@ class MentorOverviewController extends Controller
                 'claimed_by_mentor_id' => $user->id,
                 'claimed_at' => now(),
             ]);
+
+            if (!empty($course->moodle_course_ids)) {
+                try {
+                    $moodleService = app(\App\Services\MoodleService::class);
+                    $moodleService->enrollUserInCourses(
+                        $trainee->vatsim_id,
+                        $course->moodle_course_ids
+                    );
+
+                    \Log::info('Trainee enrolled in Moodle courses', [
+                        'trainee_id' => $trainee->id,
+                        'vatsim_id' => $trainee->vatsim_id,
+                        'course_id' => $course->id,
+                        'moodle_courses' => $course->moodle_course_ids
+                    ]);
+                } catch (\Exception $e) {
+                    \Log::warning('Failed to enroll trainee in Moodle courses', [
+                        'trainee_id' => $trainee->id,
+                        'course_id' => $course->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
 
             \Log::info('Trainee added to course', [
                 'mentor_id' => $user->id,

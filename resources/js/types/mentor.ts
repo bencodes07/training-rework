@@ -17,6 +17,7 @@ export interface Trainee {
     claimedByMentorId: number | null;
     soloStatus: SoloStatus | null;
     endorsementStatus: string | null;
+    moodleStatus: string | null;
     remark: {
         text: string;
         updated_at: string | null;
