@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ActivityAction;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -32,6 +33,18 @@ class ActivityLog extends Model
     public function subject(): MorphTo
     {
         return $this->morphTo('model');
+    }
+
+    public function getActionLabel(): string
+    {
+        $enum = ActivityAction::fromString($this->action);
+        return $enum ? $enum->getLabel() : $this->action;
+    }
+
+    public function getActionColor(): string
+    {
+        $enum = ActivityAction::fromString($this->action);
+        return $enum ? $enum->getColor() : 'info';
     }
 
     public function scopeForUser($query, int $userId)
