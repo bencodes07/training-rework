@@ -9,9 +9,8 @@ use App\Services\CourseValidationService;
 use App\Services\WaitingListService;
 use App\Services\FamiliarisationService;
 use App\Services\MoodleService;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -152,6 +151,10 @@ class CourseController extends Controller
             if ($entry) {
                 [$success, $message] = $this->waitingListService->leaveWaitingList($course, $user);
 
+                if ($success) {
+                    ActivityLogger::waitingListLeft($course, $user);
+                }
+
                 return back()->with('flash', [
                     'success' => $success,
                     'message' => $message,
@@ -165,12 +168,7 @@ class CourseController extends Controller
                         ->where('course_id', $course->id)
                         ->first();
 
-                    \Log::info('New waiting list entry created', [
-                        'user_id' => $user->id,
-                        'course_id' => $course->id,
-                        'position' => $newEntry?->position_in_queue,
-                        'entry_exists' => $newEntry !== null
-                    ]);
+                    ActivityLogger::waitingListJoined($course, $user);
 
                     return back()->with('flash', [
                         'success' => true,

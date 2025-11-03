@@ -200,13 +200,7 @@ class EndorsementController extends Controller
             $endorsement->last_updated = Carbon::createFromTimestamp(0); // Trigger update
             $endorsement->save();
 
-            Log::info('Endorsement marked for removal', [
-                'endorsement_id' => $endorsementId,
-                'position' => $endorsement->position,
-                'vatsim_id' => $endorsement->vatsim_id,
-                'marked_by' => $user->id,
-                'removal_date' => $endorsement->removal_date
-            ]);
+            // TODO: Add logging
 
             return back()->with('success', "Successfully marked {$endorsement->position} for removal");
 
@@ -224,7 +218,7 @@ class EndorsementController extends Controller
     /**
      * Request a Tier 2 endorsement
      */
-    public function requestTier2(Request $request, int $tier2Id): JsonResponse
+    public function requestTier2(Request $request, int $tier2Id)
     {
         $user = $request->user();
         
@@ -246,7 +240,6 @@ class EndorsementController extends Controller
             }
 
             // TODO: Check Moodle course completion here
-            // For now, we'll assume it's completed
             
             // Create the endorsement in VatEUD
             $success = $this->vatEudService->createTier2Endorsement(
@@ -258,6 +251,8 @@ class EndorsementController extends Controller
             if (!$success) {
                 return response()->json(['error' => 'Failed to create endorsement'], 500);
             }
+
+            // TODO: Add logging
 
             return response()->json([
                 'success' => true,

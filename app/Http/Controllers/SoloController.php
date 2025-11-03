@@ -8,6 +8,7 @@ use App\Services\VatEudService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use App\Services\ActivityLogger;
 
 class SoloController extends Controller
 {
@@ -88,15 +89,7 @@ class SoloController extends Controller
                 // Refresh cached endorsements
                 $this->vatEudService->refreshEndorsementCache();
 
-                Log::info('Solo endorsement granted', [
-                    'mentor_id' => $user->id,
-                    'mentor_vatsim_id' => $user->vatsim_id,
-                    'trainee_id' => $trainee->id,
-                    'trainee_vatsim_id' => $trainee->vatsim_id,
-                    'course_id' => $course->id,
-                    'position' => $course->solo_station,
-                    'expiry' => $formattedExpiry,
-                ]);
+                ActivityLogger::soloGranted($course->solo_station, $trainee, $user, $formattedExpiry);
 
                 return back()->with('success', "Successfully granted solo endorsement for {$course->solo_station} to {$trainee->name}");
             } else {
@@ -179,14 +172,7 @@ class SoloController extends Controller
                 // Refresh cached endorsements
                 $this->vatEudService->refreshEndorsementCache();
 
-                Log::info('Solo endorsement extended', [
-                    'mentor_id' => $user->id,
-                    'trainee_id' => $trainee->id,
-                    'course_id' => $course->id,
-                    'position' => $course->solo_station,
-                    'old_solo_id' => $solo['id'],
-                    'new_expiry' => $formattedExpiry,
-                ]);
+                ActivityLogger::soloExtended($course->solo_station, $trainee, $user, $formattedExpiry);
 
                 return back()->with('success', "Successfully extended solo endorsement for {$trainee->name}");
             } else {
@@ -241,20 +227,12 @@ class SoloController extends Controller
                 return back()->withErrors(['error' => 'No solo endorsement found for this trainee and position']);
             }
 
-            // Remove the solo
             $success = $this->vatEudService->removeSoloEndorsement($solo['id']);
 
             if ($success) {
-                // Refresh cached endorsements
                 $this->vatEudService->refreshEndorsementCache();
 
-                Log::info('Solo endorsement removed', [
-                    'mentor_id' => $user->id,
-                    'trainee_id' => $trainee->id,
-                    'course_id' => $course->id,
-                    'solo_id' => $solo['id'],
-                    'position' => $course->solo_station,
-                ]);
+                ActivityLogger::soloRemoved($course->solo_station, $trainee, $user);
 
                 return back()->with('success', "Successfully removed solo endorsement for {$trainee->name}");
             } else {

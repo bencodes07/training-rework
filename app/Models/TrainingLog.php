@@ -5,10 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Traits\LogsActivity;
 
 class TrainingLog extends Model
 {
     use HasFactory;
+    use LogsActivity;
 
     /**
      * Session type constants
@@ -126,6 +128,8 @@ class TrainingLog extends Model
         'ability_to_work_under_pressure' => 'integer',
         'motivation' => 'integer',
     ];
+
+    protected $logAttributes = ['trainee_id', 'mentor_id', 'course_id', 'session_date', 'type', 'result'];
 
     /**
      * Get the trainee (user) who took this training session

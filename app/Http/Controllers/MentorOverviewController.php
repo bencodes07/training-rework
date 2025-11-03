@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Services\ActivityLogger;
 
 class MentorOverviewController extends Controller
 {
@@ -340,11 +341,7 @@ class MentorOverviewController extends Controller
                     'remark_updated_at' => now(),
                 ]);
 
-            \Log::info('Trainee remark updated', [
-                'mentor_id' => $user->id,
-                'trainee_id' => $request->trainee_id,
-                'course_id' => $request->course_id
-            ]);
+            // TODO: Add logging
 
             return back()->with('success', 'Remark updated successfully');
         } catch (\Exception $e) {
@@ -385,13 +382,7 @@ class MentorOverviewController extends Controller
         try {
             $course->activeTrainees()->detach($trainee->id);
 
-            \Log::info('Trainee removed from course', [
-                'mentor_id' => $user->id,
-                'trainee_id' => $trainee->id,
-                'trainee_name' => $trainee->name,
-                'course_id' => $course->id,
-                'course_name' => $course->name
-            ]);
+            ActivityLogger::traineeRemoved($course, $trainee, $user);
 
             return back()->with('success', "Successfully removed {$trainee->name} from {$course->name}");
         } catch (\Exception $e) {
@@ -447,14 +438,7 @@ class MentorOverviewController extends Controller
                     'claimed_at' => now(),
                 ]);
 
-            \Log::info('Trainee claimed', [
-                'mentor_id' => $user->id,
-                'trainee_id' => $trainee->id,
-                'trainee_name' => $trainee->name,
-                'course_id' => $course->id,
-                'course_name' => $course->name,
-                'previous_mentor_id' => $currentMentor
-            ]);
+            ActivityLogger::traineeClaimed($course, $trainee, $user);
 
             return back()->with('success', "Successfully claimed {$trainee->name}");
         } catch (\Exception $e) {
@@ -516,16 +500,7 @@ class MentorOverviewController extends Controller
                     'claimed_at' => now(),
                 ]);
 
-            \Log::info('Trainee assigned to mentor', [
-                'assigning_mentor_id' => $user->id,
-                'new_mentor_id' => $newMentor->id,
-                'new_mentor_name' => $newMentor->name,
-                'trainee_id' => $trainee->id,
-                'trainee_name' => $trainee->name,
-                'course_id' => $course->id,
-                'course_name' => $course->name,
-                'previous_mentor_id' => $currentMentor
-            ]);
+            ActivityLogger::traineeAssigned($course, $trainee, $newMentor, $user);
 
             return back()->with('success', "Successfully assigned {$trainee->name} to {$newMentor->name}");
         } catch (\Exception $e) {
@@ -577,13 +552,7 @@ class MentorOverviewController extends Controller
                     'claimed_at' => null,
                 ]);
 
-            \Log::info('Trainee unclaimed', [
-                'mentor_id' => $user->id,
-                'trainee_id' => $trainee->id,
-                'trainee_name' => $trainee->name,
-                'course_id' => $course->id,
-                'course_name' => $course->name
-            ]);
+            ActivityLogger::traineeUnclaimed($course, $trainee, $user);
 
             return back()->with('success', "Successfully unclaimed {$trainee->name}");
         } catch (\Exception $e) {
@@ -632,13 +601,7 @@ class MentorOverviewController extends Controller
 
             $course->mentors()->attach($mentorToAdd->id);
 
-            \Log::info('Mentor added to course', [
-                'admin_id' => $user->id,
-                'new_mentor_id' => $mentorToAdd->id,
-                'new_mentor_name' => $mentorToAdd->name,
-                'course_id' => $course->id,
-                'course_name' => $course->name
-            ]);
+            ActivityLogger::mentorAdded($course, $mentorToAdd, $user);
 
             return back()->with('success', "Successfully added {$mentorToAdd->name} as a mentor");
         } catch (\Exception $e) {
@@ -695,13 +658,7 @@ class MentorOverviewController extends Controller
                     'claimed_at' => null,
                 ]);
 
-            \Log::info('Mentor removed from course', [
-                'admin_id' => $user->id,
-                'removed_mentor_id' => $mentorToRemove->id,
-                'removed_mentor_name' => $mentorToRemove->name,
-                'course_id' => $course->id,
-                'course_name' => $course->name
-            ]);
+            ActivityLogger::mentorRemoved($course, $mentorToRemove, $user);
 
             return back()->with('success', "Successfully removed {$mentorToRemove->name} as a mentor");
         } catch (\Exception $e) {
@@ -961,13 +918,7 @@ class MentorOverviewController extends Controller
                 }
             });
 
-            \Log::info('Course finished for trainee', [
-                'mentor_id' => $user->id,
-                'trainee_id' => $trainee->id,
-                'trainee_name' => $trainee->name,
-                'course_id' => $course->id,
-                'course_name' => $course->name
-            ]);
+            ActivityLogger::courseFinished($course, $trainee, $user);
 
             return back()->with('success', "Successfully finished {$course->name} for {$trainee->name}");
         } catch (\Exception $e) {
@@ -1080,13 +1031,7 @@ class MentorOverviewController extends Controller
                     'claimed_at' => now(),
                 ]);
 
-            \Log::info('Trainee reactivated', [
-                'mentor_id' => $user->id,
-                'trainee_id' => $trainee->id,
-                'trainee_name' => $trainee->name,
-                'course_id' => $course->id,
-                'course_name' => $course->name
-            ]);
+            ActivityLogger::traineeReactivated($course, $trainee, $user);
 
             return back()->with('success', "Successfully reactivated {$trainee->name} for {$course->name}");
         } catch (\Exception $e) {
@@ -1137,6 +1082,8 @@ class MentorOverviewController extends Controller
                         'mentor_id' => $mentor->id,
                         'mentor_vatsim_id' => $mentor->vatsim_id
                     ]);
+
+                    // TODO: Add logging
                 } else {
                     \Log::warning('Failed to grant Tier 1 endorsement on course completion', [
                         'trainee_id' => $trainee->id,

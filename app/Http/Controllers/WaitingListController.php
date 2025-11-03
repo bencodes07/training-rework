@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Services\ActivityLogger;
 
 class WaitingListController extends Controller
 {
@@ -125,7 +126,9 @@ class WaitingListController extends Controller
 
         try {
             [$success, $message] = $this->waitingListService->startTraining($entry, $user);
-            
+
+            // TODO: Add logging here
+
             return response()->json([
                 'success' => $success,
                 'message' => $message,
@@ -144,8 +147,8 @@ class WaitingListController extends Controller
     }
 
     /**
- * Update remarks for a waiting list entry
- */
+     * Update remarks for a waiting list entry
+     */
     public function updateRemarks(Request $request)
     {
         if (!Gate::allows('mentor')) {
@@ -168,12 +171,7 @@ class WaitingListController extends Controller
         try {
             $entry->update(['remarks' => $request->remarks ?? '']);
 
-            \Log::info('Waiting list remarks updated', [
-                'entry_id' => $entry->id,
-                'mentor_id' => $user->id,
-                'trainee_id' => $entry->user_id,
-                'course_id' => $entry->course_id
-            ]);
+            ActivityLogger::remarksUpdated($entry->course, $entry->user, $user, $request->remarks ?? '');
 
             return back();
         } catch (\Exception $e) {
