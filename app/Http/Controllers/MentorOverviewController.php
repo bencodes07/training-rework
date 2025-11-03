@@ -326,6 +326,7 @@ class MentorOverviewController extends Controller
         ]);
 
         $course = \App\Models\Course::findOrFail($request->course_id);
+        $trainee = \App\Models\User::findOrFail($request->trainee_id);
 
         if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
             return back()->withErrors(['error' => 'You cannot modify this course']);
@@ -341,7 +342,7 @@ class MentorOverviewController extends Controller
                     'remark_updated_at' => now(),
                 ]);
 
-            // TODO: Add logging
+            ActivityLogger::remarksUpdated($course, $trainee, $user, $request->remark ?? '');
 
             return back()->with('success', 'Remark updated successfully');
         } catch (\Exception $e) {
@@ -1166,13 +1167,19 @@ class MentorOverviewController extends Controller
             ]);
 
             if ($familiarisation->wasRecentlyCreated) {
-                \Log::info('Familiarisation added on FAM course completion', [
-                    'trainee_id' => $trainee->id,
-                    'sector_id' => $course->familiarisation_sector_id,
-                    'course_id' => $course->id,
-                    'mentor_id' => $mentor->id
-                ]);
-                // TODO: Add logging
+                $sector = \App\Models\FamiliarisationSector::find($course->familiarisation_sector_id);
+
+                if ($sector) {
+                    ActivityLogger::familiarisationAdded(
+                        $trainee,
+                        $sector->name,
+                        $sector->id,
+                        $sector->fir,
+                        $mentor,
+                        $course->id,
+                        true
+                    );
+                }
             }
         } catch (\Exception $e) {
             \Log::error('Error adding single familiarisation', [

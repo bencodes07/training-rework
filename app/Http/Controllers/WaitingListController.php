@@ -33,8 +33,6 @@ class WaitingListController extends Controller
 
         $user = $request->user();
 
-        // Superusers and admins see ALL courses
-        // Regular mentors only see their assigned courses
         if ($user->is_superuser || $user->is_admin) {
             $courses = Course::with(['waitingListEntries.user', 'mentorGroup'])->get();
         } else {
@@ -86,7 +84,6 @@ class WaitingListController extends Controller
             $statistics[strtolower($course->type) . '_waiting'] += $waitingEntries->count();
         }
 
-        // Sort courses by type then position
         usort($courseData, function ($a, $b) {
             $typeOrder = ['RTG' => 1, 'EDMT' => 2, 'FAM' => 3, 'GST' => 4, 'RST' => 5];
             $posOrder = ['GND' => 1, 'TWR' => 2, 'APP' => 3, 'CTR' => 4];
@@ -118,8 +115,6 @@ class WaitingListController extends Controller
 
         $user = $request->user();
         
-        // Check if user can mentor this course
-        // Superusers and admins can mentor any course
         if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('id', $entry->course_id)->exists()) {
             return response()->json(['error' => 'You cannot mentor this course'], 403);
         }
@@ -127,7 +122,9 @@ class WaitingListController extends Controller
         try {
             [$success, $message] = $this->waitingListService->startTraining($entry, $user);
 
-            // TODO: Add logging
+            if ($success) {
+                ActivityLogger::trainingStarted($entry->course, $entry->user, $user);
+            }
 
             return response()->json([
                 'success' => $success,
@@ -163,7 +160,6 @@ class WaitingListController extends Controller
         $entry = WaitingListEntry::findOrFail($request->entry_id);
         $user = $request->user();
 
-        // Check if user can mentor this course
         if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('id', $entry->course_id)->exists()) {
             return back()->withErrors(['error' => 'You cannot modify this entry']);
         }
