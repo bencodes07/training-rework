@@ -726,13 +726,11 @@ class MentorOverviewController extends Controller
                         'updated_at' => now(),
                     ]);
 
-                \Log::info('Trainee reactivated in course', [
-                    'mentor_id' => $user->id,
-                    'trainee_id' => $trainee->id,
-                    'trainee_name' => $trainee->name,
-                    'course_id' => $course->id,
-                    'course_name' => $course->name
-                ]);
+                ActivityLogger::traineeAddedToCourse(
+                    $course,
+                    $trainee,
+                    $user,
+                );
 
                 return back()->with('success', "Successfully reactivated {$trainee->name} in the course");
             }
@@ -839,14 +837,12 @@ class MentorOverviewController extends Controller
             if ($result['success']) {
                 $vatEudService->refreshEndorsementCache();
 
-                \Log::info('Endorsement granted successfully', [
-                    'mentor_id' => $user->id,
-                    'mentor_vatsim_id' => $user->vatsim_id,
-                    'trainee_id' => $trainee->id,
-                    'trainee_vatsim_id' => $trainee->vatsim_id,
-                    'course_id' => $course->id,
-                    'position' => $course->solo_station,
-                ]);
+                ActivityLogger::endorsementGranted(
+                    $course->solo_station,
+                    $trainee,
+                    $user,
+                    'tier1'
+                );
 
                 return back()->with('success', "Successfully granted {$course->solo_station} endorsement to {$trainee->name}");
             } else {
@@ -1075,15 +1071,12 @@ class MentorOverviewController extends Controller
                 );
 
                 if ($result['success']) {
-                    \Log::info('Tier 1 endorsement granted on course completion', [
-                        'trainee_id' => $trainee->id,
-                        'trainee_vatsim_id' => $trainee->vatsim_id,
-                        'position' => $position,
-                        'mentor_id' => $mentor->id,
-                        'mentor_vatsim_id' => $mentor->vatsim_id
-                    ]);
-
-                    // TODO: Add logging
+                    ActivityLogger::endorsementGranted(
+                        $position,
+                        $trainee,
+                        $mentor,
+                        'tier1'
+                    );
                 } else {
                     \Log::warning('Failed to grant Tier 1 endorsement on course completion', [
                         'trainee_id' => $trainee->id,
@@ -1141,13 +1134,15 @@ class MentorOverviewController extends Controller
                         'familiarisation_sector_id' => $sector->id,
                     ]);
 
-                    \Log::info('Familiarisation added on course completion', [
-                        'trainee_id' => $trainee->id,
-                        'sector_id' => $sector->id,
-                        'sector_name' => $sector->name,
-                        'fir' => $fir,
-                        'mentor_id' => $mentor->id
-                    ]);
+                    ActivityLogger::familiarisationAdded(
+                        $trainee,
+                        $sector->name,
+                        $sector->id,
+                        $fir,
+                        $mentor,
+                        $course->id,
+                        true
+                    );
                 }
             }
         } catch (\Exception $e) {
@@ -1177,6 +1172,7 @@ class MentorOverviewController extends Controller
                     'course_id' => $course->id,
                     'mentor_id' => $mentor->id
                 ]);
+                // TODO: Add logging
             }
         } catch (\Exception $e) {
             \Log::error('Error adding single familiarisation', [

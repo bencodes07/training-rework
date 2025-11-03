@@ -331,4 +331,73 @@ class ActivityLogger
             $mentor->id
         );
     }
+
+    /**
+     * Log trainee added to course
+     */
+    public static function traineeAddedToCourse(
+        Model $course,
+        Model $trainee,
+        Model $mentor,
+        bool $wasReactivated = false
+    ): void {
+        self::log(
+            'trainee.added_to_course',
+            $course,
+            "{$mentor->name} added {$trainee->name} to {$course->name}" .
+            ($wasReactivated ? " (reactivated)" : ""),
+            [
+                'trainee_id' => $trainee->id,
+                'trainee_name' => $trainee->name,
+                'course_id' => $course->id,
+                'course_name' => $course->name,
+                'mentor_id' => $mentor->id,
+                'mentor_name' => $mentor->name,
+                'was_reactivated' => $wasReactivated,
+            ],
+            $mentor->id
+        );
+    }
+
+    /**
+     * Log familiarisation added
+     */
+    public static function familiarisationAdded(
+        Model $trainee,
+        string $sectorName,
+        int $sectorId,
+        string $fir,
+        Model $mentor,
+        ?Model $course = null,
+        bool $viaCourseCompletion = false
+    ): void {
+        $description = "{$mentor->name} granted {$sectorName} ({$fir}) familiarisation to {$trainee->name}";
+        if ($viaCourseCompletion && $course) {
+            $description .= " via {$course->name} completion";
+        }
+
+        $properties = [
+            'trainee_id' => $trainee->id,
+            'trainee_name' => $trainee->name,
+            'sector_id' => $sectorId,
+            'sector_name' => $sectorName,
+            'fir' => $fir,
+            'mentor_id' => $mentor->id,
+            'mentor_name' => $mentor->name,
+            'via_course_completion' => $viaCourseCompletion,
+        ];
+
+        if ($course) {
+            $properties['course_id'] = $course->id;
+            $properties['course_name'] = $course->name;
+        }
+
+        self::log(
+            'familiarisation.added',
+            $trainee,
+            $description,
+            $properties,
+            $mentor->id
+        );
+    }
 }

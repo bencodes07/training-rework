@@ -127,7 +127,7 @@ class WaitingListController extends Controller
         try {
             [$success, $message] = $this->waitingListService->startTraining($entry, $user);
 
-            // TODO: Add logging here
+            // TODO: Add logging
 
             return response()->json([
                 'success' => $success,

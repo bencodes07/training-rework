@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Course;
 use App\Services\VatEudService;
 use App\Services\VatsimActivityService;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -80,16 +81,12 @@ class EndorsementController extends Controller
             abort(403, 'Access denied. Mentor privileges required.');
         }
 
-        // Get courses based on user permissions to determine which positions mentor can access
         if ($user->is_superuser || $user->is_admin) {
-            // Admins and superusers see all positions
             $courses = Course::all();
         } else {
-            // Regular mentors only see positions from their assigned courses
             $courses = $user->mentorCourses;
         }
 
-        // Extract unique positions (airport + position type) that this mentor can manage
         $allowedPositions = $courses->map(function ($course) {
             return [
                 'airport' => $course->airport_icao,
@@ -99,28 +96,22 @@ class EndorsementController extends Controller
             return $item['airport'] . '_' . $item['position'];
         });
 
-        // Get all tier 1 endorsements with activity data
         $allEndorsements = $this->getAllTier1WithActivity();
 
-        // Group endorsements by position and filter by mentor permissions
         $endorsementsByPosition = collect($allEndorsements)
             ->filter(function ($endorsement) use ($allowedPositions, $user) {
-                // Admins see everything
                 if ($user->is_superuser || $user->is_admin) {
                     return true;
                 }
 
-                // Extract position info from endorsement
                 $parts = explode('_', $endorsement['position']);
                 $airport = $parts[0];
                 $positionType = end($parts);
 
-                // Handle GNDDEL -> GND conversion
                 if ($positionType === 'GNDDEL') {
                     $positionType = 'GND';
                 }
 
-                // Check if mentor has access to this position
                 return $allowedPositions->contains(function ($allowed) use ($airport, $positionType) {
                     return $allowed['airport'] === $airport && $allowed['position'] === $positionType;
                 });
@@ -160,9 +151,7 @@ class EndorsementController extends Controller
                 return back()->with('error', 'Endorsement not found');
             }
 
-            // Verify mentor has permission to manage this endorsement
             if (!$user->is_superuser && !$user->is_admin) {
-                // Check if user is a mentor for a course matching this position
                 $hasCourse = $user->mentorCourses()->where(function ($query) use ($endorsement) {
                     $parts = explode('_', $endorsement->position);
                     $airport = $parts[0];
@@ -181,26 +170,31 @@ class EndorsementController extends Controller
                 }
             }
 
-            // Check if already marked for removal
             if ($endorsement->removal_date) {
                 return back()->with('error', 'Endorsement already marked for removal');
             }
 
-            // Check if activity is below threshold (regardless of age)
             $minRequiredMinutes = config('services.vateud.min_activity_minutes', 180);
             if ($endorsement->activity_minutes >= $minRequiredMinutes) {
                 return back()->with('error', 'Endorsement has sufficient activity and cannot be marked for removal');
             }
 
-            // Mark for removal
             $endorsement->removal_date = Carbon::now()->addDays(
                 config('services.vateud.removal_warning_days', 31)
             );
             $endorsement->removal_notified = false;
-            $endorsement->last_updated = Carbon::createFromTimestamp(0); // Trigger update
+            $endorsement->last_updated = Carbon::createFromTimestamp(0);
             $endorsement->save();
 
-            // TODO: Add logging
+            $trainee = User::where('vatsim_id', $endorsement->vatsim_id)->first();
+            if ($trainee) {
+                ActivityLogger::endorsementRemoved(
+                    $endorsement->position,
+                    $trainee,
+                    $user,
+                    'Marked for removal due to low activity'
+                );
+            }
 
             return back()->with('success', "Successfully marked {$endorsement->position} for removal");
 
@@ -229,7 +223,6 @@ class EndorsementController extends Controller
         try {
             $tier2Endorsement = Tier2Endorsement::findOrFail($tier2Id);
             
-            // Check if user already has this endorsement
             $existingTier2 = collect($this->vatEudService->getTier2Endorsements())
                 ->where('user_cid', $user->vatsim_id)
                 ->where('position', $tier2Endorsement->position)
@@ -238,21 +231,23 @@ class EndorsementController extends Controller
             if ($existingTier2) {
                 return response()->json(['error' => 'You already have this endorsement'], 400);
             }
-
-            // TODO: Check Moodle course completion here
             
-            // Create the endorsement in VatEUD
             $success = $this->vatEudService->createTier2Endorsement(
                 $user->vatsim_id,
                 $tier2Endorsement->position,
-                config('services.vateud.atd_lead_cid', 1439797) // Default instructor CID
+                config('services.vateud.atd_lead_cid', 1439797)
             );
 
             if (!$success) {
                 return response()->json(['error' => 'Failed to create endorsement'], 500);
             }
 
-            // TODO: Add logging
+            ActivityLogger::endorsementGranted(
+                $tier2Endorsement->position,
+                $user,
+                $user,
+                'tier2'
+            );
 
             return response()->json([
                 'success' => true,
@@ -270,9 +265,6 @@ class EndorsementController extends Controller
         }
     }
 
-    /**
-     * Get Tier 1 endorsements for a specific user
-     */
     protected function getUserTier1Endorsements(int $vatsimId): array
     {
         $allTier1 = $this->vatEudService->getTier1Endorsements();
@@ -313,9 +305,6 @@ class EndorsementController extends Controller
         return $result;
     }
 
-    /**
-     * Get Tier 2 endorsements for a specific user
-     */
     protected function getUserTier2Endorsements(int $vatsimId): array
     {
         $tier2Endorsements = collect($this->vatEudService->getTier2Endorsements())
@@ -342,9 +331,6 @@ class EndorsementController extends Controller
         return $result;
     }
 
-    /**
-     * Get solo endorsements for a specific user
-     */
     protected function getUserSoloEndorsements(int $vatsimId): array
     {
         $soloEndorsements = collect($this->vatEudService->getSoloEndorsements())
@@ -366,9 +352,6 @@ class EndorsementController extends Controller
         return $result;
     }
 
-    /**
-     * Get all Tier 1 endorsements with activity data
-     */
     protected function getAllTier1WithActivity(): array
     {
         $tier1Endorsements = $this->vatEudService->getTier1Endorsements();
@@ -401,9 +384,6 @@ class EndorsementController extends Controller
         return $result;
     }
 
-    /**
-     * Get full name for position
-     */
     protected function getPositionFullName(string $position): string
     {
         $positionNames = [
@@ -433,9 +413,6 @@ class EndorsementController extends Controller
         return $positionNames[$position] ?? $position;
     }
 
-    /**
-     * Get position type
-     */
     protected function getPositionType(string $position): string
     {
         if (str_ends_with($position, '_CTR')) {
@@ -447,13 +424,10 @@ class EndorsementController extends Controller
         } elseif (str_ends_with($position, '_GNDDEL')) {
             return 'GNDDEL';
         }
-        
-        return 'TWR'; // Default
+
+        return 'TWR';
     }
 
-    /**
-     * Get mentor name by VATSIM ID
-     */
     protected function getMentorName(?int $vatsimId): string
     {
         if (!$vatsimId) {

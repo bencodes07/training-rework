@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\TrainingLog;
 use App\Models\User;
 use App\Models\Course;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -20,14 +21,11 @@ class TrainingLogController extends Controller
     {
         $user = $request->user();
 
-        // Get logs based on user role
         if ($user->is_superuser || $user->is_admin) {
-            // Admins see all logs
             $logs = TrainingLog::with(['trainee', 'mentor', 'course'])
                 ->recent()
                 ->paginate(20);
         } elseif ($user->isMentor()) {
-            // Mentors see logs where they are the mentor or logs for their trainees
             $logs = TrainingLog::with(['trainee', 'mentor', 'course'])
                 ->where(function ($query) use ($user) {
                     $query->where('mentor_id', $user->id)
@@ -40,7 +38,6 @@ class TrainingLogController extends Controller
                 ->recent()
                 ->paginate(20);
         } else {
-            // Regular users see only their own logs
             $logs = TrainingLog::with(['trainee', 'mentor', 'course'])
                 ->forTrainee($user->id)
                 ->recent()
@@ -74,7 +71,6 @@ class TrainingLogController extends Controller
         $trainee = User::findOrFail($traineeId);
         $course = Course::with(['mentorGroup'])->findOrFail($courseId);
 
-        // Check if user is a mentor for this course
         if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
             abort(403, 'You are not a mentor for this course.');
         }
@@ -121,7 +117,6 @@ class TrainingLogController extends Controller
             'position' => 'required|string|max:25',
             'type' => 'required|string|in:O,S,L,C',
             
-            // Session details (optional)
             'traffic_level' => 'nullable|string|in:L,M,H',
             'traffic_complexity' => 'nullable|string|in:L,M,H',
             'runway_configuration' => 'nullable|string|max:50',
@@ -130,7 +125,6 @@ class TrainingLogController extends Controller
             'special_procedures' => 'nullable|string',
             'airspace_restrictions' => 'nullable|string',
             
-            // Rating categories
             'theory' => 'required|integer|min:0|max:4',
             'theory_positives' => 'nullable|string',
             'theory_negatives' => 'nullable|string',
@@ -179,7 +173,6 @@ class TrainingLogController extends Controller
             'motivation_positives' => 'nullable|string',
             'motivation_negatives' => 'nullable|string',
             
-            // Final assessment
             'internal_remarks' => 'nullable|string',
             'final_comment' => 'nullable|string',
             'result' => 'required|boolean',
@@ -188,7 +181,6 @@ class TrainingLogController extends Controller
 
         $course = Course::findOrFail($validated['course_id']);
 
-        // Verify mentor has access to this course
         if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
             return back()->withErrors(['error' => 'You are not a mentor for this course.']);
         }
@@ -198,6 +190,27 @@ class TrainingLogController extends Controller
                 ...$validated,
                 'mentor_id' => $user->id,
             ]);
+
+            $trainee = User::findOrFail($validated['trainee_id']);
+
+            ActivityLogger::log(
+                'training_log.created',
+                $log,
+                "{$user->name} created training log for {$trainee->name}",
+                [
+                    'trainee_id' => $validated['trainee_id'],
+                    'trainee_name' => $trainee->name,
+                    'mentor_id' => $user->id,
+                    'mentor_name' => $user->name,
+                    'course_id' => $validated['course_id'],
+                    'course_name' => $course->name,
+                    'session_date' => $validated['session_date'],
+                    'position' => $validated['position'],
+                    'type' => $validated['type'],
+                    'result' => $validated['result'] ? 'Pass' : 'Fail',
+                ],
+                $user->id
+            );
 
             Log::info('Training log created', [
                 'log_id' => $log->id,
@@ -231,7 +244,6 @@ class TrainingLogController extends Controller
         $user = $request->user();
         $log = TrainingLog::with(['trainee', 'mentor', 'course'])->findOrFail($id);
 
-        // Check permissions
         $isOwnLog = $user->id === $log->trainee_id;
         $isLogMentor = $user->id === $log->mentor_id;
         $isCourseMentor = $log->course && $user->mentorCourses()->where('courses.id', $log->course_id)->exists();
@@ -297,7 +309,6 @@ class TrainingLogController extends Controller
         $user = $request->user();
         $log = TrainingLog::findOrFail($id);
 
-        // Only the mentor who created the log or superusers can update
         if ($user->id !== $log->mentor_id && !$user->is_superuser) {
             return back()->withErrors(['error' => 'You do not have permission to edit this log.']);
         }
@@ -307,7 +318,6 @@ class TrainingLogController extends Controller
             'position' => 'required|string|max:25',
             'type' => 'required|string|in:O,S,L,C',
             
-            // Session details (optional)
             'traffic_level' => 'nullable|string|in:L,M,H',
             'traffic_complexity' => 'nullable|string|in:L,M,H',
             'runway_configuration' => 'nullable|string|max:50',
@@ -316,7 +326,6 @@ class TrainingLogController extends Controller
             'special_procedures' => 'nullable|string',
             'airspace_restrictions' => 'nullable|string',
             
-            // Rating categories
             'theory' => 'required|integer|min:0|max:4',
             'theory_positives' => 'nullable|string',
             'theory_negatives' => 'nullable|string',
@@ -365,7 +374,6 @@ class TrainingLogController extends Controller
             'motivation_positives' => 'nullable|string',
             'motivation_negatives' => 'nullable|string',
             
-            // Final assessment
             'internal_remarks' => 'nullable|string',
             'final_comment' => 'nullable|string',
             'result' => 'required|boolean',
@@ -374,6 +382,20 @@ class TrainingLogController extends Controller
 
         try {
             $log->update($validated);
+
+            ActivityLogger::log(
+                'training_log.updated',
+                $log,
+                "{$user->name} updated training log for {$log->trainee->name}",
+                [
+                    'log_id' => $log->id,
+                    'trainee_id' => $log->trainee_id,
+                    'trainee_name' => $log->trainee->name,
+                    'session_date' => $validated['session_date'],
+                    'result' => $validated['result'] ? 'Pass' : 'Fail',
+                ],
+                $user->id
+            );
 
             Log::info('Training log updated', [
                 'log_id' => $log->id,
@@ -406,13 +428,27 @@ class TrainingLogController extends Controller
         $user = $request->user();
         $log = TrainingLog::findOrFail($id);
 
-        // Only the mentor who created the log or superusers can delete
         if ($user->id !== $log->mentor_id && !$user->is_superuser) {
             return back()->withErrors(['error' => 'You do not have permission to delete this log.']);
         }
 
         try {
             $traineeId = $log->trainee_id;
+            $traineeName = $log->trainee->name;
+
+            ActivityLogger::log(
+                'training_log.deleted',
+                null,
+                "{$user->name} deleted training log for {$traineeName}",
+                [
+                    'log_id' => $id,
+                    'trainee_id' => $traineeId,
+                    'trainee_name' => $traineeName,
+                    'session_date' => $log->session_date->format('Y-m-d'),
+                ],
+                $user->id
+            );
+
             $log->delete();
 
             Log::info('Training log deleted', [
@@ -444,7 +480,6 @@ class TrainingLogController extends Controller
         $user = $request->user();
         $trainee = User::findOrFail($traineeId);
 
-        // Check permissions
         $canView = $user->id === $traineeId 
             || $user->is_superuser 
             || $user->is_admin
@@ -481,7 +516,6 @@ class TrainingLogController extends Controller
         $user = $request->user();
         $course = Course::findOrFail($courseId);
 
-        // Check if user is a mentor for this course
         if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
             return response()->json(['error' => 'Access denied'], 403);
         }
@@ -507,7 +541,6 @@ class TrainingLogController extends Controller
     {
         $user = $request->user();
 
-        // Check permissions
         $canView = $user->id === $traineeId 
             || $user->is_superuser 
             || $user->is_admin
@@ -562,7 +595,6 @@ class TrainingLogController extends Controller
             'type' => $log->type,
             'type_display' => $log->type_display,
             
-            // Session details
             'traffic_level' => $log->traffic_level,
             'traffic_level_display' => $log->traffic_level_display,
             'traffic_complexity' => $log->traffic_complexity,
@@ -573,7 +605,6 @@ class TrainingLogController extends Controller
             'special_procedures' => $log->special_procedures,
             'airspace_restrictions' => $log->airspace_restrictions,
             
-            // Trainee and mentor info
             'trainee' => [
                 'id' => $log->trainee->id,
                 'name' => $log->trainee->name,
@@ -585,7 +616,6 @@ class TrainingLogController extends Controller
                 'vatsim_id' => $log->mentor->vatsim_id,
             ],
             
-            // Course info
             'course' => $log->course ? [
                 'id' => $log->course->id,
                 'name' => $log->course->name,
@@ -593,22 +623,18 @@ class TrainingLogController extends Controller
                 'type' => $log->course->type,
             ] : null,
             
-            // Evaluation categories
             'evaluations' => $log->getEvaluationCategories(),
             
-            // Final assessment
             'final_comment' => $log->final_comment,
             'result' => $log->result,
             'next_step' => $log->next_step,
             
-            // Metadata
             'average_rating' => $log->average_rating,
             'has_ratings' => $log->hasRatings(),
             'created_at' => $log->created_at->toIso8601String(),
             'updated_at' => $log->updated_at->toIso8601String(),
         ];
 
-        // Add internal remarks only if user has permission
         if ($includeInternal) {
             $formatted['internal_remarks'] = $log->internal_remarks;
         }
@@ -694,7 +720,6 @@ class TrainingLogController extends Controller
             ['value' => 'O', 'label' => 'Online'],
             ['value' => 'S', 'label' => 'Sim'],
             ['value' => 'L', 'label' => 'Lesson'],
-            /* ['value' => 'C', 'label' => 'Custom'], */
         ];
     }
 
