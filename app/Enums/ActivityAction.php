@@ -7,6 +7,7 @@ enum ActivityAction: string
     case WAITING_LIST_JOINED = 'waiting_list.joined';
     case WAITING_LIST_LEFT = 'waiting_list.left';
     case WAITING_LIST_ENTRY_CREATED = 'waitinglistentry.created';
+  case WAITING_LIST_ENTRY_DELETED = 'waitinglistentry.deleted';
     
     case TRAINING_STARTED = 'training.started';
     case COURSE_FINISHED = 'course.finished';
@@ -47,6 +48,7 @@ enum ActivityAction: string
             self::WAITING_LIST_JOINED => 'Joined Waiting List',
             self::WAITING_LIST_LEFT => 'Left Waiting List',
             self::WAITING_LIST_ENTRY_CREATED => 'Create Waiting List Entry',
+      self::WAITING_LIST_ENTRY_DELETED => 'Deleted Waiting List Entry',
             
             self::TRAINING_STARTED => 'Training Started',
             self::COURSE_FINISHED => 'Course Finished',
