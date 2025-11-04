@@ -111,11 +111,10 @@ class VatEudService
                 ->post("{$this->baseUrl}/facility/endorsements/tier-1", [
                     'user_cid' => $userCid,
                     'position' => $position,
-                    'instructor_cid' => $instructorCid,
+                    'instructor_cid' => config('services.vateud.atd_lead_cid', 1439797),
                 ]);
 
             if ($response->successful()) {
-                // Clear cache to force refresh
                 Cache::forget('vateud:tier1_endorsements');
 
                 Log::info('Tier 1 endorsement created successfully', [
@@ -326,7 +325,7 @@ class VatEudService
                 ->post("{$this->baseUrl}/facility/endorsements/tier-2", [
                     'user_cid' => $userCid,
                     'position' => $position,
-                    'instructor_cid' => $instructorCid,
+                    'instructor_cid' => config('services.vateud.atd_lead_cid', 1439797),
                 ]);
 
             return $response->successful();
@@ -370,7 +369,7 @@ class VatEudService
                     'user_cid' => $userCid,
                     'position' => $position,
                     'expire_at' => $expireAt,
-                    'instructor_cid' => $instructorCid,
+                    'instructor_cid' => config('services.vateud.atd_lead_cid', 1439797),
                 ]);
 
             if ($response->successful()) {
