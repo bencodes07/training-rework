@@ -181,7 +181,7 @@ class ActivityLogger
         self::log(
             'endorsement.removed',
             $trainee,
-            "{$mentor->name} removed {$position} endorsement from {$trainee->name}",
+            "{$mentor->name} started the removal process for {$position} endorsement from {$trainee->name}",
             [
                 'position' => $position,
                 'trainee_id' => $trainee->id,

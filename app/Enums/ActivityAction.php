@@ -7,7 +7,7 @@ enum ActivityAction: string
     case WAITING_LIST_JOINED = 'waiting_list.joined';
     case WAITING_LIST_LEFT = 'waiting_list.left';
     case WAITING_LIST_ENTRY_CREATED = 'waitinglistentry.created';
-  case WAITING_LIST_ENTRY_DELETED = 'waitinglistentry.deleted';
+    case WAITING_LIST_ENTRY_DELETED = 'waitinglistentry.deleted';
     
     case TRAINING_STARTED = 'training.started';
     case COURSE_FINISHED = 'course.finished';
@@ -15,6 +15,8 @@ enum ActivityAction: string
     case ENDORSEMENT_TIER1_GRANTED = 'endorsement.tier1.granted';
     case ENDORSEMENT_TIER2_GRANTED = 'endorsement.tier2.granted';
     case ENDORSEMENT_REMOVED = 'endorsement.removed';
+    case ENDORSEMENT_NOTIFIED = 'endorsement.notified';
+    case ENDORSEMENT_DELETED = 'endorsement.deleted';
     
     case SOLO_GRANTED = 'solo.granted';
     case SOLO_EXTENDED = 'solo.extended';
@@ -48,7 +50,7 @@ enum ActivityAction: string
             self::WAITING_LIST_JOINED => 'Joined Waiting List',
             self::WAITING_LIST_LEFT => 'Left Waiting List',
             self::WAITING_LIST_ENTRY_CREATED => 'Create Waiting List Entry',
-      self::WAITING_LIST_ENTRY_DELETED => 'Deleted Waiting List Entry',
+            self::WAITING_LIST_ENTRY_DELETED => 'Deleted Waiting List Entry',
             
             self::TRAINING_STARTED => 'Training Started',
             self::COURSE_FINISHED => 'Course Finished',
@@ -56,6 +58,8 @@ enum ActivityAction: string
             self::ENDORSEMENT_TIER1_GRANTED => 'Tier 1 Endorsement Granted',
             self::ENDORSEMENT_TIER2_GRANTED => 'Tier 2 Endorsement Granted',
             self::ENDORSEMENT_REMOVED => 'Endorsement Removed',
+            self::ENDORSEMENT_NOTIFIED => 'Notified Removal',
+            self::ENDORSEMENT_DELETED => 'Endorsement Deleted',
             
             self::SOLO_GRANTED => 'Solo Endorsement Granted',
             self::SOLO_EXTENDED => 'Solo Endorsement Extended',
@@ -102,6 +106,7 @@ enum ActivityAction: string
             
             self::WAITING_LIST_LEFT,
             self::ENDORSEMENT_REMOVED,
+            self::ENDORSEMENT_DELETED,
             self::SOLO_REMOVED,
             self::TRAINEE_REMOVED,
             self::MENTOR_REMOVED,

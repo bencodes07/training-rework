@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\EndorsementActivity;
+use App\Services\ActivityLogger;
 use App\Services\VatEudService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -88,10 +89,6 @@ class RemoveEndorsements extends Command
     {
         $now = Carbon::now();
         
-        // Find endorsements ready for removal:
-        // - removal_date is set
-        // - removal_date has passed
-        // - notification was sent
         $endorsementsToRemove = EndorsementActivity::whereNotNull('removal_date')
             ->where('removal_date', '<', $now)
             ->where('removal_notified', true)
@@ -106,49 +103,39 @@ class RemoveEndorsements extends Command
 
         foreach ($endorsementsToRemove as $endorsement) {
             try {
-                // Get the tier1 endorsement from VatEUD to verify it still exists
                 $tier1Endorsements = $this->vatEudService->getTier1Endorsements();
                 $tier1Entry = collect($tier1Endorsements)->firstWhere('id', $endorsement->endorsement_id);
 
-                if (!$tier1Entry) {
-                    $this->warn("Endorsement {$endorsement->endorsement_id} not found in VatEUD, removing local record");
-                    $endorsement->delete();
-                    continue;
+                if ($tier1Entry) {
+                    $endorsement->activity_minutes = $tier1Entry['activity_minutes'] ?? $endorsement->activity_minutes;
                 }
-
-                // Double-check activity is still below threshold
+                
                 $minMinutes = config('services.vateud.min_activity_minutes', 180);
                 
                 if ($endorsement->activity_minutes >= $minMinutes) {
-                    $this->info("Endorsement {$endorsement->endorsement_id} now has sufficient activity ({$endorsement->activity_minutes} min), cancelling removal");
+                    $this->info("Endorsement {$endorsement->endorsement_id} now has sufficient activity, cancelling removal");
                     $endorsement->removal_date = null;
                     $endorsement->removal_notified = false;
                     $endorsement->save();
                     continue;
                 }
 
-                // Verify endorsement is still eligible for removal (>180 days old)
-                if (!$endorsement->isEligibleForRemoval()) {
-                    $this->info("Endorsement {$endorsement->endorsement_id} is no longer eligible for removal");
-                    $endorsement->removal_date = null;
-                    $endorsement->removal_notified = false;
-                    $endorsement->save();
-                    continue;
-                }
 
-                // Remove via VatEUD API
-                $success = true; //$this->vatEudService->removeTier1Endorsement($endorsement->endorsement_id);
+                $success = $this->vatEudService->removeTier1Endorsement($endorsement->endorsement_id);
 
                 if ($success) {
                     $this->info("✓ Removed endorsement {$endorsement->endorsement_id} ({$endorsement->position}) for user {$endorsement->vatsim_id}");
-                    
-                    Log::info('Endorsement removed', [
-                        'endorsement_id' => $endorsement->endorsement_id,
-                        'position' => $endorsement->position,
-                        'vatsim_id' => $endorsement->vatsim_id,
-                        'activity_minutes' => $endorsement->activity_minutes,
-                        'removal_date' => $endorsement->removal_date
-                    ]);
+
+                    ActivityLogger::log(
+                        'endorsement.deleted',
+                        $endorsement,
+                        "Removed endorsement $endorsement->position for $endorsement->vatsim_id",
+                        [
+                            'activity_minutes' => $endorsement->activity_minutes,
+                            'removal_date' => $endorsement->removal_date,
+                            'endorsement_id' => $endorsement->endorsement_id,
+                        ]
+                    );
 
                     $endorsement->delete();
                 } else {
@@ -193,6 +180,20 @@ class RemoveEndorsements extends Command
         $headers = [
             'Authorization' => "Token {$apiKey}",
         ];
+
+        $subject = \App\Models\User::where('vatsim_id', $endorsement->vatsim_id)->first();
+
+
+        ActivityLogger::log(
+            'endorsement.notified',
+            $subject,
+            "{$endorsement->vatsim_id} notified removal of {$endorsement->position} endorsement",
+            [
+                'activity_minutes' => $endorsement->activity_minutes,
+                'removal_date' => $endorsement->removal_date,
+                'endorsement_id' => $endorsement->endorsement_id,
+            ]
+        );
 
         $response = \Http::withHeaders($headers)
             ->post("https://vatsim-germany.org/api/user/{$endorsement->vatsim_id}/send_notification", $data);
