@@ -151,10 +151,6 @@ class CourseController extends Controller
             if ($entry) {
                 [$success, $message] = $this->waitingListService->leaveWaitingList($course, $user);
 
-                if ($success) {
-                    ActivityLogger::waitingListLeft($course, $user);
-                }
-
                 return back()->with('flash', [
                     'success' => $success,
                     'message' => $message,
@@ -168,8 +164,6 @@ class CourseController extends Controller
                         ->where('course_id', $course->id)
                         ->first();
 
-                    ActivityLogger::waitingListJoined($course, $user);
-
                     return back()->with('flash', [
                         'success' => true,
                         'message' => $message,
@@ -179,7 +173,7 @@ class CourseController extends Controller
                 } else {
                     return back()->with('flash', [
                         'success' => false,
-                        'message' => $message,
+                        'message' => 'An error occurred. Please try again.',
                         'action' => 'error'
                     ]);
                 }

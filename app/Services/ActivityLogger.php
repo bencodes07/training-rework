@@ -9,6 +9,9 @@ use Illuminate\Support\Facades\Request;
 
 class ActivityLogger
 {
+    /**
+     * Log an activity with basic information
+     */
     public static function log(
         string $action,
         ?Model $subject = null,
@@ -28,33 +31,110 @@ class ActivityLogger
         ]);
     }
 
-    public static function waitingListJoined(Model $course, Model $user): void
+    /**
+     * Log a model change with detailed before/after data
+     */
+    public static function logModelChange(
+        string $action,
+        Model $model,
+        ?Model $causer = null,
+        array $old = [],
+        array $new = []
+    ): ActivityLog {
+        $changes = self::getChanges($old, $new);
+
+        return self::log(
+            $action,
+            $model,
+            self::generateChangeDescription($action, $model, $changes, $causer),
+            [
+                'old' => $old,
+                'new' => $new,
+                'changes' => $changes,
+                'causer_type' => $causer ? get_class($causer) : null,
+                'causer_id' => $causer?->id,
+                'causer_name' => $causer?->name ?? null,
+            ],
+            $causer?->id
+        );
+    }
+
+    /**
+     * Calculate what changed between old and new data
+     */
+    protected static function getChanges(array $old, array $new): array
+    {
+        $changes = [];
+
+        foreach ($new as $key => $value) {
+            $oldValue = $old[$key] ?? null;
+
+            if ($oldValue != $value) {
+                $changes[$key] = [
+                    'old' => $oldValue,
+                    'new' => $value,
+                ];
+            }
+        }
+
+        return $changes;
+    }
+
+    /**
+     * Generate a human-readable description of changes
+     */
+    protected static function generateChangeDescription(string $action, Model $model, array $changes, ?Model $causer): string
+    {
+        $modelName = class_basename($model);
+        $userName = $causer?->name ?? Auth::user()?->name ?? 'System';
+
+        if (empty($changes)) {
+            return "{$userName} {$action} {$modelName} #{$model->id}";
+        }
+
+        $changedFields = implode(', ', array_keys($changes));
+        return "{$userName} {$action} {$modelName} #{$model->id} (changed: {$changedFields})";
+    }
+
+    /**
+     * Log waiting list joined - UPDATED to use WaitingListEntry as subject
+     */
+    public static function waitingListJoined(Model $waitingListEntry, Model $course, Model $user): void
     {
         self::log(
             'waiting_list.joined',
-            $course,
+            $waitingListEntry,
             "{$user->name} joined waiting list for {$course->name}",
             [
                 'course_id' => $course->id,
                 'course_name' => $course->name,
                 'user_id' => $user->id,
                 'user_name' => $user->name,
+                'position_in_queue' => $waitingListEntry->position_in_queue ?? null,
+                'activity' => $waitingListEntry->activity ?? 0,
+                'date_added' => $waitingListEntry->date_added?->toIso8601String(),
             ],
             $user->id
         );
     }
 
-    public static function waitingListLeft(Model $course, Model $user): void
+    /**
+     * Log waiting list left - UPDATED to use WaitingListEntry as subject
+     */
+    public static function waitingListLeft(Model $waitingListEntry, Model $course, Model $user): void
     {
         self::log(
             'waiting_list.left',
-            $course,
+            $waitingListEntry,
             "{$user->name} left waiting list for {$course->name}",
             [
                 'course_id' => $course->id,
                 'course_name' => $course->name,
                 'user_id' => $user->id,
                 'user_name' => $user->name,
+                'position_in_queue' => $waitingListEntry->position_in_queue ?? null,
+                'days_waited' => $waitingListEntry->date_added ? now()->diffInDays($waitingListEntry->date_added) : null,
+                'activity' => $waitingListEntry->activity ?? 0,
             ],
             $user->id
         );
@@ -332,9 +412,6 @@ class ActivityLogger
         );
     }
 
-    /**
-     * Log trainee added to course
-     */
     public static function traineeAddedToCourse(
         Model $course,
         Model $trainee,
@@ -359,9 +436,6 @@ class ActivityLogger
         );
     }
 
-    /**
-     * Log familiarisation added
-     */
     public static function familiarisationAdded(
         Model $trainee,
         string $sectorName,

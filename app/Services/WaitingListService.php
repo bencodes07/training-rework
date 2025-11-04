@@ -45,8 +45,8 @@ class WaitingListService
         }
 
         try {
-            DB::transaction(function () use ($course, $user) {
-                WaitingListEntry::create([
+            DB::transaction(function () use ($course, $user, &$createdEntry) {
+                $createdEntry = WaitingListEntry::create([
                     'user_id' => $user->id,
                     'course_id' => $course->id,
                     'date_added' => now(),
@@ -55,11 +55,9 @@ class WaitingListService
                 ]);
             });
 
-            Log::info('User joined waiting list', [
-                'user_id' => $user->id,
-                'course_id' => $course->id,
-                'course_name' => $course->name
-            ]);
+            if ($createdEntry) {
+                ActivityLogger::waitingListJoined($createdEntry, $course, $user);
+            }
 
             return [true, 'Successfully joined waiting list.'];
         } catch (\Exception $e) {
@@ -87,13 +85,9 @@ class WaitingListService
                 return [false, 'You are not on the waiting list for this course.'];
             }
 
-            $entry->delete();
+            ActivityLogger::waitingListLeft($entry, $course, $user);
 
-            Log::info('User left waiting list', [
-                'user_id' => $user->id,
-                'course_id' => $course->id,
-                'course_name' => $course->name
-            ]);
+            $entry->delete();
 
             return [true, 'Successfully left waiting list.'];
         } catch (\Exception $e) {

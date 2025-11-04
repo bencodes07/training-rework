@@ -2,48 +2,50 @@
 
 namespace App\Traits;
 
-use App\Models\ActivityLog;
+use App\Services\ActivityLogger;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Request;
 
 trait LogsActivity
 {
+    protected static $logActivityDisabled = false;
+
     public static function bootLogsActivity()
     {
         static::created(function ($model) {
-            $model->logActivity('created');
+            if (!self::$logActivityDisabled) {
+                $model->logActivity('created');
+            }
         });
 
         static::updated(function ($model) {
-            $model->logActivity('updated');
+            if (!self::$logActivityDisabled && $model->isDirty()) {
+                $model->logActivity('updated');
+            }
         });
 
         static::deleted(function ($model) {
-            $model->logActivity('deleted');
+            if (!self::$logActivityDisabled) {
+                $model->logActivity('deleted');
+            }
         });
     }
 
-    protected function logActivity(string $action, ?string $description = null, array $extraProperties = [])
+    protected function logActivity(string $action)
     {
         if (!$this->shouldLogActivity($action)) {
             return;
         }
 
-        $properties = array_merge([
-            'attributes' => $this->attributesToLog($action),
-            'old' => $action === 'updated' ? $this->getOriginal() : null,
-        ], $extraProperties);
+        $old = $action === 'updated' ? $this->getOriginal() : [];
+        $new = $action !== 'deleted' ? $this->getAttributes() : [];
 
-        ActivityLog::create([
-            'user_id' => Auth::id(),
-            'action' => $this->getActivityAction($action),
-            'model_type' => get_class($this),
-            'model_id' => $this->id,
-            'properties' => $properties,
-            'description' => $description ?? $this->getActivityDescription($action),
-            'ip_address' => Request::ip(),
-            'user_agent' => Request::userAgent(),
-        ]);
+        ActivityLogger::logModelChange(
+            $this->getActivityAction($action),
+            $this,
+            Auth::user(),
+            $old,
+            $new
+        );
     }
 
     protected function shouldLogActivity(string $action): bool
@@ -59,42 +61,22 @@ trait LogsActivity
         return true;
     }
 
-    protected function attributesToLog(string $action): array
-    {
-        $attributes = $this->getAttributes();
-
-        if (property_exists($this, 'logAttributes')) {
-            return array_intersect_key($attributes, array_flip($this->logAttributes));
-        }
-
-        if (property_exists($this, 'hidden')) {
-            return array_diff_key($attributes, array_flip($this->hidden));
-        }
-
-        return $attributes;
-    }
-
     protected function getActivityAction(string $action): string
     {
-        $modelName = class_basename($this);
-        return strtolower($modelName) . '.' . $action;
+        $modelName = strtolower(class_basename($this));
+        return "{$modelName}.{$action}";
     }
 
-    protected function getActivityDescription(string $action): string
+    public static function withoutLogging(callable $callback)
     {
-        $modelName = class_basename($this);
-        $userName = Auth::user()?->name ?? 'System';
-
-        return match($action) {
-            'created' => "{$userName} created {$modelName} #{$this->id}",
-            'updated' => "{$userName} updated {$modelName} #{$this->id}",
-            'deleted' => "{$userName} deleted {$modelName} #{$this->id}",
-            default => "{$userName} performed {$action} on {$modelName} #{$this->id}",
-        };
+        self::$logActivityDisabled = true;
+        $result = $callback();
+        self::$logActivityDisabled = false;
+        return $result;
     }
 
     public function activityLogs()
     {
-        return $this->morphMany(ActivityLog::class, 'model');
+        return $this->morphMany(\App\Models\ActivityLog::class, 'model');
     }
 }

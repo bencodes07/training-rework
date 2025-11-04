@@ -5,11 +5,9 @@ namespace App\Models;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use App\Traits\LogsActivity;
 
 class WaitingListEntry extends Model
 {
-    use LogsActivity;
     protected $fillable = [
         'user_id',
         'course_id',
@@ -24,8 +22,6 @@ class WaitingListEntry extends Model
         'activity' => 'float',
         'hours_updated' => 'datetime',
     ];
-
-    protected $logAttributes = ['user_id', 'course_id', 'activity', 'date_added'];
 
     public function user(): BelongsTo
     {
