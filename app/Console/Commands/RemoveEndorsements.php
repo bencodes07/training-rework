@@ -88,7 +88,7 @@ class RemoveEndorsements extends Command
     protected function processRemovals(): void
     {
         $now = Carbon::now();
-        
+
         $endorsementsToRemove = EndorsementActivity::whereNotNull('removal_date')
             ->where('removal_date', '<', $now)
             ->where('removal_notified', true)
@@ -106,20 +106,34 @@ class RemoveEndorsements extends Command
                 $tier1Endorsements = $this->vatEudService->getTier1Endorsements();
                 $tier1Entry = collect($tier1Endorsements)->firstWhere('id', $endorsement->endorsement_id);
 
-                if ($tier1Entry) {
-                    $endorsement->activity_minutes = $tier1Entry['activity_minutes'] ?? $endorsement->activity_minutes;
+                if (!$tier1Entry) {
+                    $this->warn("Endorsement {$endorsement->endorsement_id} not found in VatEUD, removing local record");
+                    $endorsement->delete();
+                    continue;
                 }
-                
+
+                $activityService = app(\App\Services\VatsimActivityService::class);
+                $activityData = $activityService->getEndorsementActivity($tier1Entry);
+                $currentActivityMinutes = $activityData['minutes'];
+
+                $this->info("Current activity for {$endorsement->position}: {$currentActivityMinutes} minutes (was: {$endorsement->activity_minutes})");
+
                 $minMinutes = config('services.vateud.min_activity_minutes', 180);
-                
-                if ($endorsement->activity_minutes >= $minMinutes) {
-                    $this->info("Endorsement {$endorsement->endorsement_id} now has sufficient activity, cancelling removal");
+
+                if ($currentActivityMinutes >= $minMinutes) {
+                    $this->info("Endorsement {$endorsement->endorsement_id} now has sufficient activity ({$currentActivityMinutes} min), cancelling removal");
+                    $endorsement->activity_minutes = $currentActivityMinutes;
+                    if ($activityData['last_activity_date']) {
+                        $endorsement->last_activity_date = $activityData['last_activity_date'];
+                    }
                     $endorsement->removal_date = null;
                     $endorsement->removal_notified = false;
                     $endorsement->save();
                     continue;
                 }
 
+                $traineeId = $endorsement->trainee_id;
+                $traineeName = $endorsement->trainee->name;
 
                 $success = $this->vatEudService->removeTier1Endorsement($endorsement->endorsement_id);
 
@@ -131,7 +145,7 @@ class RemoveEndorsements extends Command
                         $endorsement,
                         "Removed endorsement $endorsement->position for $endorsement->vatsim_id",
                         [
-                            'activity_minutes' => $endorsement->activity_minutes,
+                            'activity_minutes' => $currentActivityMinutes,
                             'removal_date' => $endorsement->removal_date,
                             'endorsement_id' => $endorsement->endorsement_id,
                         ]
