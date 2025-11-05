@@ -60,7 +60,7 @@ class WaitingListController extends Controller
                     'id' => $entry->id,
                     'name' => $entry->user->name,
                     'vatsim_id' => $entry->user->vatsim_id,
-                    'activity' => round($entry->activity, 1),
+                    'activity' => round($entry->activity, 2),
                     'waiting_time' => $entry->waiting_time,
                     'waiting_days' => $entry->date_added->diffInDays(now()),
                     'remarks' => $entry->remarks,

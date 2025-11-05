@@ -21,6 +21,7 @@ enum ActivityAction: string
     case SOLO_GRANTED = 'solo.granted';
     case SOLO_EXTENDED = 'solo.extended';
     case SOLO_REMOVED = 'solo.removed';
+    case CORE_TEST_ASSIGNED = 'core_test.assigned';
     
     case TRAINEE_CLAIMED = 'trainee.claimed';
     case TRAINEE_UNCLAIMED = 'trainee.unclaimed';
@@ -64,6 +65,7 @@ enum ActivityAction: string
             self::SOLO_GRANTED => 'Solo Endorsement Granted',
             self::SOLO_EXTENDED => 'Solo Endorsement Extended',
             self::SOLO_REMOVED => 'Solo Endorsement Removed',
+            self::CORE_TEST_ASSIGNED => 'Core Test Assigned',
             
             self::TRAINEE_CLAIMED => 'Trainee Claimed',
             self::TRAINEE_UNCLAIMED => 'Trainee Unclaimed',
@@ -102,7 +104,9 @@ enum ActivityAction: string
             self::TRAINEE_REACTIVATED,
             self::MENTOR_ADDED,
             self::FAMILIARISATION_ADDED,
+            self::CORE_TEST_ASSIGNED,
             self::CREATED => 'success',
+            
             
             self::WAITING_LIST_LEFT,
             self::ENDORSEMENT_REMOVED,

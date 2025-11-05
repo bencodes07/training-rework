@@ -66,7 +66,7 @@ export default function CourseCard({ course: initialCourse, onCourseUpdate, user
                                     Queue Position #{course.waiting_list_position}
                                     {course.waiting_list_activity !== undefined &&
                                         course.waiting_list_activity !== null &&
-                                        ` • ${course.waiting_list_activity.toFixed(1)}h activity`}
+                                        ` • ${course.waiting_list_activity.toFixed(2)}h activity`}
                                 </span>
                             </>
                         ) : course.can_join ? (
