@@ -47,14 +47,10 @@ class SyncWaitingListActivity extends Command
         }
     }
 
-    /**
-     * Update activities for entries that need updating (oldest first)
-     */
     protected function updateStaleActivities(): void
     {
         $limit = (int) $this->option('limit');
         
-        // Get RTG courses only, ordered by oldest hours_updated
         $entries = WaitingListEntry::whereHas('course', function ($query) {
             $query->where('type', 'RTG');
         })
@@ -74,9 +70,6 @@ class SyncWaitingListActivity extends Command
         }
     }
 
-    /**
-     * Update all waiting list activities
-     */
     protected function updateAllActivities(): void
     {
         $this->info("Force updating all RTG waiting list activities...");
@@ -112,9 +105,6 @@ class SyncWaitingListActivity extends Command
         $this->info("Completed updating {$processedCount} entries.");
     }
 
-    /**
-     * Update activity for a specific waiting list entry
-     */
     protected function updateEntryActivity(WaitingListEntry $entry): void
     {
         try {
@@ -126,10 +116,8 @@ class SyncWaitingListActivity extends Command
                 return;
             }
 
-            // Calculate required hours based on position
             $activityHours = $this->getActivityHours($course, $user);
 
-            // Update the entry
             $entry->activity = $activityHours;
             $entry->hours_updated = now();
             $entry->save();
@@ -145,18 +133,13 @@ class SyncWaitingListActivity extends Command
         }
     }
 
-    /**
-     * Get activity hours for a user based on course position
-     * This matches the Python logic from check_waiting_list.py
-     */
     protected function getActivityHours($course, $user): float
     {
         $airport = $course->airport_icao;
         $position = $course->position;
-        $fir = substr($course->mentorGroup->name, 0, 4); // Extract FIR from mentor group (e.g., "EDGG Mentor" -> "EDGG")
+        $fir = substr($course->mentorGroup->name, 0, 4);
 
-        // Get connections from last 60 days
-        $start = Carbon::now()->subDays(60)->format('Y-m-d');
+        $start = Carbon::now()->subDays(value: 60)->format(format: 'Y-m-d');
         $apiUrl = "https://stats.vatsim-germany.org/api/atc/{$user->vatsim_id}/sessions/?cid={$user->vatsim_id}&start_date={$start}";
 
         try {
@@ -191,12 +174,8 @@ class SyncWaitingListActivity extends Command
         }
     }
 
-    /**
-     * Calculate S1 Tower hours (for GND/TWR positions)
-     */
     protected function calculateS1TowerHours(array $connections, string $fir): float
     {
-        // Get S1 tower stations from datahub
         $url = "https://raw.githubusercontent.com/VATGER-Nav/datahub/refs/heads/production/api/{$fir}/twr.json";
         
         try {
@@ -208,7 +187,6 @@ class SyncWaitingListActivity extends Command
 
             $hub = $response->json();
             
-            // Filter for S1 tower stations (excluding I_ positions)
             $stations = collect($hub)
                 ->filter(function ($station) {
                     return isset($station['s1_twr']) 
@@ -218,7 +196,6 @@ class SyncWaitingListActivity extends Command
                 ->pluck('logon')
                 ->toArray();
 
-            // Calculate hours
             $totalMinutes = 0;
             foreach ($connections as $session) {
                 $callsign = $session['callsign'] ?? '';
@@ -242,17 +219,19 @@ class SyncWaitingListActivity extends Command
         }
     }
 
-    /**
-     * Calculate APP hours (based on TWR sessions) - UPDATED FOR NEW API
-     */
     protected function calculateAppHours(array $connections, string $airport): float
     {
         $totalMinutes = 0;
         
         foreach ($connections as $session) {
             $callsign = $session['callsign'] ?? '';
-            
-            if ($this->equalStr($callsign, "{$airport}_TWR")) {
+            $parts = explode('_', $callsign);
+
+            if (
+                count($parts) >= 2 &&
+                $parts[0] === $airport &&
+                end($parts) === 'TWR'
+            ) {
                 $totalMinutes += floatval($session['minutes_online'] ?? 0);
             }
         }
@@ -260,10 +239,6 @@ class SyncWaitingListActivity extends Command
         return $totalMinutes / 60;
     }
 
-    /**
-     * Check if two callsigns match (matching Python logic)
-     * Compares airport code and suffix, ignoring middle parts
-     */
     protected function equalStr(string $a, string $b): bool
     {
         $partsA = explode('_', $a);

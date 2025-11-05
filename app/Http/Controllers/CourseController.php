@@ -66,7 +66,9 @@ class CourseController extends Controller
                 ->where('user_id', $user->id)
                 ->get();
 
-            $userHasActiveRtgCourse = $user->activeRatingCourses()->exists() ||
+            $userHasActiveRtgCourse = $user->activeRatingCourses()
+                ->wherePivot('completed_at', null)
+                ->exists() ||
                 $user->waitingListEntries()->whereHas('course', function ($q) {
                     $q->where('type', 'RTG');
                 })->exists();
@@ -134,7 +136,6 @@ class CourseController extends Controller
             ]);
         }
 
-        // Check if user is signed up on Moodle
         if (!$this->moodleService->userExists($user->vatsim_id)) {
             return back()->with('flash', [
                 'success' => false,
@@ -210,15 +211,23 @@ class CourseController extends Controller
                 if ($course->type === 'RTG') return false;
             }
 
-            if ($course->type === 'RTG' && $user->activeRatingCourses()->exists()) {
-                return false;
+            if ($course->type === 'RTG') {
+                $hasActiveRtg = $user->activeRatingCourses()
+                    ->wherePivot('completed_at', null)
+                    ->exists();
+
+                if ($hasActiveRtg) {
+                    return false;
+                }
             }
 
             if ($user->rating === 3 && $course->type === 'RTG' && $course->position === 'APP') {
                 $minDays = config('services.training.s3_rating_change_days', 90);
-                if ($user->last_rating_change && 
-                    now()->diffInDays($user->last_rating_change) < $minDays) {
-                    return false;
+                if ($user->last_rating_change) {
+                    $daysSinceRatingChange = \Carbon\Carbon::parse($user->last_rating_change)->diffInDays(now());
+                    if ($daysSinceRatingChange < $minDays) {
+                        return false;
+                    }
                 }
             }
 

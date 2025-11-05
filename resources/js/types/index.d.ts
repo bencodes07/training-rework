@@ -52,4 +52,6 @@ export type Endorsement = {
     type: 'GNDDEL' | 'TWR' | 'APP' | 'CTR';
     expiresAt?: string;
     mentor?: string;
+    removalDate?: string;
+    lastUpdated?: string;
 };

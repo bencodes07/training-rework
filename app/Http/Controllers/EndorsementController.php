@@ -26,9 +26,6 @@ class EndorsementController extends Controller
         $this->activityService = $activityService;
     }
 
-    /**
-     * Show trainee endorsements view
-     */
     public function traineeView(Request $request): Response
     {
         $user = $request->user();
@@ -70,9 +67,6 @@ class EndorsementController extends Controller
         }
     }
 
-    /**
-     * Show mentor endorsements management view
-     */
     public function mentorView(Request $request): Response
     {
         $user = $request->user();
@@ -133,9 +127,6 @@ class EndorsementController extends Controller
         ]);
     }
 
-    /**
-     * Remove/mark for removal a Tier 1 endorsement
-     */
     public function removeTier1(Request $request, int $endorsementId)
     {
         $user = $request->user();
@@ -209,9 +200,6 @@ class EndorsementController extends Controller
         }
     }
 
-    /**
-     * Request a Tier 2 endorsement
-     */
     public function requestTier2(Request $request, int $tier2Id)
     {
         $user = $request->user();
@@ -299,6 +287,7 @@ class EndorsementController extends Controller
                 'progress' => $activity->progress,
                 'lastActivity' => $lastActivityDate,
                 'removalDate' => $activity->removal_date?->format('Y-m-d'),
+                'lastUpdated' => $activity->last_updated?->format('Y-m-d H:i'),
             ];
         }
 
