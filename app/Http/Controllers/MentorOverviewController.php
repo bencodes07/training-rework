@@ -1141,7 +1141,7 @@ class MentorOverviewController extends Controller
                         $sector->id,
                         $fir,
                         $mentor,
-                        $course->id,
+                        $course,
                         true
                     );
                 }
@@ -1176,7 +1176,7 @@ class MentorOverviewController extends Controller
                         $sector->id,
                         $sector->fir,
                         $mentor,
-                        $course->id,
+                        $course,
                         true
                     );
                 }

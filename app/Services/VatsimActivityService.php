@@ -40,7 +40,6 @@ class VatsimActivityService
                 $connections = $this->getVatsimConnections($vatsimId);
                 $result = $this->calculateActivity($endorsement, $connections);
 
-                // Return both minutes and last activity date
                 return $result;
                 
             } catch (\Exception $e) {

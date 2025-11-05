@@ -118,7 +118,6 @@ class SyncUserEndorsements extends Command
 
     /**
      * Update activity for a specific endorsement
-     * CRITICAL: Only updates activity data, NEVER automatically sets removal date
      */
     protected function updateEndorsementActivity(EndorsementActivity $endorsementActivity): void
     {
@@ -130,20 +129,16 @@ class SyncUserEndorsements extends Command
                 'position' => $endorsementActivity->position,
             ];
 
-            // Get both activity minutes and last activity date
             $activityResult = $this->activityService->getEndorsementActivity($endorsementData);
             $activityMinutes = $activityResult['minutes'] ?? 0;
             $lastActivityDate = $activityResult['last_activity_date'] ?? null;
 
             $minRequiredMinutes = config('services.vateud.min_activity_minutes', 180);
 
-            // Update activity
             $endorsementActivity->activity_minutes = $activityMinutes;
             $endorsementActivity->last_activity_date = $lastActivityDate;
             $endorsementActivity->last_updated = now();
 
-            // ONLY clear removal flags if activity recovered
-            // NEVER automatically set removal date - this is a manual mentor action
             if ($activityMinutes >= $minRequiredMinutes) {
                 if ($endorsementActivity->removal_date) {
                     $this->info("✓ Activity recovered, clearing removal date");
