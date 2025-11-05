@@ -5,23 +5,236 @@ namespace App\Http\Controllers;
 use App\Models\Course;
 use App\Models\User;
 use App\Services\VatEudService;
+use App\Services\MoodleService;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
-use App\Services\ActivityLogger;
 
 class SoloController extends Controller
 {
     protected VatEudService $vatEudService;
+    protected MoodleService $moodleService;
 
-    public function __construct(VatEudService $vatEudService)
+    public function __construct(VatEudService $vatEudService, MoodleService $moodleService)
     {
         $this->vatEudService = $vatEudService;
+        $this->moodleService = $moodleService;
     }
 
-    /**
-     * Add a solo endorsement for a trainee
-     */
+    private function checkMoodleCompletion(User $trainee, Course $course): array
+    {
+        if (empty($course->moodle_course_ids)) {
+            return ['completed' => true, 'details' => []];
+        }
+
+        try {
+            $allCompleted = true;
+            $details = [];
+
+            foreach ($course->moodle_course_ids as $moodleCourseId) {
+                $completed = $this->moodleService->getCourseCompletion(
+                    $trainee->vatsim_id,
+                    $moodleCourseId
+                );
+
+                $details[] = [
+                    'course_id' => $moodleCourseId,
+                    'completed' => $completed
+                ];
+
+                if (!$completed) {
+                    $allCompleted = false;
+                }
+            }
+
+            return [
+                'completed' => $allCompleted,
+                'details' => $details
+            ];
+        } catch (\Exception $e) {
+            Log::error('Failed to check Moodle completion for solo', [
+                'trainee_id' => $trainee->id,
+                'course_id' => $course->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return [
+                'completed' => false,
+                'error' => 'Unable to verify Moodle completion'
+            ];
+        }
+    }
+
+    private function checkCoreTheoryStatus(User $trainee, Course $course): array
+    {
+        try {
+            $coreTheoryIds = [
+                'GND' => 6,
+                'TWR' => 9,
+                'APP' => 10,
+                'CTR' => 11,
+            ];
+
+            if (!isset($coreTheoryIds[$course->position])) {
+                return [
+                    'status' => 'not_required',
+                    'message' => 'Core theory test not required for this position'
+                ];
+            }
+
+            $examId = $coreTheoryIds[$course->position];
+            $exams = $this->vatEudService->getUserExams($trainee->vatsim_id);
+
+            $passedExams = collect($exams['results'] ?? [])
+                ->where('exam_id', $examId)
+                ->where('passed', true)
+                ->filter(function ($exam) {
+                    $expiry = Carbon::parse($exam['expiry']);
+                    return $expiry->isFuture();
+                });
+
+            if ($passedExams->isNotEmpty()) {
+                return [
+                    'status' => 'passed',
+                    'exam_id' => $examId
+                ];
+            }
+
+            $assignments = collect($exams['assignments'] ?? [])
+                ->where('exam_id', $examId)
+                ->filter(function ($assignment) {
+                    $expires = Carbon::parse($assignment['expires']);
+                    return $expires->isFuture();
+                });
+
+            if ($assignments->isNotEmpty()) {
+                return [
+                    'status' => 'assigned',
+                    'exam_id' => $examId
+                ];
+            }
+
+            return [
+                'status' => 'not_assigned',
+                'exam_id' => $examId
+            ];
+        } catch (\Exception $e) {
+            Log::error('Failed to check core theory status for solo', [
+                'trainee_id' => $trainee->id,
+                'course_id' => $course->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return [
+                'status' => 'error',
+                'message' => 'Unable to verify core theory test status'
+            ];
+        }
+    }
+
+    public function getSoloRequirements(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user->isMentor() && !$user->is_superuser) {
+            return response()->json(['error' => 'Access denied'], 403);
+        }
+
+        $request->validate([
+            'trainee_id' => 'required|integer|exists:users,id',
+            'course_id' => 'required|integer|exists:courses,id',
+        ]);
+
+        $trainee = User::findOrFail($request->trainee_id);
+        $course = Course::findOrFail($request->course_id);
+
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
+            return response()->json(['error' => 'Access denied'], 403);
+        }
+
+        $moodleStatus = $this->checkMoodleCompletion($trainee, $course);
+        $coreTheoryStatus = $this->checkCoreTheoryStatus($trainee, $course);
+
+        return response()->json([
+            'moodle' => $moodleStatus,
+            'core_theory' => $coreTheoryStatus,
+            'can_grant_solo' => $moodleStatus['completed'] &&
+                in_array($coreTheoryStatus['status'], ['passed', 'not_required'])
+        ]);
+    }
+
+    public function assignCoreTest(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user->isMentor() && !$user->is_superuser) {
+            return response()->json(['error' => 'Access denied'], 403);
+        }
+
+        $request->validate([
+            'trainee_id' => 'required|integer|exists:users,id',
+            'course_id' => 'required|integer|exists:courses,id',
+        ]);
+
+        $trainee = User::findOrFail($request->trainee_id);
+        $course = Course::findOrFail($request->course_id);
+
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
+            return response()->json(['error' => 'Access denied'], 403);
+        }
+
+        try {
+            $coreTheoryStatus = $this->checkCoreTheoryStatus($trainee, $course);
+
+            if ($coreTheoryStatus['status'] === 'not_required') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Core theory test not required for this position'
+                ]);
+            }
+
+            if ($coreTheoryStatus['status'] !== 'not_assigned') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Core theory test already assigned or passed'
+                ]);
+            }
+
+            $result = $this->vatEudService->assignCoreTheoryTest(
+                $trainee->vatsim_id,
+                $coreTheoryStatus['exam_id'],
+                $user->vatsim_id
+            );
+
+            if ($result['success']) {
+                ActivityLogger::coreTestAssigned($trainee, $course, $user);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Core theory test assigned successfully'
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'] ?? 'Failed to assign core theory test'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error assigning core theory test', [
+                'mentor_id' => $user->id,
+                'trainee_id' => $trainee->id,
+                'course_id' => $course->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while assigning the core theory test'
+            ], 500);
+        }
+    }
+
     public function addSolo(Request $request)
     {
         $user = $request->user();
@@ -39,22 +252,28 @@ class SoloController extends Controller
         $trainee = User::findOrFail($request->trainee_id);
         $course = Course::findOrFail($request->course_id);
 
-        // Check if user can mentor this course
         if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
             return back()->withErrors(['error' => 'You cannot manage this course']);
         }
 
-        // Verify course type is RTG
         if ($course->type !== 'RTG') {
             return back()->withErrors(['error' => 'Solo endorsements can only be granted for rating courses']);
         }
 
-        // Verify course has solo station configured
         if (empty($course->solo_station)) {
             return back()->withErrors(['error' => 'This course does not have a solo station configured']);
         }
 
-        // Validate expiry date is not more than 31 days in the future
+        $moodleStatus = $this->checkMoodleCompletion($trainee, $course);
+        if (!$moodleStatus['completed']) {
+            return back()->withErrors(['error' => 'Trainee has not completed all required Moodle courses']);
+        }
+
+        $coreTheoryStatus = $this->checkCoreTheoryStatus($trainee, $course);
+        if (!in_array($coreTheoryStatus['status'], ['passed', 'not_required'])) {
+            return back()->withErrors(['error' => 'Trainee has not passed the required core theory test']);
+        }
+
         $expiryDate = Carbon::parse($request->expiry_date);
         $maxDate = Carbon::now()->addDays(31);
 
@@ -62,7 +281,6 @@ class SoloController extends Controller
             return back()->withErrors(['error' => 'Solo endorsement cannot exceed 31 days']);
         }
 
-        // Check if trainee already has a solo for this position
         $existingSolos = $this->vatEudService->getSoloEndorsements();
         $hasSolo = collect($existingSolos)->first(function ($solo) use ($trainee, $course) {
             return $solo['user_cid'] == $trainee->vatsim_id && 
@@ -74,7 +292,6 @@ class SoloController extends Controller
         }
 
         try {
-            // Format the expiry date with time
             $expiryDateTime = $expiryDate->setTime(23, 59, 0);
             $formattedExpiry = $expiryDateTime->format('Y-m-d\TH:i:s.v\Z');
 
@@ -86,9 +303,7 @@ class SoloController extends Controller
             );
 
             if ($result['success']) {
-                // Refresh cached endorsements
                 $this->vatEudService->refreshEndorsementCache();
-
                 ActivityLogger::soloGranted($course->solo_station, $trainee, $user, $formattedExpiry);
 
                 return back()->with('success', "Successfully granted solo endorsement for {$course->solo_station} to {$trainee->name}");
@@ -109,9 +324,6 @@ class SoloController extends Controller
         }
     }
 
-    /**
-     * Extend a solo endorsement for a trainee
-     */
     public function extendSolo(Request $request)
     {
         $user = $request->user();
@@ -129,12 +341,10 @@ class SoloController extends Controller
         $trainee = User::findOrFail($request->trainee_id);
         $course = Course::findOrFail($request->course_id);
 
-        // Check if user can mentor this course
         if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
             return back()->withErrors(['error' => 'You cannot manage this course']);
         }
 
-        // Validate expiry date is not more than 31 days in the future
         $expiryDate = Carbon::parse($request->expiry_date);
         $maxDate = Carbon::now()->addDays(31);
 
@@ -143,7 +353,6 @@ class SoloController extends Controller
         }
 
         try {
-            // Find the existing solo
             $existingSolos = $this->vatEudService->getSoloEndorsements();
             $solo = collect($existingSolos)->first(function ($s) use ($trainee, $course) {
                 return $s['user_cid'] == $trainee->vatsim_id && 
@@ -154,10 +363,8 @@ class SoloController extends Controller
                 return back()->withErrors(['error' => 'No solo endorsement found for this trainee and position']);
             }
 
-            // Remove the old solo
             $this->vatEudService->removeSoloEndorsement($solo['id']);
 
-            // Create new solo with extended date
             $expiryDateTime = $expiryDate->setTime(23, 59, 0);
             $formattedExpiry = $expiryDateTime->format('Y-m-d\TH:i:s.v\Z');
 
@@ -169,9 +376,7 @@ class SoloController extends Controller
             );
 
             if ($result['success']) {
-                // Refresh cached endorsements
                 $this->vatEudService->refreshEndorsementCache();
-
                 ActivityLogger::soloExtended($course->solo_station, $trainee, $user, $formattedExpiry);
 
                 return back()->with('success', "Successfully extended solo endorsement for {$trainee->name}");
@@ -191,9 +396,6 @@ class SoloController extends Controller
         }
     }
 
-    /**
-     * Remove a solo endorsement
-     */
     public function removeSolo(Request $request)
     {
         $user = $request->user();
@@ -210,13 +412,11 @@ class SoloController extends Controller
         $trainee = User::findOrFail($request->trainee_id);
         $course = Course::findOrFail($request->course_id);
 
-        // Check if user can mentor this course
         if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
             return back()->withErrors(['error' => 'You cannot manage this course']);
         }
 
         try {
-            // Find the existing solo
             $existingSolos = $this->vatEudService->getSoloEndorsements();
             $solo = collect($existingSolos)->first(function ($s) use ($trainee, $course) {
                 return $s['user_cid'] == $trainee->vatsim_id && 
@@ -231,7 +431,6 @@ class SoloController extends Controller
 
             if ($success) {
                 $this->vatEudService->refreshEndorsementCache();
-
                 ActivityLogger::soloRemoved($course->solo_station, $trainee, $user);
 
                 return back()->with('success', "Successfully removed solo endorsement for {$trainee->name}");

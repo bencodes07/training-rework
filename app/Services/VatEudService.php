@@ -591,4 +591,140 @@ class VatEudService
             ]
         ];
     }
+
+    /**
+     * Get user exam results and assignments from VatEUD
+     */
+    public function getUserExams(int $vatsimId): array
+    {
+        if (config('services.vateud.use_mock', false)) {
+            return $this->getMockExamData($vatsimId);
+        }
+
+        try {
+            $response = Http::withHeaders($this->headers)
+                ->timeout(10)
+                ->get("{$this->baseUrl}/facility/user/{$vatsimId}/exams");
+
+            if (!$response->successful()) {
+                Log::error('Failed to fetch user exams', [
+                    'vatsim_id' => $vatsimId,
+                    'status' => $response->status(),
+                    'body' => $response->body()
+                ]);
+                return ['results' => [], 'assignments' => []];
+            }
+
+            $data = $response->json();
+
+            if (isset($data['data'])) {
+                return $data['data'];
+            } elseif (isset($data['results']) || isset($data['assignments'])) {
+                return $data;
+            }
+
+            return ['results' => [], 'assignments' => []];
+        } catch (\Exception $e) {
+            Log::error('Error fetching user exams', [
+                'vatsim_id' => $vatsimId,
+                'error' => $e->getMessage()
+            ]);
+            return ['results' => [], 'assignments' => []];
+        }
+    }
+
+    /**
+     * Assign core theory test to a trainee
+     */
+    public function assignCoreTheoryTest(int $vatsimId, int $examId, int $instructorId): array
+    {
+        if (config('services.vateud.use_mock', false)) {
+            Log::info('Mock: Assigning core theory test', [
+                'vatsim_id' => $vatsimId,
+                'exam_id' => $examId,
+                'instructor_id' => $instructorId,
+            ]);
+            return ['success' => true, 'message' => 'Test assigned (mock)'];
+        }
+
+        try {
+            Log::info('Assigning core theory test', [
+                'vatsim_id' => $vatsimId,
+                'exam_id' => $examId,
+                'instructor_id' => $instructorId,
+            ]);
+
+            $response = Http::withHeaders($this->headers)
+                ->timeout(10)
+                ->post("{$this->baseUrl}/facility/training/exams/assign", [
+                    'user_cid' => $vatsimId,
+                    'exam_id' => $examId,
+                    'instructor_cid' => config('services.vateud.atd_lead_cid', 1439797),
+                ]);
+
+            if ($response->successful()) {
+                Log::info('Core theory test assigned successfully', [
+                    'vatsim_id' => $vatsimId,
+                    'exam_id' => $examId,
+                ]);
+
+                return [
+                    'success' => true,
+                    'message' => 'Core theory test assigned successfully'
+                ];
+            }
+
+            $errorMessage = $response->json()['message'] ?? 'Failed to assign test';
+
+            Log::error('Failed to assign core theory test', [
+                'vatsim_id' => $vatsimId,
+                'exam_id' => $examId,
+                'status' => $response->status(),
+                'error' => $errorMessage,
+                'body' => $response->body(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $errorMessage
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Exception assigning core theory test', [
+                'vatsim_id' => $vatsimId,
+                'exam_id' => $examId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return [
+                'success' => false,
+                'message' => 'An error occurred while assigning the test'
+            ];
+        }
+    }
+
+    /**
+     * Mock exam data for development/testing
+     */
+    protected function getMockExamData(int $vatsimId): array
+    {
+        return [
+            'results' => [
+                [
+                    'exam_id' => 9,
+                    'passed' => true,
+                    'expiry' => '2026-12-31T23:59:59.000000Z',
+                    'taken_at' => '2025-01-15T10:00:00.000000Z',
+                ]
+            ],
+            'assignments' => [
+                [
+                    'exam_id' => 10,
+                    'expires' => '2025-12-31T23:59:59.000000Z',
+                    'assigned_at' => '2025-10-01T10:00:00.000000Z',
+                ]
+            ]
+        ];
+    }
 }

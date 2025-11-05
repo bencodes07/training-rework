@@ -75,6 +75,8 @@ return [
         'overview.add-solo',
         'overview.extend-solo',
         'overview.remove-solo',
+        'overview.get-solo-requirements',
+        'overview.assign-core-test',
 
         'training-logs.store',
         'training-logs.index',

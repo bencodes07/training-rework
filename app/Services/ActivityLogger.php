@@ -474,4 +474,26 @@ class ActivityLogger
             $mentor->id
         );
     }
+
+    /**
+     * Log core theory test assignment
+     */
+    public static function coreTestAssigned(Model $trainee, Model $course, Model $mentor): void
+    {
+        self::log(
+            'core_test.assigned',
+            $trainee,
+            "{$mentor->name} assigned core theory test for {$course->position} to {$trainee->name}",
+            [
+                'trainee_id' => $trainee->id,
+                'trainee_name' => $trainee->name,
+                'course_id' => $course->id,
+                'course_name' => $course->name,
+                'position' => $course->position,
+                'mentor_id' => $mentor->id,
+                'mentor_name' => $mentor->name,
+            ],
+            $mentor->id
+        );
+    }
 }

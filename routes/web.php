@@ -117,6 +117,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/solo/add', [SoloController::class, 'addSolo'])->name('add-solo');
             Route::post('/solo/extend', [SoloController::class, 'extendSolo'])->name('extend-solo');
             Route::post('/solo/remove', [SoloController::class, 'removeSolo'])->name('remove-solo');
+            Route::post('/solo/requirements', [SoloController::class, 'getSoloRequirements'])
+                ->name('get-solo-requirements');
+            Route::post('/solo/assign-test', [SoloController::class, 'assignCoreTest'])
+                ->name('assign-core-test');
         });
     });
 
