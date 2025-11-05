@@ -157,6 +157,7 @@ class SoloController extends Controller
         $coreTheoryStatus = $this->checkCoreTheoryStatus($trainee, $course);
 
         return response()->json([
+            'trainee_id' => $trainee->id,
             'moodle' => $moodleStatus,
             'core_theory' => $coreTheoryStatus,
             'can_grant_solo' => $moodleStatus['completed'] &&
@@ -209,7 +210,6 @@ class SoloController extends Controller
 
             if ($result['success']) {
                 ActivityLogger::coreTestAssigned($trainee, $course, $user);
-
                 return response()->json([
                     'success' => true,
                     'message' => 'Core theory test assigned successfully'

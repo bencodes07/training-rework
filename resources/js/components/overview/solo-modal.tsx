@@ -1,12 +1,5 @@
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -14,6 +7,7 @@ import { Trainee } from '@/types/mentor';
 import { router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import { Loader2, AlertCircle, Clock, Calendar, Info, Trash, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import axios from 'axios';
 
 interface SoloModalProps {
     trainee: Trainee | null;
@@ -23,6 +17,7 @@ interface SoloModalProps {
 }
 
 interface RequirementsStatus {
+    trainee_id?: number;
     moodle: {
         completed: boolean;
         details?: Array<{ course_id: number; completed: boolean }>;
@@ -57,7 +52,7 @@ export function SoloModal({ trainee, courseId, isOpen, onClose }: SoloModalProps
             setRequirementsError(null);
 
             if (!trainee.soloStatus) {
-                fetchRequirements();
+                setRequirements(null);
             }
         }
     }, [isOpen, trainee]);
@@ -72,42 +67,16 @@ export function SoloModal({ trainee, courseId, isOpen, onClose }: SoloModalProps
         setRequirementsError(null);
 
         try {
-            console.log('Fetching requirements for:', { trainee_id: trainee.id, course_id: courseId });
-
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-            if (!csrfToken) {
-                throw new Error('CSRF token not found');
-            }
-
-            const response = await fetch(route('overview.get-solo-requirements'), {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    Accept: 'application/json',
-                },
-                body: JSON.stringify({
-                    trainee_id: trainee.id,
-                    course_id: courseId,
-                }),
+            const response = await axios.post(route('overview.get-solo-requirements'), {
+                trainee_id: trainee.id,
+                course_id: courseId,
             });
 
-            console.log('Requirements response status:', response.status);
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                console.error('Requirements fetch failed:', errorData);
-                throw new Error(errorData.error || `Server error: ${response.status}`);
-            }
-
-            const data = await response.json();
-            console.log('Requirements data received:', data);
-
-            setRequirements(data);
+            setRequirements(response.data);
             setRequirementsError(null);
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error fetching requirements:', err);
-            const errorMessage = err instanceof Error ? err.message : 'Failed to load requirements';
+            const errorMessage = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to load requirements';
             setRequirementsError(errorMessage);
 
             setRequirements({
@@ -127,37 +96,19 @@ export function SoloModal({ trainee, courseId, isOpen, onClose }: SoloModalProps
         setError(null);
 
         try {
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-            if (!csrfToken) {
-                throw new Error('CSRF token not found');
-            }
-
-            console.log('Assigning core test for:', { trainee_id: trainee.id, course_id: courseId });
-
-            const response = await fetch(route('overview.assign-core-test'), {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    Accept: 'application/json',
-                },
-                body: JSON.stringify({
-                    trainee_id: trainee.id,
-                    course_id: courseId,
-                }),
+            const response = await axios.post(route('overview.assign-core-test'), {
+                trainee_id: trainee.id,
+                course_id: courseId,
             });
 
-            const data = await response.json();
-            console.log('Assign test response:', data);
-
-            if (response.ok && data.success) {
+            if (response.data.success) {
                 await fetchRequirements();
             } else {
-                setError(data.message || 'Failed to assign core theory test');
+                setError(response.data.message || 'Failed to assign core theory test');
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error assigning core test:', err);
-            setError('An error occurred while assigning the core theory test');
+            setError(err.response?.data?.message || err.response?.data?.error || 'An error occurred while assigning the core theory test');
         } finally {
             setIsAssigningTest(false);
         }

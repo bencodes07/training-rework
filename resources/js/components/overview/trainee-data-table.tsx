@@ -447,7 +447,7 @@ export function TraineeDataTable({ trainees, course, onRemarkClick, onClaimClick
                                 ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
                                 : trainee.soloStatus.remaining < 20
                                   ? 'border-yellow-200 bg-yellow-50 text-yellow-700 hover:bg-yellow-100'
-                                  : 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
+                                  : 'border border-green-200 bg-green-200 text-green-700 shadow-xs hover:bg-green-100 hover:text-green-700'
                         }
                     >
                         <Clock className="mr-1 h-3 w-3" />
