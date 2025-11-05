@@ -26,12 +26,10 @@ const getStatusColor = (course: Course) => {
 export default function CourseCard({ course: initialCourse, onCourseUpdate, userHasActiveRtgCourse = false }: CourseCardProps) {
     const [course, setCourse] = useState(initialCourse);
 
-    // Update local state when props change (for page refreshes)
     useEffect(() => {
         setCourse(initialCourse);
     }, [initialCourse]);
 
-    // Handle course updates from the button component
     const handleCourseUpdate = (courseId: number, updates: Partial<Course>) => {
         setCourse((prev) => ({ ...prev, ...updates }));
         onCourseUpdate?.(courseId, updates);
@@ -60,7 +58,6 @@ export default function CourseCard({ course: initialCourse, onCourseUpdate, user
                 {course.description && <p className="pt-0 text-sm text-muted-foreground">{course.description}</p>}
 
                 <div className="space-y-3">
-                    {/* Status Indicator */}
                     <div className={cn('flex items-center gap-2 text-sm font-medium', getStatusColor(course))}>
                         {course.is_on_waiting_list ? (
                             <>
@@ -69,7 +66,7 @@ export default function CourseCard({ course: initialCourse, onCourseUpdate, user
                                     Queue Position #{course.waiting_list_position}
                                     {course.waiting_list_activity !== undefined &&
                                         course.waiting_list_activity !== null &&
-                                        ` • ${course.waiting_list_activity}h activity`}
+                                        ` • ${course.waiting_list_activity.toFixed(1)}h activity`}
                                 </span>
                             </>
                         ) : course.can_join ? (
