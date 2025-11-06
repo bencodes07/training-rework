@@ -1,8 +1,7 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, XCircle, Calendar, Clock, Eye, Loader2, FileText } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { CheckCircle, XCircle, Calendar, Clock, Eye, FileText } from 'lucide-react';
 import { Link } from '@inertiajs/react';
 import { cn } from '@/lib/utils';
 
@@ -13,22 +12,26 @@ interface TrainingLog {
     type: string;
     type_display: string;
     result: boolean;
-    average_rating: number | null;
-    session_duration: number | null;
-    next_step: string | null;
-    final_comment: string | null;
-    mentor: {
-        id: number;
-        name: string;
-    };
+    average_rating: number;
+    next_step: string;
+    session_duration: string;
+    mentor_name: string;
 }
 
 interface Course {
     id: number;
     name: string;
     trainee_display_name: string;
+    type: string;
+    type_display?: string;
+    position: string;
+    position_display: string;
+    airport_icao: string;
+    claimed_by: string | null;
+    completed_at?: string;
+    recent_logs: TrainingLog[];
+    all_logs?: TrainingLog[];
 }
-
 interface CourseLogsModalProps {
     course: Course | null;
     isOpen: boolean;
@@ -49,33 +52,9 @@ const getSessionTypeColor = (type: string) => {
 };
 
 export function CourseLogsModal({ course, isOpen, onClose }: CourseLogsModalProps) {
-    const [logs, setLogs] = useState<TrainingLog[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-
-    useEffect(() => {
-        const fetchLogs = async () => {
-            if (!course || !isOpen) return;
-
-            setIsLoading(true);
-            try {
-                const response = await fetch(route('api.training-logs.course', course.id));
-                if (response.ok) {
-                    const data = await response.json();
-                    setLogs(data.logs || []);
-                }
-            } catch (error) {
-                console.error('Failed to fetch training logs:', error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        if (isOpen && course) {
-            fetchLogs();
-        }
-    }, [isOpen, course]);
-
     if (!course) return null;
+
+    const logs = course.all_logs || [];
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -86,17 +65,11 @@ export function CourseLogsModal({ course, isOpen, onClose }: CourseLogsModalProp
                 </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto pr-2">
-                    {isLoading ? (
-                        <div className="flex items-center justify-center py-12">
-                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                        </div>
-                    ) : logs.length === 0 ? (
+                    {logs.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-12 text-center">
                             <FileText className="mb-4 h-12 w-12 text-muted-foreground" />
                             <h3 className="mb-2 text-lg font-medium">No training logs yet</h3>
-                            <p className="text-sm text-muted-foreground">
-                                Training logs will appear here once your mentor creates them.
-                            </p>
+                            <p className="text-sm text-muted-foreground">Training logs will appear here once your mentor creates them.</p>
                         </div>
                     ) : (
                         <div className="relative space-y-6 pl-8 before:absolute before:top-0 before:bottom-0 before:left-4 before:w-0.5 before:bg-border">
@@ -130,9 +103,7 @@ export function CourseLogsModal({ course, isOpen, onClose }: CourseLogsModalProp
                                                         )}
                                                     </Badge>
                                                     {log.average_rating !== null && log.average_rating > 0 && (
-                                                        <Badge variant="secondary">
-                                                            Avg: {log.average_rating.toFixed(1)}/4
-                                                        </Badge>
+                                                        <Badge variant="secondary">Avg: {log.average_rating.toFixed(1)}/4</Badge>
                                                     )}
                                                 </div>
                                                 <h4 className="font-monospace font-semibold">{log.position}</h4>
@@ -163,7 +134,7 @@ export function CourseLogsModal({ course, isOpen, onClose }: CourseLogsModalProp
                                             </div>
                                         )}
 
-                                        <div className="mt-3 text-xs text-muted-foreground">Mentor: {log.mentor.name}</div>
+                                        <div className="mt-3 text-xs text-muted-foreground">Mentor: {log.mentor_name ?? 'Unknown'}</div>
                                     </div>
                                 </div>
                             ))}

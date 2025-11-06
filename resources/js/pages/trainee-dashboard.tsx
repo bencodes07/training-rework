@@ -1,11 +1,12 @@
 import { CourseLogsModal } from '@/components/dashboard/course-logs-modal';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import { BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/react';
-import { BookOpen, Calendar, CheckCircle, ExternalLink, Eye, GraduationCap, MapPin } from 'lucide-react';
+import { BookOpen, Calendar, CheckCircle, ExternalLink, Eye, GraduationCap, Map, MapPin } from 'lucide-react';
 import { useState } from 'react';
 
 interface TrainingLog {
@@ -31,6 +32,7 @@ interface Course {
     claimed_by: string | null;
     completed_at?: string;
     recent_logs: TrainingLog[];
+    all_logs?: TrainingLog[];
 }
 
 interface MoodleCourse {
@@ -78,11 +80,11 @@ const getTypeColor = (type: string) => {
 };
 
 const breadcrumbs: BreadcrumbItem[] = [
-        {
-            title: 'Dashboard',
-            href: route('dashboard'),
-        },
-    ];
+    {
+        title: 'Dashboard',
+        href: route('dashboard'),
+    },
+];
 
 export default function TraineeDashboard(props: Props) {
     // Destructure with defaults
@@ -141,175 +143,210 @@ export default function TraineeDashboard(props: Props) {
 
                 {/* Active Courses */}
                 {activeCourses && activeCourses.length > 0 && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <div className="rounded-full bg-primary/10 p-2">
-                                    <BookOpen className="h-5 w-5 text-primary" />
-                                </div>
-                                Active Courses
-                            </CardTitle>
-                            <CardDescription>Your current training courses</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="grid gap-4 md:grid-cols-2">
-                                {activeCourses.map((course) => (
-                                    <Card key={course.id} className="transition-shadow hover:shadow-md">
-                                        <CardHeader className="pb-3">
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div className="flex-1">
-                                                    <CardTitle className="text-lg">{course.trainee_display_name}</CardTitle>
-                                                    <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-                                                        <MapPin className="h-3 w-3" />
-                                                        {course.airport_icao}
-                                                    </div>
-                                                </div>
-                                                <div className="flex flex-col gap-1">
-                                                    <Badge variant="outline" className={getTypeColor(course.type)}>
-                                                        {course.type_display}
-                                                    </Badge>
-                                                    <Badge variant="secondary" className="justify-center">
-                                                        {course.position_display}
-                                                    </Badge>
-                                                </div>
+                    <Accordion type="single" collapsible defaultValue="active-courses">
+                        <AccordionItem value="active-courses">
+                            <Card className="py-0">
+                                <CardHeader className="gap-0 px-0 py-2">
+                                    <AccordionTrigger className="w-full p-4 hover:no-underline [&[data-state=open]>div>svg]:rotate-180">
+                                        <div className="flex items-center gap-2">
+                                            <div className="rounded-full bg-primary/10 p-2">
+                                                <BookOpen className="h-5 w-5 text-primary" />
                                             </div>
-                                        </CardHeader>
-                                        <CardContent className="space-y-3">
-                                            {course.claimed_by && (
-                                                <div className="text-sm">
-                                                    <span className="text-muted-foreground">Mentor: </span>
-                                                    <span className="font-medium">{course.claimed_by}</span>
-                                                </div>
-                                            )}
-                                            {course.recent_logs && course.recent_logs.length > 0 && (
-                                                <div className="space-y-2">
-                                                    <div className="text-sm font-medium">Recent Sessions</div>
-                                                    <div className="space-y-1">
-                                                        {course.recent_logs.map((log) => (
-                                                            <div
-                                                                key={log.id}
-                                                                className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 text-sm"
-                                                            >
-                                                                <div className="flex items-center gap-2">
-                                                                    {log.result ? (
-                                                                        <CheckCircle className="h-4 w-4 text-green-600" />
-                                                                    ) : (
-                                                                        <div className="h-4 w-4 rounded-full border-2 border-red-600" />
-                                                                    )}
-                                                                    <span className="font-mono text-xs">{log.position}</span>
-                                                                    <span className="text-muted-foreground">•</span>
-                                                                    <span className="text-muted-foreground">
-                                                                        {new Date(log.session_date).toLocaleDateString()}
-                                                                    </span>
+                                            <div className="text-left">
+                                                <CardTitle>Active Courses</CardTitle>
+                                                <CardDescription>Your current training courses</CardDescription>
+                                            </div>
+                                        </div>
+                                    </AccordionTrigger>
+                                </CardHeader>
+
+                                <AccordionContent>
+                                    <CardContent>
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            {activeCourses.map((course) => (
+                                                <Card key={course.id} className="transition-shadow hover:shadow-md">
+                                                    <CardHeader className="pb-3">
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="flex-1">
+                                                                <CardTitle className="text-lg">{course.trainee_display_name}</CardTitle>
+                                                                <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+                                                                    <MapPin className="h-3 w-3" />
+                                                                    {course.airport_icao}
                                                                 </div>
                                                             </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                            <Button variant="outline" size="sm" className="w-full" onClick={() => handleViewLogs(course)}>
-                                                <Eye className="mr-2 h-4 w-4" />
-                                                View All Logs
-                                            </Button>
-                                        </CardContent>
-                                    </Card>
-                                ))}
-                            </div>
-                        </CardContent>
-                    </Card>
+                                                            <div className="flex flex-col gap-1">
+                                                                <Badge variant="outline" className={getTypeColor(course.type)}>
+                                                                    {course.type_display}
+                                                                </Badge>
+                                                                <Badge variant="secondary" className="justify-center">
+                                                                    {course.position_display}
+                                                                </Badge>
+                                                            </div>
+                                                        </div>
+                                                    </CardHeader>
+                                                    <CardContent className="space-y-3">
+                                                        {course.claimed_by && (
+                                                            <div className="text-sm">
+                                                                <span className="text-muted-foreground">Mentor: </span>
+                                                                <span className="font-medium">{course.claimed_by}</span>
+                                                            </div>
+                                                        )}
+                                                        {course.recent_logs && course.recent_logs.length > 0 && (
+                                                            <div className="space-y-2">
+                                                                <div className="text-sm font-medium">Recent Sessions</div>
+                                                                <div className="space-y-1">
+                                                                    {course.recent_logs.map((log) => (
+                                                                        <div
+                                                                            key={log.id}
+                                                                            className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 text-sm"
+                                                                        >
+                                                                            <div className="flex items-center gap-2">
+                                                                                {log.result ? (
+                                                                                    <CheckCircle className="h-4 w-4 text-green-600" />
+                                                                                ) : (
+                                                                                    <div className="h-4 w-4 rounded-full border-2 border-red-600" />
+                                                                                )}
+                                                                                <span className="font-mono text-xs">{log.position}</span>
+                                                                                <span className="text-muted-foreground">•</span>
+                                                                                <span className="text-muted-foreground">
+                                                                                    {new Date(log.session_date).toLocaleDateString('de')}
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        <Button variant="outline" size="sm" className="w-full" onClick={() => handleViewLogs(course)}>
+                                                            <Eye className="mr-2 h-4 w-4" />
+                                                            View All Logs
+                                                        </Button>
+                                                    </CardContent>
+                                                </Card>
+                                            ))}
+                                        </div>
+                                    </CardContent>
+                                </AccordionContent>
+                            </Card>
+                        </AccordionItem>
+                    </Accordion>
                 )}
 
                 {/* Completed Courses */}
                 {completedCourses && completedCourses.length > 0 && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <div className="rounded-full bg-green-100 p-2 dark:bg-green-900">
-                                    <GraduationCap className="h-5 w-5 text-green-600 dark:text-green-400" />
-                                </div>
-                                Completed Courses
-                            </CardTitle>
-                            <CardDescription>Successfully completed training</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="grid gap-4 md:grid-cols-2">
-                                {completedCourses.map((course) => (
-                                    <Card key={course.id} className="border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-900/10">
-                                        <CardHeader className="pb-3">
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div className="flex-1">
-                                                    <CardTitle className="text-lg">{course.trainee_display_name}</CardTitle>
-                                                    <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-                                                        <MapPin className="h-3 w-3" />
-                                                        {course.airport_icao}
-                                                    </div>
-                                                </div>
-                                                <Badge variant="outline" className={getTypeColor(course.type)}>
-                                                    {course.position_display}
-                                                </Badge>
+                    <Accordion type="single" collapsible defaultValue="">
+                        <AccordionItem value="completed-courses">
+                            <Card className="py-0">
+                                <CardHeader className="gap-0 px-0 py-2">
+                                    <AccordionTrigger className="w-full p-4 hover:no-underline [&[data-state=open]>div>svg]:rotate-180">
+                                        <div className="flex items-center gap-2">
+                                            <div className="rounded-full bg-green-100 p-2 dark:bg-green-900">
+                                                <GraduationCap className="h-5 w-5 text-green-600 dark:text-green-400" />
                                             </div>
-                                        </CardHeader>
-                                        <CardContent className="space-y-3">
-                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                <Calendar className="h-4 w-4" />
-                                                Completed {course.completed_at && new Date(course.completed_at).toLocaleDateString()}
+                                            <div className="text-left">
+                                                <CardTitle>Completed Courses</CardTitle>
+                                                <CardDescription>Successfully completed training</CardDescription>
                                             </div>
-                                            <Button variant="outline" size="sm" className="w-full" onClick={() => handleViewLogs(course)}>
-                                                <Eye className="mr-2 h-4 w-4" />
-                                                View Training History
-                                            </Button>
-                                        </CardContent>
-                                    </Card>
-                                ))}
-                            </div>
-                        </CardContent>
-                    </Card>
+                                        </div>
+                                    </AccordionTrigger>
+                                </CardHeader>
+
+                                <AccordionContent>
+                                    <CardContent>
+                                        <div className="mt-2 grid gap-4 md:grid-cols-2">
+                                            {completedCourses.map((course) => (
+                                                <Card key={course.id}>
+                                                    <CardHeader className="pb-3">
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="flex-1">
+                                                                <CardTitle className="text-lg">{course.trainee_display_name}</CardTitle>
+                                                                <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+                                                                    <MapPin className="h-3 w-3" />
+                                                                    {course.airport_icao}
+                                                                </div>
+                                                            </div>
+                                                            <Badge variant="outline" className={getTypeColor(course.position)}>
+                                                                {course.position_display}
+                                                            </Badge>
+                                                        </div>
+                                                    </CardHeader>
+                                                    <CardContent className="space-y-3">
+                                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                            <Calendar className="h-4 w-4" />
+                                                            Completed {course.completed_at && new Date(course.completed_at).toLocaleDateString('de')}
+                                                        </div>
+                                                        <Button variant="outline" size="sm" className="w-full" onClick={() => handleViewLogs(course)}>
+                                                            <Eye className="mr-2 h-4 w-4" />
+                                                            View Training History
+                                                        </Button>
+                                                    </CardContent>
+                                                </Card>
+                                            ))}
+                                        </div>
+                                    </CardContent>
+                                </AccordionContent>
+                            </Card>
+                        </AccordionItem>
+                    </Accordion>
                 )}
 
                 {/* Moodle Courses */}
                 {moodleCourses && moodleCourses.length > 0 && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <div className="rounded-full bg-purple-100 p-2 dark:bg-purple-900">
-                                    <BookOpen className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                                </div>
-                                Moodle Courses
-                            </CardTitle>
-                            <CardDescription>E-learning courses for your training</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-2">
-                                {moodleCourses.map((course) => (
-                                    <div
-                                        key={course.id}
-                                        className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            {course.passed ? (
-                                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
-                                                    <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-                                                </div>
-                                            ) : (
-                                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
-                                                    <BookOpen className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                                                </div>
-                                            )}
-                                            <div>
-                                                <div className="font-medium">{course.name}</div>
-                                                <div className="text-sm text-muted-foreground">{course.passed ? 'Completed' : 'In Progress'}</div>
+                    <Accordion type="single" collapsible defaultValue="moodle-courses">
+                        <AccordionItem value="moodle-courses">
+                            <Card className="py-0">
+                                <CardHeader className="gap-0 px-0 py-2">
+                                    <AccordionTrigger className="w-full p-4 hover:no-underline [&[data-state=open]>div>svg]:rotate-180">
+                                        <div className="flex items-center gap-2">
+                                            <div className="rounded-full bg-purple-100 p-2 dark:bg-purple-900">
+                                                <BookOpen className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                                            </div>
+                                            <div className="text-left">
+                                                <CardTitle>Moodle Courses</CardTitle>
+                                                <CardDescription>E-learning courses for your training</CardDescription>
                                             </div>
                                         </div>
-                                        <Button variant="ghost" size="sm" asChild>
-                                            <a href={course.link} target="_blank" rel="noopener noreferrer">
-                                                <ExternalLink className="h-4 w-4" />
-                                            </a>
-                                        </Button>
-                                    </div>
-                                ))}
-                            </div>
-                        </CardContent>
-                    </Card>
+                                    </AccordionTrigger>
+                                </CardHeader>
+
+                                <AccordionContent>
+                                    <CardContent>
+                                        <div className="space-y-2">
+                                            {moodleCourses.map((course) => (
+                                                <div
+                                                    key={course.id}
+                                                    className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        {course.passed ? (
+                                                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
+                                                                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
+                                                                <BookOpen className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                                            </div>
+                                                        )}
+                                                        <div>
+                                                            <div className="font-medium">{course.name}</div>
+                                                            <div className="text-sm text-muted-foreground">
+                                                                {course.passed ? 'Completed' : 'In Progress'}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <Button variant="ghost" size="sm" asChild>
+                                                        <a href={course.link} target="_blank" rel="noopener noreferrer">
+                                                            <ExternalLink className="h-4 w-4" />
+                                                        </a>
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </CardContent>
+                                </AccordionContent>
+                            </Card>
+                        </AccordionItem>
+                    </Accordion>
                 )}
 
                 {/* Familiarisations */}
@@ -318,7 +355,7 @@ export default function TraineeDashboard(props: Props) {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <div className="rounded-full bg-orange-100 p-2 dark:bg-orange-900">
-                                    <MapPin className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                                    <Map className="h-5 w-5 text-orange-600 dark:text-orange-400" />
                                 </div>
                                 Centre Familiarisations
                             </CardTitle>

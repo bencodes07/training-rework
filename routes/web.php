@@ -122,6 +122,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/solo/assign-test', [SoloController::class, 'assignCoreTest'])
                 ->name('assign-core-test');
         });
+
+        Route::get('api/training-logs/course/{courseId}', [TrainingLogController::class, 'getCourseLogs'])
+            ->name('api.training-logs.course');
     });
 
     Route::prefix('training-logs')->name('training-logs.')->group(function () {
@@ -160,21 +163,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('destroy');
     });
 
-    // API routes for fetching logs
-    Route::prefix('api/training-logs')->name('api.training-logs.')->group(function () {
-
-        // Get logs for a specific trainee
-        Route::get('/trainee/{traineeId}', [TrainingLogController::class, 'getTraineeLogs'])
-            ->name('trainee');
-
-        // Get logs for a specific course
-        Route::get('/course/{courseId}', [TrainingLogController::class, 'getCourseLogs'])
-            ->name('course');
-
-        // Get statistics for a trainee
-        Route::get('/trainee/{traineeId}/statistics', [TrainingLogController::class, 'getTraineeStatistics'])
-            ->name('trainee.statistics');
-    });
+    // Get logs for a specific trainee
+    Route::get('api/training-logs/trainee/{traineeId}', [TrainingLogController::class, 'getTraineeLogs'])
+        ->name('api.training-logs.trainee');
 });
 
 require __DIR__.'/settings.php';
