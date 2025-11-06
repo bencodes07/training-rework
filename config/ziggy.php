@@ -84,6 +84,7 @@ return [
         'training-logs.create',
         'training-logs.edit',
         'training-logs.update',
-        'api.training-logs.trainee'
+        'api.training-logs.trainee',
+        'api.training-logs.course'
     ],
 ];

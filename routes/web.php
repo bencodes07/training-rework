@@ -11,15 +11,15 @@ use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\TraineeOrderController;
 use App\Http\Controllers\SoloController;
 use App\Http\Controllers\TrainingLogController;
+use App\Http\Controllers\DashboardController;
 
 Route::get('/', function () {
     return redirect("/dashboard");
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('dashboard', function () {
-        return Inertia::render('dashboard');
-    })->name('dashboard');
+    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
 
     // Endorsement routes
     Route::prefix('endorsements')->name('endorsements.')->group(function () {
