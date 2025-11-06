@@ -4,34 +4,8 @@ import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle, Calendar, Clock, Eye, FileText } from 'lucide-react';
 import { Link } from '@inertiajs/react';
 import { cn } from '@/lib/utils';
+import { Course } from '@/pages/trainee-dashboard';
 
-interface TrainingLog {
-    id: number;
-    session_date: string;
-    position: string;
-    type: string;
-    type_display: string;
-    result: boolean;
-    average_rating: number;
-    next_step: string;
-    session_duration: string;
-    mentor_name: string;
-}
-
-interface Course {
-    id: number;
-    name: string;
-    trainee_display_name: string;
-    type: string;
-    type_display?: string;
-    position: string;
-    position_display: string;
-    airport_icao: string;
-    claimed_by: string | null;
-    completed_at?: string;
-    recent_logs: TrainingLog[];
-    all_logs?: TrainingLog[];
-}
 interface CourseLogsModalProps {
     course: Course | null;
     isOpen: boolean;

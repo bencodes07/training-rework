@@ -18,9 +18,11 @@ interface TrainingLog {
     result: boolean;
     average_rating: number;
     mentor_name: string;
+    next_step: string;
+    session_duration: number;
 }
 
-interface Course {
+export interface Course {
     id: number;
     name: string;
     trainee_display_name: string;
