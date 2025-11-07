@@ -84,7 +84,7 @@ export function CourseLogsModal({ course, isOpen, onClose }: CourseLogsModalProp
                                                 <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
                                                     <span className="flex items-center gap-1">
                                                         <Calendar className="h-3 w-3" />
-                                                        {new Date(log.session_date).toLocaleDateString('de-DE')}
+                                                        {new Date(log.session_date).toLocaleDateString('de')}
                                                     </span>
                                                     {log.session_duration && (
                                                         <span className="flex items-center gap-1">

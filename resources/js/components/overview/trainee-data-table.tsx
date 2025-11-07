@@ -287,7 +287,7 @@ export function TraineeDataTable({ trainees, course, onRemarkClick, onClaimClick
         if (diffInDays < 7) return `${diffInDays} days ago`;
         if (diffInDays < 30) return `${Math.floor(diffInDays / 7)} weeks ago`;
         if (diffInDays < 365) return `${Math.floor(diffInDays / 30)} months ago`;
-        return date.toLocaleDateString();
+        return date.toLocaleDateString('de');
     };
 
     const moveTrainee = (index: number, direction: 'up' | 'down') => {
@@ -421,7 +421,7 @@ export function TraineeDataTable({ trainees, course, onRemarkClick, onClaimClick
                             </div>
                         )}
                         {trainee.lastSession && (
-                            <div className="text-xs text-muted-foreground">Last: {new Date(trainee.lastSession).toLocaleDateString()}</div>
+                            <div className="text-xs text-muted-foreground">Last: {new Date(trainee.lastSession).toLocaleDateString('de')}</div>
                         )}
                     </div>
                 );

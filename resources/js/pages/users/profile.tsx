@@ -618,7 +618,7 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                                                                 <>
                                                                     <span className="text-xs text-muted-foreground">•</span>
                                                                     <span className="text-xs text-muted-foreground">
-                                                                        Last: {new Date(endorsement.last_activity_date).toLocaleDateString()}
+                                                                        Last: {new Date(endorsement.last_activity_date).toLocaleDateString('de')}
                                                                     </span>
                                                                 </>
                                                             )}

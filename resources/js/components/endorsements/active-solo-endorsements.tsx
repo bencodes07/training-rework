@@ -41,7 +41,7 @@ export default function ActiveSoloEndorsements({ endorsements }: { endorsements:
                                 <div className="text-sm font-medium">{endorsement.mentor}</div>
                                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                     <Clock className="h-3 w-3" />
-                                    Expires {new Date(endorsement.expiresAt!).toLocaleDateString()}
+                                    Expires {new Date(endorsement.expiresAt!).toLocaleDateString('de')}
                                 </div>
                             </div>
                         </div>
