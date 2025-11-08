@@ -251,7 +251,6 @@ class UserSearchController extends Controller
                 })->values();
             });
 
-        // Get Moodle courses for active courses only
         $moodleCourses = [];
         $moodleService = app(\App\Services\MoodleService::class);
 

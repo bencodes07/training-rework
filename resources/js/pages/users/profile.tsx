@@ -179,7 +179,6 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
             <Head title={`${user.first_name} ${user.last_name} - User Profile`} />
 
             <div className="flex h-full flex-1 flex-col gap-6 overflow-x-auto rounded-xl p-4">
-                {/* Header Card */}
                 <Card>
                     <CardHeader>
                         <div className="flex items-start justify-between">
@@ -217,7 +216,9 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                                             </Button>
                                         </div>
                                     </div>
-                                    <CardDescription className="mt-1 flex flex-wrap items-center gap-3">VATSIM ID: {user.vatsim_id}</CardDescription>
+                                    <CardDescription className="mt-1 flex flex-wrap items-center gap-3">
+                                        <span>VATSIM ID: {user.vatsim_id}</span>
+                                    </CardDescription>
                                 </div>
                             </div>
                             <div className="flex flex-col gap-2">
@@ -257,7 +258,6 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                     </CardContent>
                 </Card>
 
-                {/* Main Content Tabs */}
                 <Tabs defaultValue="active-courses" className="w-full">
                     <TabsList className="grid w-full grid-cols-5">
                         <TabsTrigger value="active-courses">
@@ -281,7 +281,6 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                             Familiarisations
                         </TabsTrigger>
                     </TabsList>
-                    {/* Active Courses Tab */}
                     <TabsContent value="active-courses" className="mt-4 space-y-4">
                         {active_courses.length > 0 ? (
                             <Accordion type="multiple" className="w-full space-y-4">
@@ -327,11 +326,9 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                                                                     <div className="flex items-center justify-between border-t pt-4">
                                                                         <h4 className="text-sm font-semibold">Training History</h4>
                                                                     </div>
-                                                                    {/* Timeline similar to progress modal */}
                                                                     <div className="relative space-y-6 pl-8 before:absolute before:top-0 before:bottom-0 before:left-4 before:w-0.5 before:bg-border">
                                                                         {course.logs?.map((log) => (
                                                                             <div key={log.id} className="relative">
-                                                                                {/* Timeline dot */}
                                                                                 <div
                                                                                     className={cn(
                                                                                         'absolute -left-[23px] mt-1.5 h-4 w-4 rounded-full border-2 border-background',
@@ -339,7 +336,6 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                                                                                     )}
                                                                                 />
 
-                                                                                {/* Log Card */}
                                                                                 <div className="rounded-lg border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
                                                                                     <div className="mb-3 flex items-start justify-between">
                                                                                         <div className="flex-1">
@@ -483,11 +479,9 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                                                                     <div className="flex items-center justify-between border-t pt-4">
                                                                         <h4 className="text-sm font-semibold">Training History</h4>
                                                                     </div>
-                                                                    {/* Timeline similar to progress modal */}
                                                                     <div className="relative space-y-6 pl-8 before:absolute before:top-0 before:bottom-0 before:left-4 before:w-0.5 before:bg-border">
                                                                         {course.logs?.map((log) => (
                                                                             <div key={log.id} className="relative">
-                                                                                {/* Timeline dot */}
                                                                                 <div
                                                                                     className={cn(
                                                                                         'absolute -left-[23px] mt-1.5 h-4 w-4 rounded-full border-2 border-background',
@@ -495,7 +489,6 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                                                                                     )}
                                                                                 />
 
-                                                                                {/* Log Card */}
                                                                                 <div className="rounded-lg border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
                                                                                     <div className="mb-3 flex items-start justify-between">
                                                                                         <div className="flex-1">
@@ -618,7 +611,7 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                                                                 <>
                                                                     <span className="text-xs text-muted-foreground">•</span>
                                                                     <span className="text-xs text-muted-foreground">
-                                                                        Last: {new Date(endorsement.last_activity_date).toLocaleDateString('de')}
+                                                                        Last: {new Date(endorsement.last_activity_date).toLocaleDateString()}
                                                                     </span>
                                                                 </>
                                                             )}
@@ -641,7 +634,6 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                             </Card>
                         )}
                     </TabsContent>
-                    {/* Moodle Courses Tab */}
                     <TabsContent value="moodle" className="mt-4 space-y-4">
                         {moodle_courses.length > 0 ? (
                             <Card>
@@ -699,7 +691,6 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                             </Card>
                         )}
                     </TabsContent>
-                    {/* Familiarisations Tab */}
                     <TabsContent value="familiarisations" className="mt-4 space-y-4">
                         {Object.keys(familiarisations).length > 0 ? (
                             <div className="space-y-4">

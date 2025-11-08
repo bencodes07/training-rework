@@ -44,7 +44,7 @@ export function SoloModal({ trainee, courseId, isOpen, onClose }: SoloModalProps
     useEffect(() => {
         if (isOpen && trainee) {
             const defaultDate = new Date();
-            defaultDate.setDate(defaultDate.getDate() + 30);
+            defaultDate.setDate(defaultDate.getDate() + 29);
             setExpiryDate(defaultDate.toISOString().split('T')[0]);
 
             setMode('none');
@@ -478,12 +478,12 @@ export function SoloModal({ trainee, courseId, isOpen, onClose }: SoloModalProps
                                         setError(null);
                                     }}
                                     min={new Date().toISOString().split('T')[0]}
-                                    max={new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                                    max={new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
                                 />
                                 <p className="text-xs text-muted-foreground">
                                     {mode === 'add'
-                                        ? 'Select when this solo endorsement will expire (maximum 31 days from today)'
-                                        : 'Select new expiry date to extend the solo endorsement (maximum 31 days from today)'}
+                                        ? 'Select when this solo endorsement will expire (maximum 30 days from today)'
+                                        : 'Select new expiry date to extend the solo endorsement (maximum 30 days from today)'}
                                 </p>
                             </div>
 
