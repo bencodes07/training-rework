@@ -2,12 +2,12 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\Course;
+use App\Models\WaitingListEntry;
 use Filament\Widgets\ChartWidget;
 
-class CourseOverviewChart extends ChartWidget
+class WaitingListEntryOverviewChart extends ChartWidget
 {
-    protected ?string $heading = 'Courses by Type';
+    protected ?string $heading = 'Waiting List Entries by Course Type';
 
     protected int | string | array $columnSpan = [
         'md' => 2,
@@ -20,24 +20,26 @@ class CourseOverviewChart extends ChartWidget
 
     protected function getData(): array
     {
-        $coursesByType = Course::select('type')
-            ->selectRaw('count(*) as count')
-            ->groupBy('type')
-            ->get()
-            ->pluck('count', 'type')
+        // Count waiting list entries grouped by the course type
+        $entriesByType = WaitingListEntry::query()
+            ->join('courses', 'waiting_list_entries.course_id', '=', 'courses.id')
+            ->select('courses.type')
+            ->selectRaw('COUNT(waiting_list_entries.id) as count')
+            ->groupBy('courses.type')
+            ->pluck('count', 'courses.type')
             ->toArray();
 
         $labels = [];
         $data = [];
 
-        foreach ($coursesByType as $type => $count) {
+        foreach ($entriesByType as $type => $count) {
             $labels[] = match($type) {
                 'RTG' => 'Rating',
                 'EDMT' => 'Endorsement',
                 'GST' => 'Visitor',
                 'FAM' => 'Familiarisation',
                 'RST' => 'Roster Reentry',
-                default => $type,
+                default => $type ?? 'Unknown',
             };
             $data[] = $count;
         }
@@ -45,14 +47,14 @@ class CourseOverviewChart extends ChartWidget
         return [
             'datasets' => [
                 [
-                    'label' => 'Courses',
+                    'label' => 'Waiting List Entries',
                     'data' => $data,
                     'backgroundColor' => [
-                        'rgb(34, 197, 94)',  // success - RTG
-                        'rgb(251, 191, 36)', // warning - EDMT
-                        'rgb(59, 130, 246)', // info - GST
-                        'rgb(168, 85, 247)', // purple - FAM
-                        'rgb(107, 114, 128)', // gray - RST
+                        'rgb(34, 197, 94)',
+                        'rgb(251, 191, 36)',
+                        'rgb(59, 130, 246)',
+                        'rgb(168, 85, 247)',
+                        'rgb(107, 114, 128)',
                     ],
                 ],
             ],
