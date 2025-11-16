@@ -19,15 +19,16 @@ import {
     Users,
     ChevronUp,
     ChevronDown,
-    BookOpen,
     Award,
     CheckCircle,
     AlertCircle,
+    Loader2,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable, VisibilityState } from '@tanstack/react-table';
 import { SoloModal } from './solo-modal';
 import { ProgressModal } from './progress-modal';
+import { useMoodleStatus } from '@/hooks/use-moodle-status';
 
 interface TraineeDataTableProps {
     trainees: Trainee[];
@@ -224,17 +225,18 @@ export function TraineeDataTable({ trainees, course, onRemarkClick, onClaimClick
     const [progressModalOpen, setProgressModalOpen] = useState(false);
     const [selectedTraineeForProgress, setSelectedTraineeForProgress] = useState<Trainee | null>(null);
 
-    // Update data when trainees prop changes
+    const traineeData = trainees.map((t) => ({ id: t.id, vatsimId: t.vatsimId }));
+    const { statuses: moodleStatuses, loading: moodleLoading } = useMoodleStatus(traineeData, course.id);
+
     useEffect(() => {
         setData(trainees);
     }, [trainees]);
 
-    // Set column visibility based on course type
     useEffect(() => {
         const visibility: VisibilityState = {
             solo: course.type === 'RTG' && course.position !== 'GND',
-            endorsement: course.type === 'GST' || (course.type === 'RTG' && course.position === 'GND'),
-            moodleStatus: course.type === 'EDMT',
+            endorsement: course.type === 'RTG' && course.position === 'GND',
+            moodleStatus: course.type === 'GST' || course.type === 'EDMT',
         };
         setColumnVisibility(visibility);
     }, [course]);
@@ -296,13 +298,10 @@ export function TraineeDataTable({ trainees, course, onRemarkClick, onClaimClick
 
         if (newIndex < 0 || newIndex >= newData.length) return;
 
-        // Swap trainees
         [newData[index], newData[newIndex]] = [newData[newIndex], newData[index]];
 
-        // Update local state immediately for responsive UI
         setData(newData);
 
-        // Persist order to backend
         const traineeIds = newData.map((t) => t.id);
 
         router.post(
@@ -316,7 +315,6 @@ export function TraineeDataTable({ trainees, course, onRemarkClick, onClaimClick
                 preserveState: true,
                 onError: (errors) => {
                     console.error('Failed to update trainee order:', errors);
-                    // Revert to original order on error
                     setData(trainees);
                 },
             },
@@ -427,7 +425,6 @@ export function TraineeDataTable({ trainees, course, onRemarkClick, onClaimClick
                 );
             },
         },
-        // Solo column - only for RTG (Rating) courses
         {
             id: 'solo',
             accessorKey: 'soloStatus',
@@ -469,7 +466,6 @@ export function TraineeDataTable({ trainees, course, onRemarkClick, onClaimClick
                 );
             },
         },
-        // Endorsement column - only for GST (Ground/Visitor) courses
         {
             id: 'endorsement',
             accessorKey: 'endorsementStatus',
@@ -505,7 +501,17 @@ export function TraineeDataTable({ trainees, course, onRemarkClick, onClaimClick
             header: 'Moodle Status',
             cell: ({ row }) => {
                 const trainee = row.original;
-                const moodleStatus = trainee.moodleStatus;
+                const cacheKey = `${trainee.vatsimId}_${course.id}`;
+                const moodleStatus = moodleStatuses[cacheKey];
+
+                if (moodleLoading && !moodleStatus) {
+                    return (
+                        <Badge variant="outline" className="border-gray-200 bg-gray-50 text-gray-700">
+                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                            Loading...
+                        </Badge>
+                    );
+                }
 
                 if (!moodleStatus) {
                     return <span className="text-sm text-muted-foreground">—</span>;
@@ -545,7 +551,7 @@ export function TraineeDataTable({ trainees, course, onRemarkClick, onClaimClick
 
                 return (
                     <Badge variant="outline" className={config.className}>
-                        <BookOpen className="mr-1 h-3 w-3" />
+                        {config.icon}
                         {config.label}
                     </Badge>
                 );

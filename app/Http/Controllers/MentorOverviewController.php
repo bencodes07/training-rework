@@ -153,7 +153,7 @@ class MentorOverviewController extends Controller
         ]);
     }
 
-    public function getMoodleStatus(Request $request)
+    public function getMoodleStatusForTrainee(Request $request)
     {
         $user = $request->user();
 
@@ -162,55 +162,71 @@ class MentorOverviewController extends Controller
         }
 
         $request->validate([
-            'trainee_ids' => 'required|array',
-            'trainee_ids.*' => 'integer|exists:users,id',
+            'trainee_id' => 'required|integer|exists:users,id',
+            'course_id' => 'required|integer|exists:courses,id',
         ]);
 
-        $traineeIds = $request->input('trainee_ids');
-        $moodleService = app(\App\Services\MoodleService::class);
-        $results = [];
+        $traineeId = $request->input('trainee_id');
+        $courseId = $request->input('course_id');
 
-        $trainees = \App\Models\User::whereIn('id', $traineeIds)
-            ->with([
-                'activeCourses' => function ($q) {
-                    $q->where('type', 'EDMT')->whereNotNull('moodle_course_ids');
-                }
-            ])
-            ->get();
+        $trainee = \App\Models\User::findOrFail($traineeId);
+        $course = \App\Models\Course::findOrFail($courseId);
 
-        foreach ($trainees as $trainee) {
-            foreach ($trainee->activeCourses as $course) {
-                if (empty($course->moodle_course_ids))
-                    continue;
-
-                $cacheKey = "{$trainee->vatsim_id}_{$course->id}";
-
-                $cached = Cache::get("moodle_status_{$cacheKey}");
-                if ($cached !== null) {
-                    $results[$cacheKey] = $cached;
-                    continue;
-                }
-
-                try {
-                    if (!$moodleService->userExists($trainee->vatsim_id)) {
-                        $status = 'not-started';
-                    } else {
-                        $allCompleted = $moodleService->checkAllCoursesCompleted(
-                            $trainee->vatsim_id,
-                            $course->moodle_course_ids
-                        );
-                        $status = $allCompleted ? 'completed' : 'in-progress';
-                    }
-
-                    $results[$cacheKey] = $status;
-                    Cache::put("moodle_status_{$cacheKey}", $status, 300);
-                } catch (\Exception $e) {
-                    $results[$cacheKey] = 'unknown';
-                }
-            }
+        if ($course->type !== 'EDMT' || empty($course->moodle_course_ids)) {
+            return response()->json([
+                'success' => true,
+                'status' => null,
+                'message' => 'Course does not require Moodle completion'
+            ]);
         }
 
-        return response()->json(['success' => true, 'statuses' => $results]);
+        $cacheKey = "moodle_status_{$trainee->vatsim_id}_{$course->id}";
+        $cached = Cache::get($cacheKey);
+
+        if ($cached !== null) {
+            return response()->json([
+                'success' => true,
+                'status' => $cached,
+                'cached' => true
+            ]);
+        }
+
+        try {
+            $moodleService = app(\App\Services\MoodleService::class);
+
+            if (!$moodleService->userExists($trainee->vatsim_id)) {
+                $status = 'not-started';
+            } else {
+                $allCompleted = $moodleService->checkAllCoursesCompleted(
+                    $trainee->vatsim_id,
+                    $course->moodle_course_ids
+                );
+                $status = $allCompleted ? 'completed' : 'in-progress';
+            }
+
+            Cache::put($cacheKey, $status, 300);
+
+            return response()->json([
+                'success' => true,
+                'status' => $status,
+                'cached' => false
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Moodle status check failed', [
+                'trainee_id' => $trainee->id,
+                'vatsim_id' => $trainee->vatsim_id,
+                'course_id' => $course->id,
+                'moodle_course_ids' => $course->moodle_course_ids,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'status' => 'unknown',
+                'error' => 'Failed to check Moodle status'
+            ]);
+        }
     }
 
     /**

@@ -36,16 +36,6 @@ class CourseController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
-        
-        if (!$user->isVatsimUser()) {
-            return Inertia::render('training/courses', [
-                'courses' => [],
-                'userWaitingLists' => [],
-                'isVatsimUser' => false,
-                'moodleSignedUp' => false,
-                'error' => 'VATSIM account required to view courses',
-            ]);
-        }
 
         $moodleSignedUp = $this->moodleService->userExists($user->vatsim_id);
 

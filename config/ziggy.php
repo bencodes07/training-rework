@@ -71,6 +71,8 @@ return [
         'overview.reset-trainee-order',
 
         'overview.grant-endorsement',
+        'overview.get-moodle-status-trainee',
+
 
         'overview.add-solo',
         'overview.extend-solo',
