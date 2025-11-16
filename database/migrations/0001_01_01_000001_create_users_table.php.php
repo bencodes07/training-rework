@@ -4,14 +4,9 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
-    /**
-     * Run the migrations.
-     */
+return new class extends Migration {
     public function up(): void
     {
-        // Drop the existing users table since we need to change the structure significantly
         Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('sessions');
         Schema::dropIfExists('users');
@@ -28,12 +23,11 @@ return new class extends Migration
             $table->timestamp('last_rating_change')->nullable();
             $table->boolean('is_staff')->default(false);
             $table->boolean('is_superuser')->default(false);
-            $table->boolean('is_admin')->default(false)->after('is_superuser');
-            $table->string('password')->nullable()->after('is_admin');
+            $table->boolean('is_admin')->default(false);
+            $table->string('password')->nullable();
             $table->rememberToken();
             $table->timestamps();
 
-            // Indexes for performance
             $table->index(['is_staff']);
             $table->index(['is_superuser']);
             $table->index(['is_admin']);
@@ -57,9 +51,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('users');

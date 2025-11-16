@@ -8,7 +8,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Create familiarisation_sectors table
         Schema::create('familiarisation_sectors', function (Blueprint $table) {
             $table->id();
             $table->string('name', 4);
@@ -18,18 +17,16 @@ return new class extends Migration
             $table->index(['fir', 'name']);
         });
 
-        // Create familiarisations table
         Schema::create('familiarisations', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->foreignId('familiarisation_sector_id')->constrained()->onDelete('cascade');
             $table->timestamps();
-            
-            $table->unique(['user_id', 'familiarisation_sector_id']);
+
+            $table->unique(['user_id', 'familiarisation_sector_id'], 'user_fam_sector_unique');
             $table->index('user_id');
         });
 
-        // Create courses table
         Schema::create('courses', function (Blueprint $table) {
             $table->id();
             $table->string('name', 100);
@@ -43,7 +40,7 @@ return new class extends Migration
             $table->integer('max_rating');
             $table->enum('type', ['EDMT', 'RTG', 'GST', 'FAM', 'RST']);
             $table->enum('position', ['GND', 'TWR', 'APP', 'CTR']);
-            $table->json('moodle_course_ids')->default('[]');
+            $table->json('moodle_course_ids');
             $table->foreignId('familiarisation_sector_id')->nullable()->constrained()->onDelete('set null');
             $table->timestamps();
             
@@ -52,86 +49,77 @@ return new class extends Migration
             $table->index('airport_icao');
         });
 
-        // Create course_endorsement_groups pivot table
         Schema::create('course_endorsement_groups', function (Blueprint $table) {
             $table->id();
             $table->foreignId('course_id')->constrained()->onDelete('cascade');
-            $table->string('endorsement_group_name', 50); // Store the name directly since endorsement groups come from API
+            $table->string('endorsement_group_name', 50);
             $table->timestamps();
-            
-            $table->unique(['course_id', 'endorsement_group_name']);
+
+            $table->unique(['course_id', 'endorsement_group_name'], 'course_endorse_group_unique');
         });
 
-        // Create course_mentors pivot table
         Schema::create('course_mentors', function (Blueprint $table) {
             $table->id();
             $table->foreignId('course_id')->constrained()->onDelete('cascade');
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->timestamps();
-            
-            $table->unique(['course_id', 'user_id']);
+
+            $table->unique(['course_id', 'user_id'], 'course_mentor_unique');
         });
 
-        // Create course_trainees pivot table
         Schema::create('course_trainees', function (Blueprint $table) {
             $table->id();
             $table->foreignId('course_id')->constrained()->onDelete('cascade');
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->text('remarks')->nullable();
-            $table->integer('remark_author_id')->nullable()->after('remarks');
-            $table->timestamp('remark_updated_at')->nullable()->after('remark_author_id');
+            $table->unsignedBigInteger('remark_author_id')->nullable();
+            $table->timestamp('remark_updated_at')->nullable();
+            $table->unsignedBigInteger('claimed_by_mentor_id')->nullable();
+            $table->timestamp('claimed_at')->nullable();
+            $table->timestamp('completed_at')->nullable();
+            $table->integer('custom_order')->nullable();
+            $table->unsignedBigInteger('custom_order_mentor_id')->nullable();
+            $table->timestamps();
 
             $table->foreign('remark_author_id')
                 ->references('id')
                 ->on('users')
                 ->onDelete('set null');
-            $table->timestamps();
-            
-            $table->unique(['course_id', 'user_id']);
-
-            $table->integer('custom_order')->nullable()->after('claimed_at');
-            $table->integer('custom_order_mentor_id')->nullable()->after('custom_order');
-
-            $table->foreign('custom_order_mentor_id')
-                ->references('id')
-                ->on('users')
-                ->onDelete('set null');
-
-            $table->index(['course_id', 'custom_order_mentor_id', 'custom_order']);
-
-            $table->integer('claimed_by_mentor_id')->nullable()->after('remark_updated_at');
-            $table->timestamp('claimed_at')->nullable()->after('claimed_by_mentor_id');
 
             $table->foreign('claimed_by_mentor_id')
                 ->references('id')
                 ->on('users')
                 ->onDelete('set null');
 
-            $table->timestamp('completed_at')->nullable()->after('claimed_at');
+            $table->foreign('custom_order_mentor_id')
+                ->references('id')
+                ->on('users')
+                ->onDelete('set null');
+
+            $table->unique(['course_id', 'user_id'], 'course_trainee_unique');
+            $table->index(['course_id', 'custom_order_mentor_id', 'custom_order'], 'course_trainee_order_idx');
         });
 
-        // Create waiting_list_entries table
         Schema::create('waiting_list_entries', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->foreignId('course_id')->constrained()->onDelete('cascade');
             $table->timestamp('date_added')->useCurrent();
             $table->float('activity')->default(0);
-            $table->timestamp('hours_updated')->default('2000-01-01 00:00:00');
+            $table->dateTime('hours_updated')->default('2000-01-01 00:00:00');
             $table->text('remarks')->nullable();
             $table->timestamps();
-            
-            $table->unique(['user_id', 'course_id']);
+
+            $table->unique(['user_id', 'course_id'], 'waiting_list_unique');
             $table->index(['course_id', 'date_added']);
             $table->index('activity');
         });
 
-        // Create roster_entries table
         Schema::create('roster_entries', function (Blueprint $table) {
             $table->id();
-            $table->integer('user_id'); // VATSIM ID
-            $table->timestamp('last_session')->default('1970-01-01 00:00:00');
-            $table->timestamp('removal_date')->nullable();
+            $table->integer('user_id');
+            $table->dateTime('last_session')->default('1970-01-01 00:00:00');
+            $table->dateTime('removal_date')->nullable();
             $table->timestamps();
             
             $table->unique('user_id');
