@@ -289,4 +289,12 @@ class User extends Authenticatable implements FilamentUser
     {
         return $this->is_superuser;
     }
+
+    /**
+     * Get training logs where user is the trainee
+     */
+    public function trainingLogs()
+    {
+        return $this->hasMany(TrainingLog::class, 'trainee_id');
+    }
 }
