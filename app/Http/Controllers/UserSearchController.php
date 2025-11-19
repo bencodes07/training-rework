@@ -25,31 +25,38 @@ class UserSearchController extends Controller
                     ->limit(10)
                     ->get(['id', 'vatsim_id', 'first_name', 'last_name', 'email']);
             } else {
-                $users = User::where(function ($q) use ($query) {
-                    $q->whereRaw('LOWER(first_name) LIKE ?', ['%' . strtolower($query) . '%'])
-                        ->orWhereRaw('LOWER(last_name) LIKE ?', ['%' . strtolower($query) . '%'])
-                        ->orWhereRaw('LOWER(first_name || \' \' || last_name) LIKE ?', ['%' . strtolower($query) . '%'])
-                        ->orWhereRaw('LOWER(last_name || \' \' || first_name) LIKE ?', ['%' . strtolower($query) . '%']);
-                })
+                $searchTerm = strtolower($query);
+
+                $users = User::select(['id', 'vatsim_id', 'first_name', 'last_name', 'email'])
                     ->whereNotNull('vatsim_id')
-                    ->orderByRaw('
-                    CASE
-                        WHEN LOWER(first_name) = ? THEN 1
-                        WHEN LOWER(last_name) = ? THEN 2
-                        WHEN LOWER(first_name || \' \' || last_name) = ? THEN 3
-                        WHEN LOWER(first_name) LIKE ? THEN 4
-                        WHEN LOWER(last_name) LIKE ? THEN 5
-                        ELSE 6
-                    END
-                ', [
-                        strtolower($query),
-                        strtolower($query),
-                        strtolower($query),
-                        strtolower($query) . '%',
-                        strtolower($query) . '%'
-                    ])
+                    ->where(function ($q) use ($searchTerm) {
+                        $q->whereRaw('LOWER(first_name) LIKE ?', [$searchTerm . '%'])
+                            ->orWhereRaw('LOWER(last_name) LIKE ?', [$searchTerm . '%'])
+                            ->orWhereRaw('LOWER(first_name || \' \' || last_name) LIKE ?', [$searchTerm . '%']);
+                    })
+                    ->orderByRaw("
+                        CASE
+                            WHEN LOWER(first_name) = ? THEN 1
+                            WHEN LOWER(last_name) = ? THEN 2
+                            WHEN LOWER(first_name) LIKE ? THEN 3
+                            WHEN LOWER(last_name) LIKE ? THEN 4
+                            ELSE 5
+                        END
+                    ", [$searchTerm, $searchTerm, $searchTerm . '%', $searchTerm . '%'])
                     ->limit(10)
-                    ->get(['id', 'vatsim_id', 'first_name', 'last_name', 'email']);
+                    ->get();
+
+                if ($users->isEmpty() && strlen($searchTerm) > 2) {
+                    $users = User::select(['id', 'vatsim_id', 'first_name', 'last_name', 'email'])
+                        ->whereNotNull('vatsim_id')
+                        ->where(function ($q) use ($searchTerm) {
+                            $q->whereRaw('LOWER(first_name) LIKE ?', ['%' . $searchTerm . '%'])
+                                ->orWhereRaw('LOWER(last_name) LIKE ?', ['%' . $searchTerm . '%'])
+                                ->orWhereRaw('LOWER(first_name || \' \' || last_name) LIKE ?', ['%' . $searchTerm . '%']);
+                        })
+                        ->limit(10)
+                        ->get();
+                }
             }
 
             $results = $users->map(function ($user) {
@@ -97,19 +104,11 @@ class UserSearchController extends Controller
             $mentorCourseIds = $currentUser->mentorCourses()->pluck('courses.id')->toArray();
         }
 
-        \Log::info('User profile view', [
-            'viewing_user_id' => $user->id,
-            'viewing_user_vatsim' => $user->vatsim_id,
-            'current_user_id' => $currentUser->id,
-            'is_superuser' => $currentUser->isSuperuser(),
-            'is_admin' => $currentUser->is_admin,
-            'mentor_course_ids' => $mentorCourseIds,
-        ]);
-
         $activeCourses = $user->activeCourses()
             ->with(['mentorGroup'])
+            ->whereIn('courses.id', $mentorCourseIds)
             ->get()
-            ->map(function ($course) use ($mentorCourseIds, $user, $currentUser) {
+            ->map(function ($course) use ($mentorCourseIds, $user) {
                 $isMentor = in_array($course->id, $mentorCourseIds);
 
                 $courseData = [
@@ -125,7 +124,18 @@ class UserSearchController extends Controller
                     try {
                         $logs = \App\Models\TrainingLog::where('course_id', $course->id)
                             ->where('trainee_id', $user->id)
-                            ->with(['trainee', 'mentor'])
+                            ->with(['mentor:id,first_name,last_name'])
+                            ->select([
+                                'id',
+                                'session_date',
+                                'position',
+                                'type',
+                                'result',
+                                'mentor_id',
+                                'session_duration',
+                                'next_step',
+                                'average_rating'
+                            ])
                             ->orderBy('session_date', 'desc')
                             ->limit(5)
                             ->get()
@@ -137,7 +147,7 @@ class UserSearchController extends Controller
                                     'type' => $log->type ?? 'O',
                                     'type_display' => $log->type_display ?? 'Online',
                                     'result' => $log->result ?? false,
-                                    'mentor_name' => $log->mentor ? $log->mentor->name : 'Unknown',
+                                    'mentor_name' => $log->mentor ? "{$log->mentor->first_name} {$log->mentor->last_name}" : 'Unknown',
                                     'session_duration' => $log->session_duration ?? null,
                                     'next_step' => $log->next_step ?? null,
                                     'average_rating' => $log->average_rating ?? null,
@@ -145,20 +155,11 @@ class UserSearchController extends Controller
                             });
 
                         $courseData['logs'] = $logs->toArray();
-
-                        \Log::info('Loaded training logs for course', [
-                            'course_id' => $course->id,
-                            'user_id' => $user->id,
-                            'viewer_id' => $currentUser->id,
-                            'is_mentor' => $isMentor,
-                            'log_count' => $logs->count()
-                        ]);
                     } catch (\Exception $e) {
                         \Log::error('Error fetching training logs', [
                             'course_id' => $course->id,
                             'user_id' => $user->id,
-                            'error' => $e->getMessage(),
-                            'trace' => $e->getTraceAsString()
+                            'error' => $e->getMessage()
                         ]);
                         $courseData['logs'] = [];
                     }
@@ -174,49 +175,62 @@ class UserSearchController extends Controller
                 ->join('courses', 'course_trainees.course_id', '=', 'courses.id')
                 ->where('course_trainees.user_id', $user->id)
                 ->whereNotNull('course_trainees.completed_at')
-                ->select(
-                    'courses.*',
+                ->whereIn('courses.id', $mentorCourseIds)
+                ->select([
+                    'courses.id',
+                    'courses.name',
+                    'courses.type',
+                    'courses.position',
                     'course_trainees.completed_at'
-                )
+                ])
                 ->get();
 
+            $courseIds = $completedData->pluck('id');
+
+            $logsGrouped = \App\Models\TrainingLog::whereIn('course_id', $courseIds)
+                ->where('trainee_id', $user->id)
+                ->with(['mentor:id,first_name,last_name'])
+                ->select([
+                    'id',
+                    'course_id',
+                    'session_date',
+                    'position',
+                    'type',
+                    'result',
+                    'mentor_id',
+                    'session_duration',
+                    'next_step',
+                    'average_rating'
+                ])
+                ->orderBy('session_date', 'desc')
+                ->get()
+                ->groupBy('course_id');
+
             foreach ($completedData as $courseData) {
-                if (in_array($courseData->id, $mentorCourseIds)) {
-                    $logs = \App\Models\TrainingLog::where('trainee_id', $user->id)
-                        ->where('course_id', $courseData->id)
-                        ->with(['trainee', 'mentor'])
-                        ->orderBy('session_date', 'desc')
-                        ->limit(10)
-                        ->get()
-                        ->map(function ($log) {
-                            return [
-                                'id' => $log->id,
-                                'session_date' => $log->session_date->format('Y-m-d'),
-                                'position' => $log->position ?? 'N/A',
-                                'type' => $log->type ?? 'O',
-                                'type_display' => $log->type_display ?? 'Online',
-                                'result' => $log->result ?? false,
-                                'mentor_name' => $log->mentor ? $log->mentor->name : 'Unknown',
-                                'session_duration' => $log->session_duration ?? null,
-                                'next_step' => $log->next_step ?? null,
-                                'average_rating' => $log->average_rating ?? null,
-                            ];
-                        });
+                $logs = $logsGrouped->get($courseData->id, collect())->take(10);
 
-                    $totalSessions = \App\Models\TrainingLog::where('trainee_id', $user->id)
-                        ->where('course_id', $courseData->id)
-                        ->count();
-
-                    $completedCourses->push([
-                        'id' => $courseData->id,
-                        'name' => $courseData->name,
-                        'type' => $courseData->type,
-                        'position' => $courseData->position,
-                        'completed_at' => \Carbon\Carbon::parse($courseData->completed_at)->format('Y-m-d'),
-                        'total_sessions' => $totalSessions,
-                        'logs' => $logs->toArray(),
-                    ]);
-                }
+                $completedCourses->push([
+                    'id' => $courseData->id,
+                    'name' => $courseData->name,
+                    'type' => $courseData->type,
+                    'position' => $courseData->position,
+                    'completed_at' => \Carbon\Carbon::parse($courseData->completed_at)->format('Y-m-d'),
+                    'total_sessions' => $logsGrouped->get($courseData->id, collect())->count(),
+                    'logs' => $logs->map(function ($log) {
+                        return [
+                            'id' => $log->id,
+                            'session_date' => $log->session_date->format('Y-m-d'),
+                            'position' => $log->position ?? 'N/A',
+                            'type' => $log->type ?? 'O',
+                            'type_display' => $log->type_display ?? 'Online',
+                            'result' => $log->result ?? false,
+                            'mentor_name' => $log->mentor ? "{$log->mentor->first_name} {$log->mentor->last_name}" : 'Unknown',
+                            'session_duration' => $log->session_duration ?? null,
+                            'next_step' => $log->next_step ?? null,
+                            'average_rating' => $log->average_rating ?? null,
+                        ];
+                    })->toArray(),
+                ]);
             }
         } catch (\Exception $e) {
             \Log::error('Error fetching completed courses', [
@@ -227,6 +241,7 @@ class UserSearchController extends Controller
         }
         
         $endorsements = $user->endorsementActivities()
+            ->select(['position', 'activity_hours', 'status', 'last_activity_date'])
             ->get()
             ->map(function($activity) {
                 return [
@@ -238,7 +253,7 @@ class UserSearchController extends Controller
             });
 
         $familiarisations = $user->familiarisations()
-            ->with('sector')
+            ->with('sector:id,name,fir')
             ->get()
             ->groupBy('sector.fir')
             ->map(function($fams) {
@@ -254,31 +269,33 @@ class UserSearchController extends Controller
         $moodleCourses = [];
         $moodleService = app(\App\Services\MoodleService::class);
 
-        foreach ($activeCourses as $course) {
-            $fullCourse = \App\Models\Course::find($course['id']);
-            if ($fullCourse && $fullCourse->moodle_course_ids) {
-                $moodleIds = is_array($fullCourse->moodle_course_ids)
-                    ? $fullCourse->moodle_course_ids
-                    : json_decode($fullCourse->moodle_course_ids, true);
+        $courseIds = $activeCourses->pluck('id');
+        $coursesWithMoodle = \App\Models\Course::whereIn('id', $courseIds)
+            ->whereNotNull('moodle_course_ids')
+            ->get();
 
-                if (is_array($moodleIds)) {
-                    foreach ($moodleIds as $moodleId) {
-                        try {
-                            $courseName = $moodleService->getCourseName($moodleId);
-                            $isPassed = $moodleService->getCourseCompletion($user->vatsim_id, $moodleId);
+        foreach ($coursesWithMoodle as $course) {
+            $moodleIds = is_array($course->moodle_course_ids)
+                ? $course->moodle_course_ids
+                : json_decode($course->moodle_course_ids, true);
 
-                            $moodleCourses[] = [
-                                'id' => $moodleId,
-                                'name' => $courseName ?? "Moodle Course {$moodleId}",
-                                'passed' => $isPassed,
-                                'link' => "https://moodle.vatsim-germany.org/course/view.php?id={$moodleId}",
-                            ];
-                        } catch (\Exception $e) {
-                            \Log::warning('Failed to fetch Moodle course info', [
-                                'moodle_id' => $moodleId,
-                                'error' => $e->getMessage()
-                            ]);
-                        }
+            if (is_array($moodleIds)) {
+                foreach ($moodleIds as $moodleId) {
+                    try {
+                        $courseName = $moodleService->getCourseName($moodleId);
+                        $isPassed = $moodleService->getCourseCompletion($user->vatsim_id, $moodleId);
+
+                        $moodleCourses[] = [
+                            'id' => $moodleId,
+                            'name' => $courseName ?? "Moodle Course {$moodleId}",
+                            'passed' => $isPassed,
+                            'link' => "https://moodle.vatsim-germany.org/course/view.php?id={$moodleId}",
+                        ];
+                    } catch (\Exception $e) {
+                        \Log::warning('Failed to fetch Moodle course info', [
+                            'moodle_id' => $moodleId,
+                            'error' => $e->getMessage()
+                        ]);
                     }
                 }
             }

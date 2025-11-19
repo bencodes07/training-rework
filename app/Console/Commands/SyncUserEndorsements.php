@@ -10,14 +10,8 @@ use Illuminate\Support\Facades\Log;
 
 class SyncUserEndorsements extends Command
 {
-    /**
-     * The name and signature of the console command.
-     */
     protected $signature = 'endorsements:sync-user {vatsim_id : VATSIM ID of the user to sync}';
 
-    /**
-     * The console command description.
-     */
     protected $description = 'Sync endorsement activities for a specific user';
 
     protected VatEudService $vatEudService;
@@ -30,9 +24,6 @@ class SyncUserEndorsements extends Command
         $this->activityService = $activityService;
     }
 
-    /**
-     * Execute the console command.
-     */
     public function handle(): int
     {
         $vatsimId = (int) $this->argument('vatsim_id');
@@ -40,10 +31,8 @@ class SyncUserEndorsements extends Command
         $this->info("Syncing endorsement activities for VATSIM ID: {$vatsimId}");
 
         try {
-            // First, sync with VatEUD to ensure we have current endorsements
             $this->syncUserEndorsementsFromVatEUD($vatsimId);
 
-            // Then update activity for this user's endorsements
             $endorsements = EndorsementActivity::where('vatsim_id', $vatsimId)->get();
 
             if ($endorsements->isEmpty()) {
@@ -71,14 +60,10 @@ class SyncUserEndorsements extends Command
         }
     }
 
-    /**
-     * Sync endorsements for a specific user from VatEUD (Tier 1 only)
-     */
     protected function syncUserEndorsementsFromVatEUD(int $vatsimId): void
     {
         $this->line("Fetching current Tier 1 endorsements from VatEUD...");
 
-        // Only fetch Tier 1 endorsements since they require activity tracking
         $tier1Endorsements = $this->vatEudService->getTier1Endorsements();
         $userEndorsements = collect($tier1Endorsements)->where('user_cid', $vatsimId);
 
@@ -89,9 +74,6 @@ class SyncUserEndorsements extends Command
         }
     }
 
-    /**
-     * Sync individual Tier 1 endorsement
-     */
     protected function syncEndorsement(array $endorsement): void
     {
         $createdAt = null;
@@ -99,7 +81,7 @@ class SyncUserEndorsements extends Command
             try {
                 $createdAt = \Carbon\Carbon::createFromFormat('Y-m-d\TH:i:s.u\Z', $endorsement['created_at']);
             } catch (\Exception $e) {
-                $createdAt = \Carbon\Carbon::createFromTimestamp(0);
+                $createdAt = \Carbon\Carbon::createFromTimestamp(1);
             }
         }
 
@@ -108,17 +90,14 @@ class SyncUserEndorsements extends Command
             [
                 'vatsim_id' => $endorsement['user_cid'],
                 'position' => $endorsement['position'],
-                'created_at_vateud' => $createdAt,
-                'last_updated' => $createdAt ?? \Carbon\Carbon::createFromTimestamp(0),
+                'created_at_vateud' => $createdAt ?? \Carbon\Carbon::createFromTimestamp(1),
+                'last_updated' => $createdAt ?? \Carbon\Carbon::createFromTimestamp(1),
             ]
         );
 
         $this->line("Synced endorsement: {$endorsement['position']} (ID: {$endorsement['id']})");
     }
 
-    /**
-     * Update activity for a specific endorsement
-     */
     protected function updateEndorsementActivity(EndorsementActivity $endorsementActivity): void
     {
         try {

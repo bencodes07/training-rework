@@ -11,6 +11,7 @@ use App\Services\VatsimActivityService;
 use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 use Carbon\Carbon;
@@ -90,9 +91,48 @@ class EndorsementController extends Controller
             return $item['airport'] . '_' . $item['position'];
         });
 
-        $allEndorsements = $this->getAllTier1WithActivity();
+        $allTier1 = $this->vatEudService->getTier1Endorsements();
 
-        $endorsementsByPosition = collect($allEndorsements)
+        $endorsementIds = collect($allTier1)->pluck('id')->toArray();
+        $vatsimIds = collect($allTier1)->pluck('user_cid')->unique()->toArray();
+
+        $activities = EndorsementActivity::whereIn('endorsement_id', $endorsementIds)
+            ->get()
+            ->keyBy('endorsement_id');
+
+        $users = User::whereIn('vatsim_id', $vatsimIds)
+            ->get()
+            ->keyBy('vatsim_id');
+
+        $allEndorsements = collect($allTier1)
+            ->map(function ($endorsement) use ($activities, $users) {
+                $activity = $activities->get($endorsement['id']);
+
+                if (!$activity) {
+                    Log::info('No activity record found for endorsement', [
+                        'endorsement_id' => $endorsement['id'],
+                        'position' => $endorsement['position']
+                    ]);
+                    return null;
+                }
+
+                $user = $users->get($endorsement['user_cid']);
+
+                return [
+                    'id' => $activity->id,
+                    'endorsementId' => $endorsement['id'],
+                    'position' => $endorsement['position'],
+                    'vatsimId' => $endorsement['user_cid'],
+                    'userName' => $user ? $user->name : 'Unknown',
+                    'activity' => $activity->activity_minutes,
+                    'activityHours' => $activity->activity_hours,
+                    'status' => $activity->status,
+                    'progress' => $activity->progress,
+                    'removalDate' => $activity->removal_date?->format('Y-m-d'),
+                    'removalDays' => $activity->removal_date ? $activity->removal_date->diffInDays(now(), false) : -1,
+                ];
+            })
+            ->filter()
             ->filter(function ($endorsement) use ($allowedPositions, $user) {
                 if ($user->is_superuser || $user->is_admin) {
                     return true;
@@ -110,6 +150,10 @@ class EndorsementController extends Controller
                     return $allowed['airport'] === $airport && $allowed['position'] === $positionType;
                 });
             })
+            ->values()
+            ->toArray();
+
+        $endorsementsByPosition = collect($allEndorsements)
             ->groupBy('position')
             ->map(function ($endorsements, $position) {
                 return [
@@ -174,7 +218,7 @@ class EndorsementController extends Controller
                 config('services.vateud.removal_warning_days', 31)
             );
             $endorsement->removal_notified = false;
-            $endorsement->last_updated = Carbon::createFromTimestamp(0);
+            $endorsement->last_updated = Carbon::createFromTimestamp(1);
             $endorsement->save();
 
             $trainee = User::where('vatsim_id', $endorsement->vatsim_id)->first();
@@ -256,20 +300,24 @@ class EndorsementController extends Controller
     protected function getUserTier1Endorsements(int $vatsimId): array
     {
         $allTier1 = $this->vatEudService->getTier1Endorsements();
-
         $tier1Endorsements = collect($allTier1)->where('user_cid', $vatsimId);
 
+        if ($tier1Endorsements->isEmpty()) {
+            return [];
+        }
+
+        $endorsementIds = $tier1Endorsements->pluck('id')->toArray();
+
+        $activities = EndorsementActivity::whereIn('endorsement_id', $endorsementIds)
+            ->get()
+            ->keyBy('endorsement_id');
+
         $result = [];
-        $minRequiredMinutes = config('services.vateud.min_activity_minutes', 180);
 
         foreach ($tier1Endorsements as $endorsement) {
-            $activity = EndorsementActivity::where('endorsement_id', $endorsement['id'])->first();
-            
+            $activity = $activities->get($endorsement['id']);
+
             if (!$activity) {
-                Log::info('No activity record found for endorsement', [
-                    'endorsement_id' => $endorsement['id'],
-                    'position' => $endorsement['position']
-                ]);
                 continue;
             }
 
@@ -335,38 +383,6 @@ class EndorsementController extends Controller
                 'status' => 'active',
                 'mentor' => $this->getMentorName($solo['instructor_cid'] ?? null),
                 'expiresAt' => isset($solo['expires_at']) ? Carbon::parse($solo['expires_at'])->format('Y-m-d') : null,
-            ];
-        }
-
-        return $result;
-    }
-
-    protected function getAllTier1WithActivity(): array
-    {
-        $tier1Endorsements = $this->vatEudService->getTier1Endorsements();
-        $result = [];
-
-        foreach ($tier1Endorsements as $endorsement) {
-            $activity = EndorsementActivity::where('endorsement_id', $endorsement['id'])->first();
-            
-            if (!$activity) {
-                continue;
-            }
-
-            $user = User::where('vatsim_id', $endorsement['user_cid'])->first();
-
-            $result[] = [
-                'id' => $activity->id,
-                'endorsementId' => $endorsement['id'],
-                'position' => $endorsement['position'],
-                'vatsimId' => $endorsement['user_cid'],
-                'userName' => $user ? $user->name : 'Unknown',
-                'activity' => $activity->activity_minutes,
-                'activityHours' => $activity->activity_hours,
-                'status' => $activity->status,
-                'progress' => $activity->progress,
-                'removalDate' => $activity->removal_date?->format('Y-m-d'),
-                'removalDays' => $activity->removal_date ? $activity->removal_date->diffInDays(now(), false) : -1,
             ];
         }
 

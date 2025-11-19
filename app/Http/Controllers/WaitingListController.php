@@ -9,6 +9,7 @@ use App\Services\WaitingListService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 use App\Services\ActivityLogger;
@@ -22,9 +23,6 @@ class WaitingListController extends Controller
         $this->waitingListService = $waitingListService;
     }
 
-    /**
-     * Show mentor waiting list management view
-     */
     public function mentorView(Request $request): Response
     {
         if (!Gate::allows('mentor')) {
@@ -33,15 +31,26 @@ class WaitingListController extends Controller
 
         $user = $request->user();
 
-        if ($user->is_superuser || $user->is_admin) {
-            $courses = Course::with(['waitingListEntries.user', 'mentorGroup'])->get();
-        } else {
-            $courses = $user->mentorCourses()->with(['waitingListEntries.user', 'mentorGroup'])->get();
+        $query = Course::query()
+            ->select([
+                'courses.id',
+                'courses.name',
+                'courses.type',
+                'courses.position',
+                DB::raw('COUNT(waiting_list_entries.id) as waiting_count')
+            ])
+            ->leftJoin('waiting_list_entries', 'courses.id', '=', 'waiting_list_entries.course_id')
+            ->groupBy('courses.id', 'courses.name', 'courses.type', 'courses.position');
+
+        if (!$user->is_superuser && !$user->is_admin) {
+            $query->join('course_mentor', 'courses.id', '=', 'course_mentor.course_id')
+                ->where('course_mentor.user_id', $user->id);
         }
 
-        $courseData = [];
-        $totalWaiting = 0;
+        $courses = $query->get();
+
         $statistics = [
+            'total_waiting' => 0,
             'rtg_waiting' => 0,
             'edmt_waiting' => 0,
             'fam_waiting' => 0,
@@ -49,13 +58,27 @@ class WaitingListController extends Controller
             'rst_waiting' => 0,
         ];
 
-        foreach ($courses as $course) {
-            $waitingEntries = $course->waitingListEntries()
-                ->with('user')
-                ->orderBy('date_added')
-                ->get();
+        $courseIds = $courses->pluck('id');
 
-            $formattedEntries = $waitingEntries->map(function ($entry) {
+        $waitingEntries = WaitingListEntry::whereIn('course_id', $courseIds)
+            ->with(['user:id,vatsim_id,first_name,last_name'])
+            ->select([
+                'id',
+                'user_id',
+                'course_id',
+                'activity',
+                'remarks',
+                'date_added'
+            ])
+            ->orderBy('course_id')
+            ->orderBy('date_added')
+            ->get()
+            ->groupBy('course_id');
+
+        $courseData = $courses->map(function ($course) use ($waitingEntries, &$statistics) {
+            $entries = $waitingEntries->get($course->id, collect());
+
+            $formattedEntries = $entries->map(function ($entry) {
                 return [
                     'id' => $entry->id,
                     'name' => $entry->user->name,
@@ -68,35 +91,35 @@ class WaitingListController extends Controller
                 ];
             });
 
+            $waitingCount = $entries->count();
+            $statistics['total_waiting'] += $waitingCount;
+            $statistics[strtolower($course->type) . '_waiting'] += $waitingCount;
 
-            $courseData[] = [
+            return [
                 'id' => $course->id,
                 'name' => $course->name,
                 'type' => $course->type,
-                'type_display' => $course->type_display,
+                'type_display' => $this->getTypeDisplay($course->type),
                 'position' => $course->position,
-                'position_display' => $course->position_display,
-                'waiting_count' => $waitingEntries->count(),
-                'waiting_list' => $formattedEntries,
+                'position_display' => $this->getPositionDisplay($course->position),
+                'waiting_count' => $waitingCount,
+                'waiting_list' => $formattedEntries->values(),
             ];
-
-            $totalWaiting += $waitingEntries->count();
-            $statistics[strtolower($course->type) . '_waiting'] += $waitingEntries->count();
-        }
-
-        usort($courseData, function ($a, $b) {
-            $typeOrder = ['RTG' => 1, 'EDMT' => 2, 'FAM' => 3, 'GST' => 4, 'RST' => 5];
-            $posOrder = ['GND' => 1, 'TWR' => 2, 'APP' => 3, 'CTR' => 4];
-            
-            $typeDiff = ($typeOrder[$a['type']] ?? 99) - ($typeOrder[$b['type']] ?? 99);
-            if ($typeDiff !== 0) return $typeDiff;
-            
-            return ($posOrder[$a['position']] ?? 99) - ($posOrder[$b['position']] ?? 99);
         });
 
+        $sortedCourseData = $courseData->sortBy(function ($course) {
+            $typeOrder = ['RTG' => 1, 'EDMT' => 2, 'FAM' => 3, 'GST' => 4, 'RST' => 5];
+            $posOrder = ['GND' => 1, 'TWR' => 2, 'APP' => 3, 'CTR' => 4];
+
+            return [
+                $typeOrder[$course['type']] ?? 99,
+                $posOrder[$course['position']] ?? 99
+            ];
+        })->values();
+
         return Inertia::render('training/mentor-waiting-lists', [
-            'courses' => $courseData,
-            'statistics' => array_merge($statistics, ['total_waiting' => $totalWaiting]),
+            'courses' => $sortedCourseData,
+            'statistics' => $statistics,
             'config' => [
                 'min_activity' => config('services.training.min_activity', 10),
                 'display_activity' => config('services.training.display_activity', 8),
@@ -104,9 +127,6 @@ class WaitingListController extends Controller
         ]);
     }
 
-    /**
-     * Start training for a Trainee
-     */
     public function startTraining(Request $request, WaitingListEntry $entry): JsonResponse
     {
         if (!Gate::allows('mentor')) {
@@ -143,9 +163,6 @@ class WaitingListController extends Controller
         }
     }
 
-    /**
-     * Update remarks for a waiting list entry
-     */
     public function updateRemarks(Request $request)
     {
         if (!Gate::allows('mentor')) {
@@ -179,5 +196,28 @@ class WaitingListController extends Controller
 
             return back()->withErrors(['error' => 'An error occurred while updating remarks.']);
         }
+    }
+
+    protected function getTypeDisplay(string $type): string
+    {
+        return match ($type) {
+            'RTG' => 'Rating',
+            'EDMT' => 'Endorsement',
+            'FAM' => 'Familiarisation',
+            'GST' => 'Guest',
+            'RST' => 'Roster',
+            default => $type
+        };
+    }
+
+    protected function getPositionDisplay(string $position): string
+    {
+        return match ($position) {
+            'GND' => 'Ground',
+            'TWR' => 'Tower',
+            'APP' => 'Approach',
+            'CTR' => 'Center',
+            default => $position
+        };
     }
 }

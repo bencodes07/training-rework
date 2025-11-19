@@ -72,6 +72,24 @@ class MentorOverviewController extends Controller
             ])->get();
         }
 
+        // Separate CTR and non-CTR courses
+        $ctrCourses = $courses->filter(fn($c) => $c->position === 'CTR');
+        $nonCtrCourses = $courses->filter(fn($c) => $c->position !== 'CTR');
+
+        // Sort non-CTR: alphabetically by name, then by position for same name
+        $positionOrder = ['GND' => 1, 'TWR' => 2, 'APP' => 3];
+        $nonCtrCourses = $nonCtrCourses
+            ->sortBy(function ($course) use ($positionOrder) {
+                return $positionOrder[$course->position] ?? 999;
+            })
+            ->sortBy('name');
+
+        // Sort CTR alphabetically by name
+        $ctrCourses = $ctrCourses->sortBy('name');
+
+        // Combine: non-CTR first, then CTR
+        $courses = $nonCtrCourses->concat($ctrCourses)->values();
+
         $allTraineeIds = $courses->flatMap(fn($c) => $c->activeTrainees->pluck('id'))->unique()->values();
         $allCourseIds = $courses->pluck('id');
 
