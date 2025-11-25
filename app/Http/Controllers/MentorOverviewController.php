@@ -15,8 +15,100 @@ class MentorOverviewController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
+        $lastAccessedCourseId = $request->input('last_course_id');
 
-        // VatEUD with caching
+        if ($user->is_superuser || $user->is_admin) {
+            $courses = \App\Models\Course::select(['id', 'name', 'position', 'type', 'solo_station'])
+                ->withCount('activeTrainees')
+                ->get();
+        } else {
+            $courses = $user->mentorCourses()
+                ->select(['courses.id', 'courses.name', 'courses.position', 'courses.type', 'courses.solo_station'])
+                ->withCount('activeTrainees')
+                ->get();
+        }
+
+        $ctrCourses = $courses->filter(fn($c) => $c->position === 'CTR');
+        $nonCtrCourses = $courses->filter(fn($c) => $c->position !== 'CTR');
+
+        $positionOrder = ['GND' => 1, 'TWR' => 2, 'APP' => 3];
+        $nonCtrCourses = $nonCtrCourses
+            ->sortBy(function ($course) use ($positionOrder) {
+                return $positionOrder[$course->position] ?? 999;
+            })
+            ->sortBy('name');
+
+        $ctrCourses = $ctrCourses->sortBy('name');
+        $courses = $nonCtrCourses->concat($ctrCourses)->values();
+
+        $coursesMetadata = $courses->map(function ($course) {
+            return [
+                'id' => $course->id,
+                'name' => $course->name,
+                'position' => $course->position,
+                'type' => $course->type,
+                'soloStation' => $course->solo_station,
+                'activeTrainees' => $course->active_trainees_count,
+                'trainees' => [],
+                'loaded' => false,
+            ];
+        });
+
+        $initialCourseData = null;
+        if ($lastAccessedCourseId) {
+            $course = $courses->firstWhere('id', $lastAccessedCourseId);
+            if ($course) {
+                $initialCourseData = $this->loadCourseData($course, $user);
+            }
+        }
+
+        if (!$initialCourseData && $courses->isNotEmpty()) {
+            $initialCourseData = $this->loadCourseData($courses->first(), $user);
+        }
+
+        if ($initialCourseData) {
+            $coursesMetadata = $coursesMetadata->map(function ($courseMetadata) use ($initialCourseData) {
+                if ($courseMetadata['id'] === $initialCourseData['id']) {
+                    return $initialCourseData;
+                }
+                return $courseMetadata;
+            });
+        }
+
+        $totalActiveTrainees = $courses->sum(fn($c) => $c->active_trainees_count);
+
+        return Inertia::render('training/mentor-overview', [
+            'courses' => $coursesMetadata,
+            'statistics' => [
+                'activeTrainees' => $totalActiveTrainees,
+                'claimedTrainees' => 0,
+                'trainingSessions' => 0,
+                'waitingList' => 0,
+            ],
+        ]);
+    }
+
+    public function loadCourseTrainees(Request $request, $courseId)
+    {
+        $user = $request->user();
+
+        if (!$user->isMentor() && !$user->is_superuser) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $course = \App\Models\Course::findOrFail($courseId);
+
+        if (!$user->is_superuser && !$user->is_admin && !$user->mentorCourses()->where('courses.id', $course->id)->exists()) {
+            return response()->json(['error' => 'Access denied'], 403);
+        }
+
+        $courseData = $this->loadCourseData($course, $user);
+
+        return response()->json($courseData);
+    }
+
+    protected function loadCourseData($course, $user): array
+    {
         $allSolos = Cache::remember('vateud_solos', 300, function () {
             try {
                 return collect(app(\App\Services\VatEudService::class)->getSoloEndorsements());
@@ -35,67 +127,27 @@ class MentorOverviewController extends Controller
             }
         });
 
-        // PRE-INDEX VatEUD data by vatsim_id for O(1) lookup instead of O(n) filtering
         $solosByVatsimId = $allSolos->groupBy('user_cid');
         $tier1ByVatsimId = $allTier1->groupBy('user_cid');
 
-        // Load courses
-        if ($user->is_superuser || $user->is_admin) {
-            $courses = \App\Models\Course::with([
-                'mentorGroup',
-                'activeTrainees' => function ($query) use ($user) {
-                    $query->orderByRaw("
-                        CASE 
-                            WHEN course_trainees.custom_order_mentor_id = ? AND course_trainees.custom_order IS NOT NULL 
-                            THEN course_trainees.custom_order 
-                            ELSE 999999 
-                        END ASC,
-                        users.first_name ASC,
-                        users.last_name ASC
-                    ", [$user->id]);
-                },
-            ])->get();
-        } else {
-            $courses = $user->mentorCourses()->with([
-                'mentorGroup',
-                'activeTrainees' => function ($query) use ($user) {
-                    $query->orderByRaw("
-                        CASE 
-                            WHEN course_trainees.custom_order_mentor_id = ? AND course_trainees.custom_order IS NOT NULL 
-                            THEN course_trainees.custom_order 
-                            ELSE 999999 
-                        END ASC,
-                        users.first_name ASC,
-                        users.last_name ASC
-                    ", [$user->id]);
-                },
-            ])->get();
-        }
+        $courseWithTrainees = \App\Models\Course::with([
+            'activeTrainees' => function ($query) use ($user) {
+                $query->orderByRaw("
+                CASE 
+                    WHEN course_trainees.custom_order_mentor_id = ? AND course_trainees.custom_order IS NOT NULL 
+                    THEN course_trainees.custom_order 
+                    ELSE 999999 
+                END ASC,
+                users.first_name ASC,
+                users.last_name ASC
+            ", [$user->id]);
+            },
+        ])->find($course->id);
 
-        // Separate CTR and non-CTR courses
-        $ctrCourses = $courses->filter(fn($c) => $c->position === 'CTR');
-        $nonCtrCourses = $courses->filter(fn($c) => $c->position !== 'CTR');
+        $traineeIds = $courseWithTrainees->activeTrainees->pluck('id');
 
-        // Sort non-CTR: alphabetically by name, then by position for same name
-        $positionOrder = ['GND' => 1, 'TWR' => 2, 'APP' => 3];
-        $nonCtrCourses = $nonCtrCourses
-            ->sortBy(function ($course) use ($positionOrder) {
-                return $positionOrder[$course->position] ?? 999;
-            })
-            ->sortBy('name');
-
-        // Sort CTR alphabetically by name
-        $ctrCourses = $ctrCourses->sortBy('name');
-
-        // Combine: non-CTR first, then CTR
-        $courses = $nonCtrCourses->concat($ctrCourses)->values();
-
-        $allTraineeIds = $courses->flatMap(fn($c) => $c->activeTrainees->pluck('id'))->unique()->values();
-        $allCourseIds = $courses->pluck('id');
-
-        // Training logs
         $allTrainingLogs = collect();
-        if ($allTraineeIds->isNotEmpty()) {
+        if ($traineeIds->isNotEmpty()) {
             $allTrainingLogs = \App\Models\TrainingLog::select([
                 'id',
                 'trainee_id',
@@ -104,26 +156,23 @@ class MentorOverviewController extends Controller
                 'result',
                 'next_step'
             ])
-                ->whereIn('trainee_id', $allTraineeIds)
-                ->whereIn('course_id', $allCourseIds)
+                ->whereIn('trainee_id', $traineeIds)
+                ->where('course_id', $course->id)
                 ->orderBy('trainee_id')
-                ->orderBy('course_id')
                 ->orderBy('session_date', 'desc')
                 ->get()
-                ->groupBy(function ($log) {
-                    return $log->trainee_id . '_' . $log->course_id;
-                })
-                ->map(fn($logs) => $logs->take(10));
+                ->groupBy('trainee_id')
+                ->map(fn($logs) => $logs->take(10))
+                ->mapWithKeys(fn($logs, $traineeId) => [$traineeId . '_' . $course->id => $logs]);
         }
 
-        // CRITICAL FIX: Join claimed mentor data to avoid 167 separate User::find() calls
         $pivotData = collect();
-        if ($allTraineeIds->isNotEmpty() && $allCourseIds->isNotEmpty()) {
+        if ($traineeIds->isNotEmpty()) {
             $pivotData = DB::table('course_trainees')
                 ->leftJoin('users as remark_author', 'course_trainees.remark_author_id', '=', 'remark_author.id')
                 ->leftJoin('users as claimed_mentor', 'course_trainees.claimed_by_mentor_id', '=', 'claimed_mentor.id')
-                ->whereIn('course_trainees.course_id', $allCourseIds)
-                ->whereIn('course_trainees.user_id', $allTraineeIds)
+                ->where('course_trainees.course_id', $course->id)
+                ->whereIn('course_trainees.user_id', $traineeIds)
                 ->select(
                     'course_trainees.course_id',
                     'course_trainees.user_id',
@@ -132,7 +181,6 @@ class MentorOverviewController extends Controller
                     'course_trainees.claimed_by_mentor_id',
                     'remark_author.first_name as author_first_name',
                     'remark_author.last_name as author_last_name',
-                    // ADDED: claimed mentor info
                     'claimed_mentor.id as claimed_mentor_id',
                     'claimed_mentor.first_name as claimed_first_name',
                     'claimed_mentor.last_name as claimed_last_name'
@@ -141,34 +189,20 @@ class MentorOverviewController extends Controller
                 ->keyBy(fn($item) => $item->course_id . '_' . $item->user_id);
         }
 
-        // Format courses with optimized data structures
-        $formattedCourses = $courses->map(function ($course) use ($user, $solosByVatsimId, $tier1ByVatsimId, $allTrainingLogs, $pivotData) {
-            $trainees = $course->activeTrainees->map(function ($trainee) use ($course, $user, $solosByVatsimId, $tier1ByVatsimId, $allTrainingLogs, $pivotData) {
-                return $this->formatTraineeOptimized($trainee, $course, $user, $solosByVatsimId, $tier1ByVatsimId, $allTrainingLogs, $pivotData);
-            });
-
-            return [
-                'id' => $course->id,
-                'name' => $course->name,
-                'position' => $course->position,
-                'type' => $course->type,
-                'soloStation' => $course->solo_station,
-                'activeTrainees' => $course->activeTrainees->count(),
-                'trainees' => $trainees,
-            ];
+        $trainees = $courseWithTrainees->activeTrainees->map(function ($trainee) use ($courseWithTrainees, $user, $solosByVatsimId, $tier1ByVatsimId, $allTrainingLogs, $pivotData) {
+            return $this->formatTraineeOptimized($trainee, $courseWithTrainees, $user, $solosByVatsimId, $tier1ByVatsimId, $allTrainingLogs, $pivotData);
         });
 
-        $totalActiveTrainees = $courses->sum(fn($c) => $c->activeTrainees->count());
-
-        return Inertia::render('training/mentor-overview', [
-            'courses' => $formattedCourses,
-            'statistics' => [
-                'activeTrainees' => $totalActiveTrainees,
-                'claimedTrainees' => 0,
-                'trainingSessions' => 0,
-                'waitingList' => 0,
-            ],
-        ]);
+        return [
+            'id' => $courseWithTrainees->id,
+            'name' => $courseWithTrainees->name,
+            'position' => $courseWithTrainees->position,
+            'type' => $courseWithTrainees->type,
+            'soloStation' => $courseWithTrainees->solo_station,
+            'activeTrainees' => $courseWithTrainees->activeTrainees->count(),
+            'trainees' => $trainees,
+            'loaded' => true,
+        ];
     }
 
     public function getMoodleStatusForTrainee(Request $request)

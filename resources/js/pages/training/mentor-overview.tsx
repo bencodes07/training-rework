@@ -9,6 +9,7 @@ import { BreadcrumbItem } from '@/types';
 import { MentorCourse, MentorStatistics, Trainee } from '@/types/mentor';
 import { Head } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
+import axios from 'axios';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -22,7 +23,10 @@ interface Props {
     statistics: MentorStatistics;
 }
 
-export default function MentorOverview({ courses, statistics }: Props) {
+export default function MentorOverview({ courses: initialCourses, statistics }: Props) {
+    const [courses, setCourses] = useState<MentorCourse[]>(initialCourses);
+    const [loadingCourses, setLoadingCourses] = useState<Set<number>>(new Set());
+
     const { activeCategory, selectedCourse, setActiveCategory, setSelectedCourse, isInitialized } = useMentorStorage(courses);
 
     const [selectedTrainee, setSelectedTrainee] = useState<Trainee | null>(null);
@@ -37,18 +41,52 @@ export default function MentorOverview({ courses, statistics }: Props) {
         return course.type === activeCategory;
     });
 
+    const loadCourseData = async (courseId: number) => {
+        if (loadingCourses.has(courseId)) return;
+
+        const course = courses.find((c) => c.id === courseId);
+        if (course?.loaded) return;
+
+        setLoadingCourses((prev) => new Set(prev).add(courseId));
+
+        try {
+            const response = await axios.get(route('overview.course.trainees', { courseId }));
+            const courseData = response.data;
+
+            setCourses((prevCourses) => prevCourses.map((c) => (c.id === courseId ? { ...courseData, loaded: true } : c)));
+        } catch (error) {
+            console.error('Failed to load course data:', error);
+        } finally {
+            setLoadingCourses((prev) => {
+                const next = new Set(prev);
+                next.delete(courseId);
+                return next;
+            });
+        }
+    };
+
     useEffect(() => {
         if (!isInitialized) return;
 
         if (filteredCourses.length > 0) {
-            // If no course is selected or the selected course is not in filtered courses
             if (!selectedCourse || !filteredCourses.find((c) => c.id === selectedCourse.id)) {
-                setSelectedCourse(filteredCourses[0]);
+                const newSelectedCourse = filteredCourses[0];
+                setSelectedCourse(newSelectedCourse);
+                if (!newSelectedCourse.loaded) {
+                    loadCourseData(newSelectedCourse.id);
+                }
             }
         } else {
             setSelectedCourse(null);
         }
     }, [activeCategory, filteredCourses.length, isInitialized]);
+
+    const handleCourseSelect = async (course: MentorCourse) => {
+        setSelectedCourse(course);
+        if (!course.loaded) {
+            await loadCourseData(course.id);
+        }
+    };
 
     const handleRemarkClick = (trainee: Trainee) => {
         setSelectedTrainee(trainee);
@@ -80,6 +118,8 @@ export default function MentorOverview({ courses, statistics }: Props) {
         setSelectedTrainee(null);
     };
 
+    const currentCourse = courses.find((c) => c.id === selectedCourse?.id) || selectedCourse;
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Mentor Overview" />
@@ -89,37 +129,38 @@ export default function MentorOverview({ courses, statistics }: Props) {
                 <CourseFilter
                     courses={courses}
                     activeCategory={activeCategory}
-                    selectedCourse={selectedCourse}
+                    selectedCourse={currentCourse}
                     onCategoryChange={setActiveCategory}
-                    onCourseSelect={setSelectedCourse}
+                    onCourseSelect={handleCourseSelect}
                 />
 
-                {selectedCourse && (
+                {currentCourse && (
                     <CourseDetail
-                        course={selectedCourse}
+                        course={currentCourse}
                         onRemarkClick={handleRemarkClick}
                         onClaimClick={handleClaimClick}
                         onAssignClick={handleAssignClick}
+                        isLoading={loadingCourses.has(currentCourse.id)}
                     />
                 )}
 
                 <RemarkDialog
                     trainee={selectedTrainee}
-                    courseId={selectedCourse?.id || null}
+                    courseId={currentCourse?.id || null}
                     isOpen={isRemarkDialogOpen}
                     onClose={handleRemarkClose}
                 />
 
                 <ClaimConfirmDialog
                     trainee={selectedTrainee}
-                    courseId={selectedCourse?.id || null}
+                    courseId={currentCourse?.id || null}
                     isOpen={isClaimDialogOpen}
                     onClose={handleClaimClose}
                 />
 
                 <AssignDialog
                     trainee={selectedTrainee}
-                    courseId={selectedCourse?.id || null}
+                    courseId={currentCourse?.id || null}
                     isOpen={isAssignDialogOpen}
                     onClose={handleAssignClose}
                 />

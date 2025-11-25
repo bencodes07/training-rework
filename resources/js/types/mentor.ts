@@ -31,10 +31,10 @@ export interface MentorCourse {
     name: string;
     position: string; // e.g., "TWR", "APP", "CTR", "GND"
     type: 'EDMT' | 'RTG' | 'GST' | 'FAM' | 'RST';
-    soloStation?: string;
-
+    soloStation: string | null;
     activeTrainees: number;
     trainees: Trainee[];
+    loaded?: boolean;
 }
 
 export interface MentorStatistics {

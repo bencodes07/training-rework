@@ -76,6 +76,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/', [MentorOverviewController::class, 'index'])
                 ->name('index');
 
+            Route::get('/mentor-overview/course/{courseId}/trainees', [MentorOverviewController::class, 'loadCourseTrainees'])
+                ->name('course.trainees');
+
             Route::post('/update-remark', [MentorOverviewController::class, 'updateRemark'])
                 ->name('update-remark');
 
