@@ -18,19 +18,17 @@ class MoodleService
         $this->cacheTtl = config('services.moodle.cache_ttl', 600);
     }
 
-    /**
-     * Check if a user exists in Moodle
-     */
     public function userExists(int $vatsimId): bool
     {
         $cacheKey = "moodle:user_exists:{$vatsimId}";
-        
+
         return Cache::remember($cacheKey, now()->addSeconds($this->cacheTtl), function () use ($vatsimId) {
             try {
                 $response = Http::withHeaders([
                     'Authorization' => "Token {$this->apiKey}",
                 ])
-                ->timeout(10)
+                    ->timeout(3)
+                    ->retry(2, 500)
                 ->get("{$this->baseUrl}/user/{$vatsimId}");
 
                 if ($response->successful()) {
@@ -54,19 +52,17 @@ class MoodleService
         });
     }
 
-    /**
-     * Check if a user has completed a Moodle course
-     */
     public function getCourseCompletion(int $vatsimId, int $courseId): bool
     {
         $cacheKey = "moodle:completion:{$vatsimId}:{$courseId}";
-        
+
         return Cache::remember($cacheKey, now()->addSeconds($this->cacheTtl), function () use ($vatsimId, $courseId) {
             try {
                 $response = Http::withHeaders([
                     'Authorization' => "Token {$this->apiKey}",
                 ])
-                ->timeout(10)
+                    ->timeout(5)
+                    ->retry(2, 500)
                 ->get("{$this->baseUrl}/course/{$courseId}/user/{$vatsimId}/completion");
 
                 if ($response->successful()) {
@@ -92,19 +88,16 @@ class MoodleService
         });
     }
 
-    /**
-     * Get course name from Moodle
-     */
     public function getCourseName(int $courseId): ?string
     {
         $cacheKey = "moodle:course_name:{$courseId}";
-        
-        return Cache::remember($cacheKey, now()->addDays(1), function () use ($courseId) {
+
+        return Cache::remember($cacheKey, now()->addDays(7), function () use ($courseId) {
             try {
                 $response = Http::withHeaders([
                     'Authorization' => "Token {$this->apiKey}",
                 ])
-                ->timeout(10)
+                    ->timeout(5)
                 ->get("{$this->baseUrl}/course/{$courseId}");
 
                 if ($response->successful()) {
@@ -123,9 +116,6 @@ class MoodleService
         });
     }
 
-    /**
-     * Check if user has completed all required courses
-     */
     public function checkAllCoursesCompleted(int $vatsimId, array $courseIds): bool
     {
         if (empty($courseIds)) {
@@ -141,9 +131,6 @@ class MoodleService
         return true;
     }
 
-    /**
-     * Get detailed completion status for multiple courses
-     */
     public function getCoursesCompletionStatus(int $vatsimId, array $courseIds): array
     {
         $results = [];
@@ -159,9 +146,6 @@ class MoodleService
         return $results;
     }
 
-    /**
-     * Enroll user in a Moodle course
-     */
     public function enrollUser(int $vatsimId, int $courseId): bool
     {
         try {
@@ -172,7 +156,6 @@ class MoodleService
                 ->get("{$this->baseUrl}/course/{$courseId}/user/{$vatsimId}/enrol");
 
             if ($response->successful()) {
-                // Clear completion cache after enrollment
                 Cache::forget("moodle:completion:{$vatsimId}:{$courseId}");
 
                 Log::info('User enrolled in Moodle course', [
@@ -200,9 +183,6 @@ class MoodleService
         }
     }
 
-    /**
-     * Enroll user in multiple courses
-     */
     public function enrollUserInCourses(int $vatsimId, array $courseIds): void
     {
         foreach ($courseIds as $courseId) {
@@ -210,14 +190,8 @@ class MoodleService
         }
     }
 
-    /**
-     * Clear cache for a specific user
-     */
     public function clearUserCache(int $vatsimId): void
     {
         Cache::forget("moodle:user_exists:{$vatsimId}");
-        
-        // Note: Can't clear all completion caches without knowing all course IDs
-        // Consider using cache tags in production
     }
 }

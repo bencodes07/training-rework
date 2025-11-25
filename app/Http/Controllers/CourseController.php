@@ -52,21 +52,35 @@ class CourseController extends Controller
                 $filteredCourses = $this->filterCoursesForUser($courses, $user);
             }
 
-            $waitingListEntries = WaitingListEntry::with('course')
-                ->where('user_id', $user->id)
-                ->get();
+            $waitingListEntries = WaitingListEntry::where('user_id', $user->id)
+                ->pluck('activity', 'course_id');
 
-            $userHasActiveRtgCourse = $user->activeRatingCourses()
-                ->wherePivot('completed_at', null)
-                ->exists() ||
+            $waitingListPositions = \DB::table('waiting_list_entries as wle1')
+                ->select('wle1.course_id', \DB::raw('COUNT(DISTINCT wle2.id) + 1 as position'))
+                ->leftJoin('waiting_list_entries as wle2', function ($join) use ($user) {
+                    $join->on('wle1.course_id', '=', 'wle2.course_id')
+                        ->whereRaw('wle2.date_added < wle1.date_added');
+                })
+                ->where('wle1.user_id', $user->id)
+                ->groupBy('wle1.course_id')
+                ->pluck('position', 'course_id');
+
+            $userHasActiveRtgCourse = \Cache::remember(
+                "user_{$user->id}_active_rtg_course",
+                now()->addMinutes(5),
+                fn() => $user->activeRatingCourses()
+                    ->wherePivot('completed_at', null)
+                    ->exists() ||
                 $user->waitingListEntries()->whereHas('course', function ($q) {
                     $q->where('type', 'RTG');
-                })->exists();
+                })->exists()
+            );
 
-            $formattedCourses = $filteredCourses->map(function ($course) use ($user, $waitingListEntries, $moodleSignedUp) {
-                $entry = $waitingListEntries->firstWhere('course_id', $course->id);
+            $formattedCourses = $filteredCourses->map(function ($course) use ($user, $waitingListEntries, $waitingListPositions) {
+                $isOnWaitingList = $waitingListEntries->has($course->id);
+                [$canJoin, $joinError] = $this->validationService->canUserJoinCourse($course, $user);
 
-                $courseData = [
+                return [
                     'id' => $course->id,
                     'name' => $course->name,
                     'trainee_display_name' => $course->trainee_display_name,
@@ -80,21 +94,12 @@ class CourseController extends Controller
                     'mentor_group' => $course->mentorGroup?->name,
                     'min_rating' => $course->min_rating,
                     'max_rating' => $course->max_rating,
-                    'is_on_waiting_list' => $entry !== null,
-                    'waiting_list_position' => $entry?->position_in_queue,
-                    'waiting_list_activity' => $entry?->activity,
-                    'can_join' => $this->validationService->canUserJoinCourse($course, $user)[0],
-                    'join_error' => $this->validationService->canUserJoinCourse($course, $user)[1],
+                    'is_on_waiting_list' => $isOnWaitingList,
+                    'waiting_list_position' => $waitingListPositions[$course->id] ?? null,
+                    'waiting_list_activity' => $waitingListEntries[$course->id] ?? null,
+                    'can_join' => $canJoin,
+                    'join_error' => $joinError,
                 ];
-
-                if ($course->type === 'EDMT' && !empty($course->moodle_course_ids) && $moodleSignedUp) {
-                    $courseData['moodle_completed'] = $this->moodleService->checkAllCoursesCompleted(
-                        $user->vatsim_id,
-                        $course->moodle_course_ids
-                    );
-                }
-
-                return $courseData;
             });
 
             return Inertia::render('training/courses', [
@@ -105,6 +110,12 @@ class CourseController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            \Log::error('Failed to load courses', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return Inertia::render('training/courses', [
                 'courses' => [],
                 'isVatsimUser' => true,
@@ -142,6 +153,8 @@ class CourseController extends Controller
             if ($entry) {
                 [$success, $message] = $this->waitingListService->leaveWaitingList($course, $user);
 
+                \Cache::forget("user_{$user->id}_active_rtg_course");
+
                 return back()->with('flash', [
                     'success' => $success,
                     'message' => $message,
@@ -154,6 +167,8 @@ class CourseController extends Controller
                     $newEntry = WaitingListEntry::where('user_id', $user->id)
                         ->where('course_id', $course->id)
                         ->first();
+
+                    \Cache::forget("user_{$user->id}_active_rtg_course");
 
                     return back()->with('flash', [
                         'success' => true,

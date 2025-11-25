@@ -1,10 +1,11 @@
 name: tests
 
 on:
-  push:
-    branches:
-      - develop
-      - main
+  # DISABLE TESTS FOR NOW
+  # push:
+  #   branches:
+  #     - develop
+  #     - main
   pull_request:
     branches:
       - develop

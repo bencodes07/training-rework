@@ -38,9 +38,13 @@ class CourseValidationService
         }
 
         if ($course->type === 'RTG') {
-            $hasActiveRtg = $user->activeRatingCourses()
-                ->wherePivot('completed_at', null)
-                ->exists();
+            $hasActiveRtg = Cache::remember(
+                "user_{$user->id}_has_active_rtg",
+                now()->addMinutes(5),
+                fn() => $user->activeRatingCourses()
+                    ->wherePivot('completed_at', null)
+                    ->exists()
+            );
 
             if ($hasActiveRtg) {
                 return [false, 'You already have an active RTG course.'];
@@ -102,13 +106,15 @@ class CourseValidationService
 
     public function getRoster(): array
     {
-        return Cache::remember('vateud:roster', now()->addMinutes(60), function () {
+        return Cache::remember('vateud:roster', now()->addHours(1), function () {
             try {
                 $response = Http::withHeaders([
                     'X-API-KEY' => config('services.vateud.token'),
                     'Accept' => 'application/json',
                     'User-Agent' => 'VATGER Training System',
-                ])->get('https://core.vateud.net/api/facility/roster');
+                ])
+                    ->timeout(5)
+                    ->get('https://core.vateud.net/api/facility/roster');
 
                 if ($response->successful()) {
                     $data = $response->json();
@@ -124,7 +130,7 @@ class CourseValidationService
 
     public function getUserEndorsements(int $vatsimId): \Illuminate\Support\Collection
     {
-        return Cache::remember("user_endorsements:{$vatsimId}", now()->addHours(1), function () use ($vatsimId) {
+        return Cache::remember("user_endorsements:{$vatsimId}", now()->addHours(2), function () use ($vatsimId) {
             try {
                 $tier1 = $this->vatEudService->getTier1Endorsements();
                 return collect($tier1)
