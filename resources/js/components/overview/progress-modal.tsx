@@ -22,7 +22,13 @@ interface TrainingLog {
     mentor: {
         id: number;
         name: string;
-    };
+    } | null;
+    course: {
+        id: number;
+        name: string;
+        position: string;
+        type: string;
+    } | null;
 }
 
 interface ProgressModalProps {
@@ -34,7 +40,6 @@ interface ProgressModalProps {
 
 const DRAFT_STORAGE_KEY_PREFIX = 'training-log-draft-';
 
-// Format date to German format (DD.MM.YYYY)
 const formatGermanDate = (dateString: string): string => {
     const date = new Date(dateString);
     const day = String(date.getDate()).padStart(2, '0');
@@ -58,11 +63,9 @@ export function ProgressModal({ trainee, courseId, isOpen, onClose }: ProgressMo
                 const response = await fetch(route('api.training-logs.trainee', trainee.id));
                 if (response.ok) {
                     const data = await response.json();
-                    // Filter logs for this specific course and sort by date (most recent first)
+                    // FIX: Filter logs for this specific course only
                     const courseLogs = data.logs
-                        .filter(
-                            (log: TrainingLog) => log.mentor?.id, // Only include logs that have a mentor (course-related)
-                        )
+                        .filter((log: TrainingLog) => log.course?.id === courseId)
                         .sort((a: TrainingLog, b: TrainingLog) => new Date(b.session_date).getTime() - new Date(a.session_date).getTime());
                     setLogs(courseLogs);
                 }
@@ -150,7 +153,6 @@ export function ProgressModal({ trainee, courseId, isOpen, onClose }: ProgressMo
                         </DialogTitle>
                     </DialogHeader>
 
-                    {/* Action Buttons */}
                     <div className="flex flex-wrap gap-2 border-b pb-4">
                         <Button onClick={handleCreateNewLog} size="sm">
                             <Plus className="mr-2 h-4 w-4" />
@@ -164,7 +166,6 @@ export function ProgressModal({ trainee, courseId, isOpen, onClose }: ProgressMo
                         )}
                     </div>
 
-                    {/* Logs Timeline */}
                     <div className="flex-1 overflow-y-auto pr-2">
                         {isLoading ? (
                             <div className="flex items-center justify-center py-12">
@@ -180,7 +181,6 @@ export function ProgressModal({ trainee, courseId, isOpen, onClose }: ProgressMo
                             <div className="relative space-y-6 pl-8 before:absolute before:top-0 before:bottom-0 before:left-4 before:w-0.5 before:bg-border">
                                 {logs.map((log) => (
                                     <div key={log.id} className="relative">
-                                        {/* Timeline dot */}
                                         <div
                                             className={cn(
                                                 'absolute -left-[23px] mt-1.5 h-4 w-4 rounded-full border-2 border-background',
@@ -188,7 +188,6 @@ export function ProgressModal({ trainee, courseId, isOpen, onClose }: ProgressMo
                                             )}
                                         />
 
-                                        {/* Log Card */}
                                         <div className="rounded-lg border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
                                             <div className="mb-3 flex items-start justify-between">
                                                 <div className="flex-1">
@@ -238,7 +237,7 @@ export function ProgressModal({ trainee, courseId, isOpen, onClose }: ProgressMo
                                                 </div>
                                             )}
 
-                                            <div className="mt-3 text-xs text-muted-foreground">Mentor: {log.mentor.name}</div>
+                                            <div className="mt-3 text-xs text-muted-foreground">Mentor: {log.mentor?.name ?? 'Unknown'}</div>
                                         </div>
                                     </div>
                                 ))}
@@ -254,7 +253,6 @@ export function ProgressModal({ trainee, courseId, isOpen, onClose }: ProgressMo
                 </DialogContent>
             </Dialog>
 
-            {/* Draft Options Dialog */}
             <Dialog open={showDraftOptions} onOpenChange={() => setShowDraftOptions(false)}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>

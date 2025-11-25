@@ -21,9 +21,10 @@ const breadcrumbs: BreadcrumbItem[] = [
 interface Props {
     courses: MentorCourse[];
     statistics: MentorStatistics;
+    initialCourseId?: number; // NEW: from backend to indicate which course has data loaded
 }
 
-export default function MentorOverview({ courses: initialCourses, statistics }: Props) {
+export default function MentorOverview({ courses: initialCourses, statistics, initialCourseId }: Props) {
     const [courses, setCourses] = useState<MentorCourse[]>(initialCourses);
     const [loadingCourses, setLoadingCourses] = useState<Set<number>>(new Set());
 
@@ -34,6 +35,16 @@ export default function MentorOverview({ courses: initialCourses, statistics }: 
     const [isClaimDialogOpen, setIsClaimDialogOpen] = useState(false);
     const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
 
+    // FIX: Update courses state when initialCourses changes (from Inertia visits)
+    useEffect(() => {
+        console.log('Initial courses received:', {
+            count: initialCourses.length,
+            loadedCourses: initialCourses.filter((c) => c.loaded).map((c) => ({ id: c.id, name: c.name, trainees: c.trainees?.length || 0 })),
+            initialCourseId,
+        });
+        setCourses(initialCourses);
+    }, [initialCourses]);
+
     const filteredCourses = courses.filter((course) => {
         if (activeCategory === 'EDMT_FAM') {
             return course.type === 'EDMT' || course.type === 'FAM';
@@ -42,18 +53,30 @@ export default function MentorOverview({ courses: initialCourses, statistics }: 
     });
 
     const loadCourseData = async (courseId: number) => {
-        if (loadingCourses.has(courseId)) return;
+        if (loadingCourses.has(courseId)) {
+            console.log('Already loading course:', courseId);
+            return;
+        }
 
         const course = courses.find((c) => c.id === courseId);
-        if (course?.loaded) return;
+        if (course?.loaded) {
+            console.log('Course already loaded:', courseId, 'trainees:', course.trainees?.length || 0);
+            return;
+        }
 
+        console.log('Loading course data:', courseId);
         setLoadingCourses((prev) => new Set(prev).add(courseId));
 
         try {
             const response = await axios.get(route('overview.course.trainees', { courseId }));
             const courseData = response.data;
 
-            setCourses((prevCourses) => prevCourses.map((c) => (c.id === courseId ? { ...courseData, loaded: true } : c)));
+            console.log('Course data loaded:', courseData.id, 'trainees:', courseData.trainees?.length || 0);
+
+            setCourses((prevCourses) => {
+                const updated = prevCourses.map((c) => (c.id === courseId ? { ...courseData, loaded: true } : c));
+                return updated;
+            });
         } catch (error) {
             console.error('Failed to load course data:', error);
         } finally {
@@ -65,23 +88,58 @@ export default function MentorOverview({ courses: initialCourses, statistics }: 
         }
     };
 
+    // FIX: Handle initial course selection properly
     useEffect(() => {
         if (!isInitialized) return;
 
         if (filteredCourses.length > 0) {
+            // If no course is selected yet
             if (!selectedCourse || !filteredCourses.find((c) => c.id === selectedCourse.id)) {
-                const newSelectedCourse = filteredCourses[0];
+                // Try to use the initially loaded course from backend first
+                let newSelectedCourse: MentorCourse | undefined;
+
+                if (initialCourseId) {
+                    newSelectedCourse = filteredCourses.find((c) => c.id === initialCourseId);
+                }
+
+                // If no initialCourseId or it's not in filtered courses, use first loaded course
+                if (!newSelectedCourse) {
+                    newSelectedCourse = filteredCourses.find((c) => c.loaded === true);
+                }
+
+                // Fallback to first course
+                if (!newSelectedCourse) {
+                    newSelectedCourse = filteredCourses[0];
+                }
+
+                console.log(
+                    'Selecting course:',
+                    newSelectedCourse.id,
+                    'loaded:',
+                    newSelectedCourse.loaded,
+                    'trainees:',
+                    newSelectedCourse.trainees?.length || 0,
+                );
+
                 setSelectedCourse(newSelectedCourse);
+
+                // Load data if not already loaded
                 if (!newSelectedCourse.loaded) {
+                    console.log('Course not loaded, fetching data for:', newSelectedCourse.id);
                     loadCourseData(newSelectedCourse.id);
                 }
+            } else if (selectedCourse && !selectedCourse.loaded) {
+                // If selected course exists but isn't loaded, load it
+                console.log('Selected course not loaded, fetching data for:', selectedCourse.id);
+                loadCourseData(selectedCourse.id);
             }
         } else {
             setSelectedCourse(null);
         }
-    }, [activeCategory, filteredCourses.length, isInitialized]);
+    }, [activeCategory, filteredCourses.length, isInitialized, initialCourseId]);
 
     const handleCourseSelect = async (course: MentorCourse) => {
+        console.log('Course selected:', course.id, 'loaded:', course.loaded, 'trainees:', course.trainees?.length || 0);
         setSelectedCourse(course);
         if (!course.loaded) {
             await loadCourseData(course.id);
@@ -118,7 +176,16 @@ export default function MentorOverview({ courses: initialCourses, statistics }: 
         setSelectedTrainee(null);
     };
 
-    const currentCourse = courses.find((c) => c.id === selectedCourse?.id) || selectedCourse;
+    // FIX: Always get the latest course data from the courses array
+    const currentCourse = selectedCourse ? courses.find((c) => c.id === selectedCourse.id) || selectedCourse : null;
+
+    console.log('Render state:', {
+        selectedCourseId: selectedCourse?.id,
+        currentCourseId: currentCourse?.id,
+        currentCourseLoaded: currentCourse?.loaded,
+        currentCourseTrainees: currentCourse?.trainees?.length || 0,
+        isLoading: currentCourse ? loadingCourses.has(currentCourse.id) : false,
+    });
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>

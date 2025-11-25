@@ -24,34 +24,87 @@ export function useMentorStorage(courses: MentorCourse[]) {
                 const savedState = localStorage.getItem(STORAGE_KEY);
                 if (savedState) {
                     const parsedState: MentorStorageState = JSON.parse(savedState);
-                    
+
                     // Restore active category
                     if (parsedState.activeCategory) {
                         setActiveCategory(parsedState.activeCategory);
                     }
 
-                    // Restore selected course if it still exists
+                    // FIX: Restore selected course and prefer the one with loaded=true from backend
                     if (parsedState.selectedCourseId) {
-                        const course = courses.find(c => c.id === parsedState.selectedCourseId);
-                        if (course) {
-                            setSelectedCourse(course);
+                        const savedCourse = courses.find((c) => c.id === parsedState.selectedCourseId);
+                        if (savedCourse) {
+                            console.log(
+                                'Restoring saved course:',
+                                savedCourse.id,
+                                'loaded:',
+                                savedCourse.loaded,
+                                'trainees:',
+                                savedCourse.trainees?.length || 0,
+                            );
+                            setSelectedCourse(savedCourse);
                         }
+                    } else {
+                        // FIX: If no saved course, select the first one that has loaded=true from backend
+                        const loadedCourse = courses.find((c) => c.loaded === true);
+                        if (loadedCourse) {
+                            console.log('No saved course, using loaded course:', loadedCourse.id, 'trainees:', loadedCourse.trainees?.length || 0);
+                            setSelectedCourse(loadedCourse);
+                        }
+                    }
+                } else {
+                    // FIX: If no saved state at all, try to use the initially loaded course from backend
+                    const loadedCourse = courses.find((c) => c.loaded === true);
+                    if (loadedCourse) {
+                        console.log('No saved state, using loaded course:', loadedCourse.id, 'trainees:', loadedCourse.trainees?.length || 0);
+                        setSelectedCourse(loadedCourse);
                     }
                 }
             } catch (error) {
                 console.error('Error loading mentor storage state:', error);
-                // Clear corrupted data
                 localStorage.removeItem(STORAGE_KEY);
+
+                // FIX: Even on error, try to use loaded course
+                const loadedCourse = courses.find((c) => c.loaded === true);
+                if (loadedCourse) {
+                    console.log('Error loading state, using loaded course:', loadedCourse.id);
+                    setSelectedCourse(loadedCourse);
+                }
             }
             setIsInitialized(true);
         };
 
-        loadState();
-    }, [courses]);
+        if (courses.length > 0) {
+            loadState();
+        }
+    }, [courses.length]); // Only depend on length to avoid re-running when courses update
+
+    // FIX: Update selectedCourse when courses array changes (e.g., when trainees are loaded)
+    useEffect(() => {
+        if (!isInitialized || !selectedCourse) return;
+
+        const updatedCourse = courses.find((c) => c.id === selectedCourse.id);
+        if (updatedCourse) {
+            // Check if the course data has been updated (loaded flag or trainee count changed)
+            const hasNewData =
+                updatedCourse.loaded !== selectedCourse.loaded || (updatedCourse.trainees?.length || 0) !== (selectedCourse.trainees?.length || 0);
+
+            if (hasNewData) {
+                console.log(
+                    'Course data updated:',
+                    updatedCourse.id,
+                    'loaded:',
+                    updatedCourse.loaded,
+                    'trainees:',
+                    updatedCourse.trainees?.length || 0,
+                );
+                setSelectedCourse(updatedCourse);
+            }
+        }
+    }, [courses, isInitialized]);
 
     // Save state to localStorage whenever it changes
     useEffect(() => {
-        // Don't save until we've initialized from storage
         if (!isInitialized) return;
 
         try {
@@ -65,7 +118,6 @@ export function useMentorStorage(courses: MentorCourse[]) {
         }
     }, [activeCategory, selectedCourse, isInitialized]);
 
-    // Custom setter that updates both state and storage
     const updateActiveCategory = (category: string) => {
         setActiveCategory(category);
     };
@@ -74,7 +126,6 @@ export function useMentorStorage(courses: MentorCourse[]) {
         setSelectedCourse(course);
     };
 
-    // Clear storage (useful for logout or reset)
     const clearStorage = () => {
         try {
             localStorage.removeItem(STORAGE_KEY);

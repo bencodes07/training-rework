@@ -610,11 +610,11 @@ class TrainingLogController extends Controller
                 'name' => $log->trainee->name,
                 'vatsim_id' => $log->trainee->vatsim_id,
             ],
-            'mentor' => [
+            'mentor' => $log->mentor ? [
                 'id' => $log->mentor->id,
                 'name' => $log->mentor->name,
                 'vatsim_id' => $log->mentor->vatsim_id,
-            ],
+            ] : null,
             
             'course' => $log->course ? [
                 'id' => $log->course->id,

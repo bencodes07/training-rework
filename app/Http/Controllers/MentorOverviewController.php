@@ -54,31 +54,62 @@ class MentorOverviewController extends Controller
             ];
         });
 
-        $initialCourseData = null;
-        if ($lastAccessedCourseId) {
-            $course = $courses->firstWhere('id', $lastAccessedCourseId);
-            if ($course) {
-                $initialCourseData = $this->loadCourseData($course, $user);
-            }
+        $courseToLoadId = null;
+
+        if ($lastAccessedCourseId && $courses->contains('id', $lastAccessedCourseId)) {
+            $courseToLoadId = $lastAccessedCourseId;
+        } elseif ($courses->isNotEmpty()) {
+            $courseToLoadId = $courses->first()->id;
         }
 
-        if (!$initialCourseData && $courses->isNotEmpty()) {
-            $initialCourseData = $this->loadCourseData($courses->first(), $user);
-        }
+        $coursesMetadata = $courses->map(function ($course) {
+            return [
+                'id' => $course->id,
+                'name' => $course->name,
+                'position' => $course->position,
+                'type' => $course->type,
+                'soloStation' => $course->solo_station,
+                'activeTrainees' => $course->active_trainees_count,
+                'trainees' => [],
+                'loaded' => false,
+            ];
+        });
 
-        if ($initialCourseData) {
-            $coursesMetadata = $coursesMetadata->map(function ($courseMetadata) use ($initialCourseData) {
-                if ($courseMetadata['id'] === $initialCourseData['id']) {
-                    return $initialCourseData;
+        if ($courseToLoadId) {
+            try {
+                $courseToLoad = \App\Models\Course::find($courseToLoadId);
+                if ($courseToLoad) {
+                    $loadedCourseData = $this->loadCourseData($courseToLoad, $user);
+
+                    $loadedCourseData['loaded'] = true;
+
+                    $coursesMetadata = $coursesMetadata->map(function ($meta) use ($loadedCourseData) {
+                        if ($meta['id'] === $loadedCourseData['id']) {
+                            return $loadedCourseData;
+                        }
+                        return $meta;
+                    });
+
+                    \Log::info('Loaded initial course data', [
+                        'course_id' => $loadedCourseData['id'],
+                        'course_name' => $loadedCourseData['name'],
+                        'trainee_count' => count($loadedCourseData['trainees']),
+                        'loaded_flag' => $loadedCourseData['loaded'],
+                    ]);
                 }
-                return $courseMetadata;
-            });
+            } catch (\Exception $e) {
+                \Log::error('Failed to load initial course data', [
+                    'course_id' => $courseToLoadId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         $totalActiveTrainees = $courses->sum(fn($c) => $c->active_trainees_count);
 
         return Inertia::render('training/mentor-overview', [
-            'courses' => $coursesMetadata,
+            'courses' => $coursesMetadata->values(),
+            'initialCourseId' => $courseToLoadId,
             'statistics' => [
                 'activeTrainees' => $totalActiveTrainees,
                 'claimedTrainees' => 0,
