@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { router } from '@inertiajs/react';
-import { Clock, MessageSquare, Play, Search, Users, X, Eye } from 'lucide-react';
+import { Clock, Play, Search, Users, X, Eye, MessageSquare } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -246,13 +246,14 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                                                 <div className="overflow-y-auto px-4 pb-4">
                                                     {selectedCourse && selectedCourse.waiting_list.length > 0 ? (
                                                         <div className="space-y-3">
-                                                            {selectedCourse.waiting_list.map((entry) => (
+                                                            {selectedCourse.waiting_list.map((entry, index) => (
                                                                 <Card key={entry.id}>
                                                                     <CardContent className="space-y-3 p-4">
                                                                         <div className="flex items-start justify-between">
                                                                             <div>
                                                                                 <div className="font-medium">{entry.name}</div>
                                                                                 <div className="text-sm text-muted-foreground">{entry.vatsim_id}</div>
+                                                                                <Badge variant="secondary">#{index + 1}</Badge>
                                                                             </div>
                                                                             <Badge
                                                                                 className={cn(
@@ -311,45 +312,17 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                                                                                         )}
                                                                                 </Tooltip>
                                                                             </TooltipProvider>
-
-                                                                            <Dialog open={isRemarksDialogOpen} onOpenChange={setIsRemarksDialogOpen}>
-                                                                                <DialogTrigger asChild>
-                                                                                    <Button
-                                                                                        size="sm"
-                                                                                        variant="outline"
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation();
-                                                                                            setSelectedEntry(entry);
-                                                                                            setRemarks(entry.remarks || '');
-                                                                                            setIsRemarksDialogOpen(true);
-                                                                                        }}
-                                                                                    >
-                                                                                        <MessageSquare className="h-4 w-4" />
-                                                                                    </Button>
-                                                                                </DialogTrigger>
-                                                                                <DialogContent onClick={(e) => e.stopPropagation()}>
-                                                                                    <DialogHeader>
-                                                                                        <DialogTitle>Update Remarks - {entry.name}</DialogTitle>
-                                                                                        <DialogDescription>
-                                                                                            Add or update notes about this trainee's progress
-                                                                                        </DialogDescription>
-                                                                                    </DialogHeader>
-                                                                                    <Textarea
-                                                                                        placeholder="Enter remarks about this trainee..."
-                                                                                        value={remarks}
-                                                                                        onChange={(e) => setRemarks(e.target.value)}
-                                                                                        rows={4}
-                                                                                    />
-                                                                                    <DialogFooter>
-                                                                                        <Button variant="outline" onClick={handleCancelRemarks}>
-                                                                                            Cancel
-                                                                                        </Button>
-                                                                                        <Button onClick={handleUpdateRemarks} disabled={isLoading}>
-                                                                                            {isLoading ? 'Saving...' : 'Save'}
-                                                                                        </Button>
-                                                                                    </DialogFooter>
-                                                                                </DialogContent>
-                                                                            </Dialog>
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="outline"
+                                                                                onClick={() => {
+                                                                                    setSelectedEntry(entry);
+                                                                                    setRemarks(entry.remarks || '');
+                                                                                    setIsRemarksDialogOpen(true);
+                                                                                }}
+                                                                            >
+                                                                                <MessageSquare className="h-4 w-4" />
+                                                                            </Button>
                                                                         </div>
                                                                     </CardContent>
                                                                 </Card>
@@ -390,6 +363,7 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                                                         <Table>
                                                             <TableHeader>
                                                                 <TableRow>
+                                                                    <TableHead>Position</TableHead>
                                                                     <TableHead>Trainee</TableHead>
                                                                     <TableHead>Activity</TableHead>
                                                                     <TableHead>Waiting Time</TableHead>
@@ -398,8 +372,9 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                                                                 </TableRow>
                                                             </TableHeader>
                                                             <TableBody>
-                                                                {selectedCourse.waiting_list.map((entry) => (
+                                                                {selectedCourse.waiting_list.map((entry, index) => (
                                                                     <TableRow key={entry.id}>
+                                                                        <TableCell className="pl-3 font-medium">{index + 1}</TableCell>
                                                                         <TableCell>
                                                                             <div>
                                                                                 <div className="font-medium">{entry.name}</div>
@@ -469,51 +444,17 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                                                                                             )}
                                                                                     </Tooltip>
                                                                                 </TooltipProvider>
-
-                                                                                <Dialog
-                                                                                    open={isRemarksDialogOpen}
-                                                                                    onOpenChange={setIsRemarksDialogOpen}
+                                                                                <Button
+                                                                                    size="sm"
+                                                                                    variant="outline"
+                                                                                    onClick={() => {
+                                                                                        setSelectedEntry(entry);
+                                                                                        setRemarks(entry.remarks || '');
+                                                                                        setIsRemarksDialogOpen(true);
+                                                                                    }}
                                                                                 >
-                                                                                    <DialogTrigger asChild>
-                                                                                        <Button
-                                                                                            size="sm"
-                                                                                            variant="outline"
-                                                                                            onClick={(e) => {
-                                                                                                e.stopPropagation();
-                                                                                                setSelectedEntry(entry);
-                                                                                                setRemarks(entry.remarks || '');
-                                                                                                setIsRemarksDialogOpen(true);
-                                                                                            }}
-                                                                                        >
-                                                                                            <MessageSquare className="h-4 w-4" />
-                                                                                        </Button>
-                                                                                    </DialogTrigger>
-                                                                                    <DialogContent onClick={(e) => e.stopPropagation()}>
-                                                                                        <DialogHeader>
-                                                                                            <DialogTitle>Update Remarks - {entry.name}</DialogTitle>
-                                                                                            <DialogDescription>
-                                                                                                Add or update notes about this trainee's progress
-                                                                                            </DialogDescription>
-                                                                                        </DialogHeader>
-                                                                                        <Textarea
-                                                                                            placeholder="Enter remarks about this trainee..."
-                                                                                            value={remarks}
-                                                                                            onChange={(e) => setRemarks(e.target.value)}
-                                                                                            rows={4}
-                                                                                        />
-                                                                                        <DialogFooter>
-                                                                                            <Button variant="outline" onClick={handleCancelRemarks}>
-                                                                                                Cancel
-                                                                                            </Button>
-                                                                                            <Button
-                                                                                                onClick={handleUpdateRemarks}
-                                                                                                disabled={isLoading}
-                                                                                            >
-                                                                                                {isLoading ? 'Saving...' : 'Save'}
-                                                                                            </Button>
-                                                                                        </DialogFooter>
-                                                                                    </DialogContent>
-                                                                                </Dialog>
+                                                                                    <MessageSquare className="h-4 w-4" />
+                                                                                </Button>
                                                                             </div>
                                                                         </TableCell>
                                                                     </TableRow>
@@ -541,6 +482,26 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                     </Card>
                 )}
             </div>
+            <Dialog open={isRemarksDialogOpen} onOpenChange={setIsRemarksDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Update Remarks – {selectedEntry?.name}</DialogTitle>
+                        <DialogDescription>Add or update notes.</DialogDescription>
+                    </DialogHeader>
+
+                    <Textarea placeholder="Enter remarks..." value={remarks} onChange={(e) => setRemarks(e.target.value)} rows={4} />
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={handleCancelRemarks}>
+                            Cancel
+                        </Button>
+
+                        <Button onClick={handleUpdateRemarks} disabled={isLoading}>
+                            {isLoading ? 'Saving...' : 'Save'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AppLayout>
     );
 }
