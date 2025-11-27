@@ -134,7 +134,6 @@ class UserSearchController extends Controller
                                 'mentor_id',
                                 'session_duration',
                                 'next_step',
-                                'average_rating'
                             ])
                             ->orderBy('session_date', 'desc')
                             ->limit(5)
@@ -150,7 +149,6 @@ class UserSearchController extends Controller
                                     'mentor_name' => $log->mentor ? "{$log->mentor->first_name} {$log->mentor->last_name}" : 'Unknown',
                                     'session_duration' => $log->session_duration ?? null,
                                     'next_step' => $log->next_step ?? null,
-                                    'average_rating' => $log->average_rating ?? null,
                                 ];
                             });
 
@@ -200,7 +198,6 @@ class UserSearchController extends Controller
                     'mentor_id',
                     'session_duration',
                     'next_step',
-                    'average_rating'
                 ])
                 ->orderBy('session_date', 'desc')
                 ->get()
@@ -227,7 +224,6 @@ class UserSearchController extends Controller
                             'mentor_name' => $log->mentor ? "{$log->mentor->first_name} {$log->mentor->last_name}" : 'Unknown',
                             'session_duration' => $log->session_duration ?? null,
                             'next_step' => $log->next_step ?? null,
-                            'average_rating' => $log->average_rating ?? null,
                         ];
                     })->toArray(),
                 ]);
@@ -241,16 +237,24 @@ class UserSearchController extends Controller
         }
         
         $endorsements = $user->endorsementActivities()
-            ->select(['position', 'activity_hours', 'status', 'last_activity_date'])
+            ->select([
+                'position',
+                'activity_minutes',
+                'last_updated',
+                'removal_date',
+                'removal_notified',
+            ])
             ->get()
-            ->map(function($activity) {
+            ->map(function ($activity) {
                 return [
                     'position' => $activity->position,
-                    'activity_hours' => $activity->activity_hours,
-                    'status' => $activity->status,
-                    'last_activity_date' => $activity->last_activity_date?->format('Y-m-d'),
+                    'activity_minutes' => $activity->activity_minutes,
+                    'last_updated' => $activity->last_updated?->format('Y-m-d'),
+                    'removal_date' => $activity->removal_date?->format('Y-m-d'),
+                    'removal_notified' => $activity->removal_notified,
                 ];
             });
+
 
         $familiarisations = $user->familiarisations()
             ->with('sector:id,name,fir')

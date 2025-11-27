@@ -297,4 +297,45 @@ class User extends Authenticatable implements FilamentUser
     {
         return $this->hasMany(TrainingLog::class, 'trainee_id');
     }
+
+
+    /**
+     * Get examiner profile if user is an examiner
+     */
+    public function examiner()
+    {
+        return $this->hasOne(Examiner::class);
+    }
+
+    /**
+     * Check if user is an examiner
+     */
+    public function isExaminer(): bool
+    {
+        return $this->examiner()->exists();
+    }
+
+    /**
+     * Get CPTs where user is the trainee
+     */
+    public function cpts()
+    {
+        return $this->hasMany(Cpt::class, 'trainee_id');
+    }
+
+    /**
+     * Get CPTs where user is the examiner
+     */
+    public function examinedCpts()
+    {
+        return $this->hasMany(Cpt::class, 'examiner_id');
+    }
+
+    /**
+     * Get CPTs where user is the local contact
+     */
+    public function localCpts()
+    {
+        return $this->hasMany(Cpt::class, 'local_id');
+    }
 }

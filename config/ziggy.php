@@ -88,6 +88,20 @@ return [
         'training-logs.edit',
         'training-logs.update',
         'api.training-logs.trainee',
-        'api.training-logs.course'
+        'api.training-logs.course',
+
+        'cpt.index',
+        'cpt.create',
+        'cpt.upload',
+        'cpt.upload.store',
+        'cpt.management',
+        'cpt.course-data',
+        'cpt.store',
+        'cpt.destroy',
+        'cpt.grade',
+        'cpt.join-examiner',
+        'cpt.leave-examiner',
+        'cpt.join-local',
+        'cpt.leave-local'
     ],
 ];

@@ -12,6 +12,7 @@ use App\Http\Controllers\TraineeOrderController;
 use App\Http\Controllers\SoloController;
 use App\Http\Controllers\TrainingLogController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\CptController;
 
 Route::get('/', function () {
     return redirect("/dashboard");
@@ -172,6 +173,30 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Get logs for a specific trainee
     Route::get('api/training-logs/trainee/{traineeId}', [TrainingLogController::class, 'getTraineeLogs'])
         ->name('api.training-logs.trainee');
+
+    Route::prefix('cpt')->name('cpt.')->group(function () {
+        Route::get('/', [CptController::class, 'index'])->name('index');
+        Route::get('/create', [CptController::class, 'create'])->name('create');
+        Route::post('/', [CptController::class, 'store'])->name('store');
+        Route::get('/course-data', [CptController::class, 'getCourseData'])->name('course-data');
+
+        Route::get('/log/{log}', action: [CptController::class, 'viewLog'])->name('log.view');
+
+        Route::post('/{cpt}/join-examiner', [CptController::class, 'joinExaminer'])->name('join-examiner');
+        Route::post('/{cpt}/leave-examiner', [CptController::class, 'leaveExaminer'])->name('leave-examiner');
+        Route::post('/{cpt}/join-local', [CptController::class, 'joinLocal'])->name('join-local');
+        Route::post('/{cpt}/leave-local', [CptController::class, 'leaveLocal'])->name('leave-local');
+
+        Route::get('/{cpt}/upload', [CptController::class, 'uploadPage'])->name('upload');
+        Route::post('/{cpt}/upload', [CptController::class, 'upload'])->name('upload.store');
+
+        Route::delete('/{cpt}', [CptController::class, 'destroy'])->name('destroy');
+
+        // Admin only
+        Route::post('/{cpt}/grade/{result}', [CptController::class, 'grade'])
+            ->name('grade')
+            ->middleware('superuser');
+    });
 });
 
 require __DIR__.'/settings.php';

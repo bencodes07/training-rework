@@ -15,7 +15,20 @@ import { UserSearchModal } from '@/components/user-search-modal';
 import { dashboard } from '@/routes';
 import { SharedData, type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpenIcon, CheckCircle, CircleCheck, ClipboardList, Database, Globe, LayoutGrid, Megaphone, Search, Send, Users } from 'lucide-react';
+import {
+    BookOpenIcon,
+    CheckCircle,
+    CircleCheck,
+    ClipboardList,
+    Database,
+    Globe,
+    GraduationCap,
+    LayoutGrid,
+    Megaphone,
+    Search,
+    Send,
+    Users,
+} from 'lucide-react';
 import { useState } from 'react';
 import AppLogo from './app-logo';
 
@@ -66,6 +79,17 @@ const mentorSection = {
             icon: CheckCircle,
         },
     ] as NavItem[],
+};
+
+const atdSection = {
+    label: 'Examination',
+    items: [
+        {
+            title: 'CPT Planning',
+            href: route('cpt.index'),
+            icon: GraduationCap,
+        },
+    ],
 };
 
 const adminSection = {
@@ -174,6 +198,12 @@ export function AppSidebar() {
                                     </SidebarMenuItem>
                                 </SidebarMenu>
                             </SidebarGroup>
+                        </>
+                    )}
+
+                    {isMentor === true && (
+                        <>
+                            <NavSection section={atdSection} />
                         </>
                     )}
 
