@@ -40,7 +40,17 @@ enum ActivityAction: string
     case TRAININGLOG_ADDED = 'traininglog.added';
     case TRAININGLOG_UPDATED = 'traininglog.updated';
     case TRAININGLOG_REMOVED = 'traininglog.removed';
-    
+
+    case CPT_CREATED = 'cpt.created';
+    case CPT_EXAMINER_JOINED = 'cpt.examiner_joined';
+    case CPT_EXAMINER_LEFT = 'cpt.examiner_left';
+    case CPT_LOCAL_JOINED = 'cpt.local_joined';
+    case CPT_LOCAL_LEFT = 'cpt.local_left';
+    case CPT_LOG_UPLOADED = 'cpt.log_uploaded';
+    case CPT_PASSED = 'cpt.graded_passed';
+    case CPT_FAILED = 'cpt.graded_failed';
+    case CPT_DELETED = 'cpt.deleted';
+
     case CREATED = 'created';
     case UPDATED = 'updated';
     case DELETED = 'deleted';
@@ -84,7 +94,17 @@ enum ActivityAction: string
             self::TRAININGLOG_ADDED => 'Training Log Added',
             self::TRAININGLOG_UPDATED => 'Training Log Updated',
             self::TRAININGLOG_REMOVED => 'Training Log Removed',
-            
+
+            self::CPT_CREATED => 'CPT Created',
+            self::CPT_EXAMINER_JOINED => 'CPT Examiner Joined',
+            self::CPT_EXAMINER_LEFT => 'CPT Examiner Left',
+            self::CPT_LOCAL_JOINED => 'Local Mentor Joined CPT',
+            self::CPT_LOCAL_LEFT => 'Local Mentor Left CPT',
+            self::CPT_LOG_UPLOADED => 'CPT Log Uploaded',
+            self::CPT_PASSED => 'CPT Passed',
+            self::CPT_FAILED => 'CPT Failed',
+            self::CPT_DELETED => 'CPT Deleted',
+
             self::CREATED => 'Created',
             self::UPDATED => 'Updated',
             self::DELETED => 'Deleted',
@@ -105,6 +125,8 @@ enum ActivityAction: string
             self::MENTOR_ADDED,
             self::FAMILIARISATION_ADDED,
             self::CORE_TEST_ASSIGNED,
+            self::CPT_CREATED,
+            self::CPT_PASSED,
             self::CREATED => 'success',
             
             
@@ -114,6 +136,8 @@ enum ActivityAction: string
             self::SOLO_REMOVED,
             self::TRAINEE_REMOVED,
             self::MENTOR_REMOVED,
+            self::CPT_FAILED,
+            self::CPT_DELETED,
             self::DELETED => 'danger',
             
             self::SOLO_EXTENDED,
@@ -122,7 +146,14 @@ enum ActivityAction: string
             self::REMARKS_UPDATED,
             self::COURSE_FINISHED,
             self::UPDATED => 'warning',
-            
+
+            self::CPT_EXAMINER_JOINED,
+            self::CPT_EXAMINER_LEFT,
+            self::CPT_LOCAL_JOINED,
+            self::CPT_LOCAL_LEFT,
+            self::CPT_LOG_UPLOADED,
+            self::TRAININGLOG_ADDED => 'info',
+
             default => 'info',
         };
     }

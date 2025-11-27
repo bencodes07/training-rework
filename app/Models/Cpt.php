@@ -33,8 +33,6 @@ class Cpt extends Model
         'log_uploaded' => 'boolean',
     ];
 
-    protected $logAttributes = ['trainee_id', 'examiner_id', 'local_id', 'course_id', 'date', 'passed', 'confirmed'];
-
     public function trainee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'trainee_id');

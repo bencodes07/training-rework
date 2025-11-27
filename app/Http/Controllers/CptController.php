@@ -1,5 +1,5 @@
 <?php
-// TODO: update forum post when new cpt is confirmed
+
 namespace App\Http\Controllers;
 
 use App\Models\Cpt;
@@ -7,6 +7,7 @@ use App\Models\CptLog;
 use App\Models\Course;
 use App\Models\Examiner;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -53,7 +54,7 @@ class CptController extends Controller
                 'confirmed' => $cpt->confirmed,
                 'log_uploaded' => $cpt->log_uploaded,
                 'can_delete' => $user->isSuperuser() || $cpt->course->mentors->contains($user->id),
-                'can_view_upload' => $user->isSuperuser() || $user->isLeadership(),
+                'can_view_upload' => $user->isSuperuser() || $user->isLeadership() || $cpt->examiner_id === $user->id || $cpt->local_id === $user->id,
                 'can_upload' => $user->isSuperuser() || $cpt->examiner_id === $user->id || $cpt->local_id === $user->id,
                 'can_join_examiner' => $this->canJoinAsExaminer($user, $cpt),
                 'can_join_local' => $this->canJoinAsLocal($user, $cpt),
@@ -145,6 +146,15 @@ class CptController extends Controller
         }
 
         $cpt = Cpt::create($validated);
+
+        ActivityLogger::cptCreated(
+            $cpt,
+            $course,
+            User::find($validated['trainee_id']),
+            $request->user(),
+            isset($validated['examiner_id']) ? User::find($validated['examiner_id']) : null,
+            isset($validated['local_id']) ? User::find($validated['local_id']) : null
+        );
 
         return redirect()->route('cpt.index')->with('success', 'CPT created successfully.');
     }
@@ -241,16 +251,33 @@ class CptController extends Controller
 
         $cpt->update(['examiner_id' => $user->id]);
 
+        ActivityLogger::cptExaminerJoined(
+            $cpt,
+            $cpt->course,
+            $cpt->trainee,
+            $user
+        );
+
         return back()->with('success', 'Successfully joined as examiner.');
     }
 
     public function leaveExaminer(Request $request, Cpt $cpt)
     {
-        if ($cpt->examiner_id !== $request->user()->id) {
+        $user = $request->user();
+        $cpt->load('course', 'trainee');
+
+        if ($cpt->examiner_id !== $user->id) {
             return back()->withErrors(['error' => 'You are not the examiner for this CPT.']);
         }
 
         $cpt->update(['examiner_id' => null]);
+
+        ActivityLogger::cptExaminerLeft(
+            $cpt,
+            $cpt->course,
+            $cpt->trainee,
+            $user
+        );
 
         return back()->with('success', 'Successfully left as examiner.');
     }
@@ -258,7 +285,7 @@ class CptController extends Controller
     public function joinLocal(Request $request, Cpt $cpt)
     {
         $user = $request->user();
-        $cpt->load('course.mentors');
+        $cpt->load('course.mentors', 'trainee');
 
         if ($cpt->local_id === $user->id) {
             return back()->withErrors(['error' => 'You are already assigned as local contact for this CPT.']);
@@ -274,16 +301,33 @@ class CptController extends Controller
 
         $cpt->update(['local_id' => $user->id]);
 
+        ActivityLogger::cptLocalJoined(
+            $cpt,
+            $cpt->course,
+            $cpt->trainee,
+            $user
+        );
+
         return back()->with('success', 'Successfully joined as local contact.');
     }
 
     public function leaveLocal(Request $request, Cpt $cpt)
     {
-        if ($cpt->local_id !== $request->user()->id) {
+        $user = $request->user();
+        $cpt->load('course', 'trainee');
+
+        if ($cpt->local_id !== $user->id) {
             return back()->withErrors(['error' => 'You are not the local contact for this CPT.']);
         }
 
         $cpt->update(['local_id' => null]);
+
+        ActivityLogger::cptLocalLeft(
+            $cpt,
+            $cpt->course,
+            $cpt->trainee,
+            $user
+        );
 
         return back()->with('success', 'Successfully left as local contact.');
     }
@@ -291,6 +335,7 @@ class CptController extends Controller
     public function destroy(Request $request, Cpt $cpt)
     {
         $user = $request->user();
+        $cpt->load('course.mentors', 'trainee');
 
         if (!$user->isSuperuser() && !$cpt->course->mentors->contains($user->id)) {
             return back()->withErrors(['error' => 'You do not have permission to delete this CPT.']);
@@ -299,6 +344,13 @@ class CptController extends Controller
         if ($cpt->passed !== null) {
             return back()->withErrors(['error' => 'Cannot delete a graded CPT.']);
         }
+
+        ActivityLogger::cptDeleted(
+            $cpt,
+            $cpt->course,
+            $cpt->trainee,
+            $user
+        );
 
         $cpt->delete();
 
@@ -387,7 +439,7 @@ class CptController extends Controller
         // Store in public storage (consistent with existing files)
         $path = $request->file('log_file')->store('cpt_logs', 'public');
 
-        CptLog::create([
+        $cptLog = CptLog::create([
             'cpt_id' => $cpt->id,
             'uploaded_by_id' => $user->id,
             'log_file' => $path,
@@ -395,12 +447,23 @@ class CptController extends Controller
 
         $cpt->update(['log_uploaded' => true]);
 
+        $cpt->load('course', 'trainee');
+        ActivityLogger::cptLogUploaded(
+            $cptLog,
+            $cpt,
+            $cpt->course,
+            $cpt->trainee,
+            $user
+        );
+
         return back()->with('success', 'Log uploaded successfully.');
     }
 
     public function grade(Request $request, Cpt $cpt, int $result)
     {
-        if (!$request->user()->isSuperuser()) {
+        $user = $request->user();
+
+        if (!$user->isSuperuser()) {
             return back()->withErrors(['error' => 'Only ATD can grade CPTs.']);
         }
 
@@ -408,9 +471,17 @@ class CptController extends Controller
             return back()->withErrors(['error' => 'Invalid grading option.']);
         }
 
-        $cpt->update(attributes: ['passed' => $result === 1]);
+        $passed = $result === 1;
+        $cpt->update(['passed' => $passed]);
 
-        // TODO: Send to VATEUD
+        $cpt->load('course', 'trainee');
+        ActivityLogger::cptGraded(
+            $cpt,
+            $cpt->course,
+            $cpt->trainee,
+            $user,
+            $passed
+        );
 
         return back()->with('success', 'CPT graded successfully.');
     }

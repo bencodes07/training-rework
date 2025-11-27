@@ -496,4 +496,200 @@ class ActivityLogger
             $mentor->id
         );
     }
+
+    public static function cptCreated(Model $cpt, Model $course, Model $trainee, Model $creator, ?Model $examiner = null, ?Model $local = null): void
+    {
+        $description = "{$creator->name} created CPT for {$trainee->name} in {$course->name}";
+        if ($examiner) {
+            $description .= " with examiner {$examiner->name}";
+        }
+        if ($local) {
+            $description .= " and local mentor {$local->name}";
+        }
+
+        $properties = [
+            'cpt_id' => $cpt->id,
+            'trainee_id' => $trainee->id,
+            'trainee_name' => $trainee->name,
+            'course_id' => $course->id,
+            'course_name' => $course->name,
+            'position' => $course->position,
+            'date' => $cpt->date?->toIso8601String(),
+            'creator_id' => $creator->id,
+            'creator_name' => $creator->name,
+        ];
+
+        if ($examiner) {
+            $properties['examiner_id'] = $examiner->id;
+            $properties['examiner_name'] = $examiner->name;
+        }
+
+        if ($local) {
+            $properties['local_id'] = $local->id;
+            $properties['local_name'] = $local->name;
+        }
+
+        self::log(
+            'cpt.created',
+            $cpt,
+            $description,
+            $properties,
+            $creator->id
+        );
+    }
+
+    public static function cptExaminerJoined(Model $cpt, Model $course, Model $trainee, Model $examiner): void
+    {
+        self::log(
+            'cpt.examiner_joined',
+            $cpt,
+            "{$examiner->name} signed up as examiner for {$trainee->name}'s CPT in {$course->name}",
+            [
+                'cpt_id' => $cpt->id,
+                'trainee_id' => $trainee->id,
+                'trainee_name' => $trainee->name,
+                'course_id' => $course->id,
+                'course_name' => $course->name,
+                'position' => $course->position,
+                'examiner_id' => $examiner->id,
+                'examiner_name' => $examiner->name,
+                'date' => $cpt->date?->toIso8601String(),
+            ],
+            $examiner->id
+        );
+    }
+
+    public static function cptExaminerLeft(Model $cpt, Model $course, Model $trainee, Model $examiner): void
+    {
+        self::log(
+            'cpt.examiner_left',
+            $cpt,
+            "{$examiner->name} cancelled as examiner for {$trainee->name}'s CPT in {$course->name}",
+            [
+                'cpt_id' => $cpt->id,
+                'trainee_id' => $trainee->id,
+                'trainee_name' => $trainee->name,
+                'course_id' => $course->id,
+                'course_name' => $course->name,
+                'position' => $course->position,
+                'examiner_id' => $examiner->id,
+                'examiner_name' => $examiner->name,
+                'date' => $cpt->date?->toIso8601String(),
+            ],
+            $examiner->id
+        );
+    }
+
+    public static function cptLocalJoined(Model $cpt, Model $course, Model $trainee, Model $local): void
+    {
+        self::log(
+            'cpt.local_joined',
+            $cpt,
+            "{$local->name} signed up as local mentor for {$trainee->name}'s CPT in {$course->name}",
+            [
+                'cpt_id' => $cpt->id,
+                'trainee_id' => $trainee->id,
+                'trainee_name' => $trainee->name,
+                'course_id' => $course->id,
+                'course_name' => $course->name,
+                'position' => $course->position,
+                'local_id' => $local->id,
+                'local_name' => $local->name,
+                'date' => $cpt->date?->toIso8601String(),
+            ],
+            $local->id
+        );
+    }
+
+    public static function cptLocalLeft(Model $cpt, Model $course, Model $trainee, Model $local): void
+    {
+        self::log(
+            'cpt.local_left',
+            $cpt,
+            "{$local->name} cancelled as local mentor for {$trainee->name}'s CPT in {$course->name}",
+            [
+                'cpt_id' => $cpt->id,
+                'trainee_id' => $trainee->id,
+                'trainee_name' => $trainee->name,
+                'course_id' => $course->id,
+                'course_name' => $course->name,
+                'position' => $course->position,
+                'local_id' => $local->id,
+                'local_name' => $local->name,
+                'date' => $cpt->date?->toIso8601String(),
+            ],
+            $local->id
+        );
+    }
+
+    public static function cptLogUploaded(Model $cptLog, Model $cpt, Model $course, Model $trainee, Model $uploader): void
+    {
+        self::log(
+            'cpt.log_uploaded',
+            $cpt,
+            "{$uploader->name} uploaded CPT log for {$trainee->name}'s CPT in {$course->name}",
+            [
+                'cpt_id' => $cpt->id,
+                'cpt_log_id' => $cptLog->id,
+                'trainee_id' => $trainee->id,
+                'trainee_name' => $trainee->name,
+                'course_id' => $course->id,
+                'course_name' => $course->name,
+                'position' => $course->position,
+                'uploader_id' => $uploader->id,
+                'uploader_name' => $uploader->name,
+                'file_name' => $cptLog->file_name,
+                'date' => $cpt->date?->toIso8601String(),
+            ],
+            $uploader->id
+        );
+    }
+
+    public static function cptGraded(Model $cpt, Model $course, Model $trainee, Model $grader, bool $passed): void
+    {
+        $result = $passed ? 'passed' : 'failed';
+
+        self::log(
+            "cpt.graded_{$result}",
+            $cpt,
+            "{$grader->name} marked {$trainee->name}'s CPT in {$course->name} as {$result}",
+            [
+                'cpt_id' => $cpt->id,
+                'trainee_id' => $trainee->id,
+                'trainee_name' => $trainee->name,
+                'course_id' => $course->id,
+                'course_name' => $course->name,
+                'position' => $course->position,
+                'grader_id' => $grader->id,
+                'grader_name' => $grader->name,
+                'result' => $result,
+                'passed' => $passed,
+                'date' => $cpt->date?->toIso8601String(),
+            ],
+            $grader->id
+        );
+    }
+
+    public static function cptDeleted(Model $cpt, Model $course, Model $trainee, Model $deleter): void
+    {
+        self::log(
+            'cpt.deleted',
+            $cpt,
+            "{$deleter->name} deleted CPT for {$trainee->name} in {$course->name}",
+            [
+                'cpt_id' => $cpt->id,
+                'trainee_id' => $trainee->id,
+                'trainee_name' => $trainee->name,
+                'course_id' => $course->id,
+                'course_name' => $course->name,
+                'position' => $course->position,
+                'deleter_id' => $deleter->id,
+                'deleter_name' => $deleter->name,
+                'date' => $cpt->date?->toIso8601String(),
+                'was_graded' => $cpt->passed !== null,
+                'had_log' => $cpt->log_uploaded,
+            ],
+            $deleter->id
+        );
+    }
 }
