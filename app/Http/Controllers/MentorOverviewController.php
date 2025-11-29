@@ -971,8 +971,10 @@ class MentorOverviewController extends Controller
                 return back()->withErrors(['error' => 'Trainee is not enrolled in this course']);
             }
 
-            if (empty($course->solo_station)) {
-                return back()->withErrors(['error' => 'Course does not have an endorsement position configured']);
+            $endorsementGroups = $course->endorsementGroups();
+
+            if ($endorsementGroups->isEmpty()) {
+                return back()->withErrors(['error' => 'Course does not have any endorsement groups configured']);
             }
 
             $moodleCompleted = true; // TODO: Add moodle completion
@@ -982,26 +984,45 @@ class MentorOverviewController extends Controller
             }
 
             $vatEudService = app(\App\Services\VatEudService::class);
+            $grantedEndorsements = [];
+            $failedEndorsements = [];
 
+            foreach ($endorsementGroups as $groupName) {
             $result = $vatEudService->createTier1Endorsement(
                 $trainee->vatsim_id,
-                $course->solo_station,
+                    $groupName,
                 $user->vatsim_id
             );
 
             if ($result['success']) {
-                $vatEudService->refreshEndorsementCache();
+                    $grantedEndorsements[] = $groupName;
 
-                ActivityLogger::endorsementGranted(
-                    $course->solo_station,
+                    ActivityLogger::endorsementGranted(
+                        $groupName,
                     $trainee,
                     $user,
                     'tier1'
                 );
+                } else {
+                    $failedEndorsements[] = [
+                        'name' => $groupName,
+                        'error' => $result['message'] ?? 'Unknown error'
+                    ];
+                }
+            }
 
-                return back()->with('success', "Successfully granted {$course->solo_station} endorsement to {$trainee->name}");
+            $vatEudService->refreshEndorsementCache();
+
+            if (!empty($grantedEndorsements) && empty($failedEndorsements)) {
+                $endorsementsList = implode(', ', $grantedEndorsements);
+                return back()->with('success', "Successfully granted endorsements to {$trainee->name}: {$endorsementsList}");
+            } elseif (!empty($grantedEndorsements) && !empty($failedEndorsements)) {
+                $granted = implode(', ', $grantedEndorsements);
+                $failed = implode(', ', array_column($failedEndorsements, 'name'));
+                return back()->with('warning', "Partially granted endorsements. Granted: {$granted}. Failed: {$failed}");
             } else {
-                return back()->withErrors(['error' => $result['message'] ?? 'Failed to grant endorsement']);
+                $errors = array_map(fn($f) => "{$f['name']}: {$f['error']}", $failedEndorsements);
+                return back()->withErrors(['error' => 'Failed to grant endorsements: ' . implode('; ', $errors)]);
             }
 
         } catch (\Exception $e) {

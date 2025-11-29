@@ -127,7 +127,7 @@ class WaitingListController extends Controller
         ]);
     }
 
-    public function startTraining(Request $request, WaitingListEntry $entry): JsonResponse
+    public function startTraining(Request $request, WaitingListEntry $entry)
     {
         if (!Gate::allows('mentor')) {
             return response()->json(['error' => 'Access denied'], 403);
@@ -146,10 +146,10 @@ class WaitingListController extends Controller
                 ActivityLogger::trainingStarted($entry->course, $entry->user, $user);
             }
 
-            return response()->json([
+            return back()->with('flash', [
                 'success' => $success,
                 'message' => $message,
-            ], $success ? 200 : 400);
+            ]);
         } catch (\Exception $e) {
             \Log::error('Error starting training', [
                 'entry_id' => $entry->id,

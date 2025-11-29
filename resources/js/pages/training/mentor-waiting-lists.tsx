@@ -63,24 +63,57 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
     const [typeFilter, setTypeFilter] = useState('all');
     const isMobile = useIsMobile();
     const [isRemarksDialogOpen, setIsRemarksDialogOpen] = useState(false);
+    const [isStartTrainingDialogOpen, setIsStartTrainingDialogOpen] = useState(false);
+    const [entryToStart, setEntryToStart] = useState<WaitingListEntry | null>(null);
 
-    const handleStartTraining = async (entryId: number) => {
-        if (isLoading) return;
+    const handleStartTrainingClick = (entry: WaitingListEntry) => {
+        setEntryToStart(entry);
+        setIsStartTrainingDialogOpen(true);
+    };
+
+    const handleConfirmStartTraining = async () => {
+        if (!entryToStart || isLoading || !selectedCourse) return;
 
         setIsLoading(true);
-        try {
-            await router.post(
-                `/waiting-lists/${entryId}/start-training`,
-                {},
-                {
-                    preserveState: true,
-                    onFinish: () => setIsLoading(false),
+
+        const savedEntry = entryToStart;
+        const originalWaitingList = selectedCourse.waiting_list;
+
+        const updatedWaitingList = selectedCourse.waiting_list.filter((entry) => entry.id !== savedEntry.id);
+
+        setSelectedCourse({
+            ...selectedCourse,
+            waiting_list: updatedWaitingList,
+            waiting_count: updatedWaitingList.length,
+        });
+
+        setIsStartTrainingDialogOpen(false);
+        setEntryToStart(null);
+
+        router.post(
+            `/waiting-lists/${savedEntry.id}/start-training`,
+            {},
+            {
+                preserveState: true,
+                preserveScroll: true,
+                onSuccess: () => {
+                    toast.success('Training started successfully');
                 },
-            );
-        } catch (error) {
-            console.error('Error:', error);
-            setIsLoading(false);
-        }
+                onError: (errors) => {
+                    setSelectedCourse({
+                        ...selectedCourse,
+                        waiting_list: originalWaitingList,
+                        waiting_count: originalWaitingList.length,
+                    });
+
+                    const errorMessage = Object.values(errors).flat()[0] || 'Failed to start training';
+                    toast.error(typeof errorMessage === 'string' ? errorMessage : 'Failed to start training');
+                },
+                onFinish: () => {
+                    setIsLoading(false);
+                },
+            },
+        );
     };
 
     const handleUpdateRemarks = async () => {
@@ -88,12 +121,10 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
 
         setIsLoading(true);
 
-        // Store original remarks for potential rollback
         const originalRemarks = selectedEntry.remarks;
         const savedEntry = selectedEntry;
         const savedRemarks = remarks;
 
-        // Optimistic update - immediately update the UI
         const updatedWaitingList = selectedCourse.waiting_list.map((entry) =>
             entry.id === savedEntry.id ? { ...entry, remarks: savedRemarks } : entry,
         );
@@ -103,7 +134,6 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
             waiting_list: updatedWaitingList,
         });
 
-        // Close dialog immediately for better UX
         setIsRemarksDialogOpen(false);
         setSelectedEntry(null);
         setRemarks('');
@@ -121,7 +151,6 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                     toast.success('Remarks updated successfully');
                 },
                 onError: (errors) => {
-                    // Revert optimistic update on error
                     const revertedWaitingList = selectedCourse.waiting_list.map((entry) =>
                         entry.id === savedEntry.id ? { ...entry, remarks: originalRemarks } : entry,
                     );
@@ -163,7 +192,6 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
     return (
         <AppLayout breadcrumbs={[{ title: 'Waiting Lists', href: route('waiting-lists.manage') }]}>
             <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
-                {/* Filters and Search */}
                 <div className="flex flex-wrap items-center gap-3">
                     <div className="relative min-w-[300px] flex-1">
                         <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -192,7 +220,6 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                     </Tabs>
                 </div>
 
-                {/* Course Cards */}
                 {filteredCourses.length > 0 ? (
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                         {filteredCourses.map((course) => (
@@ -212,7 +239,6 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                                 </CardHeader>
 
                                 <CardContent className="-mt-4 space-y-3">
-                                    {/* Trainee count indicator */}
                                     <div className="flex items-center justify-between rounded-lg border p-3">
                                         <div className="flex items-center gap-2">
                                             <Users className="h-4 w-4 text-muted-foreground" />
@@ -289,7 +315,7 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                                                                                             <Button
                                                                                                 size="sm"
                                                                                                 className="flex-1"
-                                                                                                onClick={() => handleStartTraining(entry.id)}
+                                                                                                onClick={() => handleStartTrainingClick(entry)}
                                                                                                 disabled={
                                                                                                     isLoading ||
                                                                                                     (selectedCourse.type === 'RTG' &&
@@ -420,7 +446,7 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                                                                                                 <Button
                                                                                                     size="sm"
                                                                                                     className="flex-1"
-                                                                                                    onClick={() => handleStartTraining(entry.id)}
+                                                                                                    onClick={() => handleStartTrainingClick(entry)}
                                                                                                     disabled={
                                                                                                         isLoading ||
                                                                                                         (selectedCourse.type === 'RTG' &&
@@ -482,6 +508,26 @@ export default function MentorWaitingLists({ courses, config }: PageProps) {
                     </Card>
                 )}
             </div>
+
+            <Dialog open={isStartTrainingDialogOpen} onOpenChange={setIsStartTrainingDialogOpen}>
+                <DialogContent className="gap-6">
+                    <DialogHeader>
+                        <DialogTitle>Start Training</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to start training for <span className="font-medium">{entryToStart?.name}</span>?
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsStartTrainingDialogOpen(false)} disabled={isLoading}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleConfirmStartTraining} disabled={isLoading}>
+                            {isLoading ? 'Starting...' : 'Start Training'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <Dialog open={isRemarksDialogOpen} onOpenChange={setIsRemarksDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
