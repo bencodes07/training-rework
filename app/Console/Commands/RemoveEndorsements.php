@@ -188,6 +188,8 @@ class RemoveEndorsements extends Command
             'title' => 'Endorsement Removal',
             'message' => $message,
             'source_name' => 'VATGER ATD',
+            'link_text' => 'Training Centre',
+            'link_url' => 'https://training.vatsim-germany.org',
             'via' => 'board.ping',
         ];
 

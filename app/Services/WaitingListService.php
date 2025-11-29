@@ -24,23 +24,27 @@ class WaitingListService
     public function joinWaitingList(Course $course, User $user): array
     {
         [$canJoin, $reason] = $this->validationService->canUserJoinCourse($course, $user);
-        
+
         if (!$canJoin) {
             return [false, $reason];
         }
 
         // Check if already on waiting list
-        if (WaitingListEntry::where('user_id', $user->id)
-            ->where('course_id', $course->id)
-            ->exists()) {
+        if (
+            WaitingListEntry::where('user_id', $user->id)
+                ->where('course_id', $course->id)
+                ->exists()
+        ) {
             return [false, 'You are already on the waiting list for this course.'];
         }
 
         // Check for multiple RTG courses
-        if ($course->type === 'RTG' && 
+        if (
+            $course->type === 'RTG' &&
             WaitingListEntry::whereHas('course', function ($q) {
                 $q->where('type', 'RTG');
-            })->where('user_id', $user->id)->exists()) {
+            })->where('user_id', $user->id)->exists()
+        ) {
             return [false, 'You are already on the waiting list for a rating course. You can only join one rating course at a time.'];
         }
 
@@ -107,22 +111,52 @@ class WaitingListService
     public function startTraining(WaitingListEntry $entry, User $mentor): array
     {
         $minActivity = config('services.training.display_activity', 8);
-        
+
         if ($entry->course->type === 'RTG' && $entry->activity < $minActivity) {
             return [false, 'Trainee does not have sufficient activity to start training.'];
         }
 
         try {
             DB::transaction(function () use ($entry) {
-                // Add to active trainees
                 $entry->course->activeTrainees()->attach($entry->user_id);
-                
-                // Remove from waiting list
+
                 $entry->delete();
-                
-                // Enroll in Moodle courses if configured
+
                 $this->enrollInMoodleCourses($entry->user, $entry->course->moodle_course_ids);
             });
+
+            // Notify user
+            $apiKey = config('services.vatger.api_key');
+
+            if (!$apiKey) {
+                Log::warning('VATGER API key not configured, skipping notification');
+            }
+
+            $message = sprintf(
+                "You have been enrolled in the %s course. Check the training centre for moodle 
+        courses to start your training.",
+                $entry->course->name
+            );
+
+            $data = [
+                'title' => 'Start of Training',
+                'message' => $message,
+                'source_name' => 'VATGER ATD',
+                'link_text' => 'Training Centre',
+                'link_url' => 'https://training.vatsim-germany.org',
+                'via' => 'board.ping',
+            ];
+
+            $headers = [
+                'Authorization' => "Token {$apiKey}",
+            ];
+
+            $response = \Http::withHeaders($headers)
+                ->post("https://vatsim-germany.org/api/user/{$entry->user->vatsim_id}/send_notification", $data);
+
+            if (!$response->successful()) {
+                throw new \Exception("Failed to send notification: " . $response->body());
+            }
 
             Log::info('Training started', [
                 'mentor_id' => $mentor->id,
