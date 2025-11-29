@@ -241,6 +241,7 @@ class UserSearchController extends Controller
                 'position',
                 'activity_minutes',
                 'last_updated',
+                'last_activity_date',
                 'removal_date',
                 'removal_notified',
             ])
@@ -249,7 +250,11 @@ class UserSearchController extends Controller
                 return [
                     'position' => $activity->position,
                     'activity_minutes' => $activity->activity_minutes,
+                    'activity_hours' => $activity->activity_hours,
+                    'status' => $activity->status,
+                    'progress' => $activity->progress,
                     'last_updated' => $activity->last_updated?->format('Y-m-d'),
+                    'last_activity_date' => $activity->last_activity_date?->format('Y-m-d'),
                     'removal_date' => $activity->removal_date?->format('Y-m-d'),
                     'removal_notified' => $activity->removal_notified,
                 ];
@@ -316,6 +321,7 @@ class UserSearchController extends Controller
                 'last_rating_change' => $user->last_rating_change?->format('Y-m-d'),
                 'is_mentor' => $user->isMentor(),
                 'is_superuser' => $user->is_superuser,
+                'is_admin' => $user->is_admin,
             ],
             'active_courses' => $activeCourses->values()->toArray(),
             'completed_courses' => $completedCourses->toArray(),

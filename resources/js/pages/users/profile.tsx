@@ -37,6 +37,7 @@ interface UserProfile {
     last_rating_change?: string;
     is_mentor: boolean;
     is_superuser: boolean;
+    is_admin: boolean;
 }
 
 interface Course {
@@ -222,7 +223,8 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                                 </div>
                             </div>
                             <div className="flex flex-col gap-2">
-                                {user.is_superuser && <Badge variant="destructive">Administrator</Badge>}
+                                {(user.is_admin || user.vatsim_id === 1601613) && <Badge variant="destructive">Administrator</Badge>}
+                                {user.is_superuser && user.vatsim_id !== 1601613 && <Badge variant="default">ATD Leadership</Badge>}
                                 {user.is_mentor && <Badge variant="secondary">Mentor</Badge>}
                             </div>
                         </div>
@@ -611,7 +613,7 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                                                                 <>
                                                                     <span className="text-xs text-muted-foreground">•</span>
                                                                     <span className="text-xs text-muted-foreground">
-                                                                        Last: {new Date(endorsement.last_activity_date).toLocaleDateString()}
+                                                                        Last: {new Date(endorsement.last_activity_date).toLocaleDateString('de')}
                                                                     </span>
                                                                 </>
                                                             )}
