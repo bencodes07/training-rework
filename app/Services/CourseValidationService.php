@@ -27,13 +27,35 @@ class CourseValidationService
     {
         try {
             $roster = $this->getRoster();
+            $isOnRoster = in_array($user->vatsim_id, $roster);
         } catch (\Exception $e) {
             Log::warning('Failed to fetch roster, allowing course join', ['error' => $e->getMessage()]);
-            return [true, ''];
+            $isOnRoster = false;
         }
 
-        if ($course->type !== 'GST' && 
-            !($course->min_rating <= $user->rating && $user->rating <= $course->max_rating)) {
+        $isGerSubdivision = $user->subdivision === 'GER';
+
+        if ($isGerSubdivision && $isOnRoster) {
+            if ($course->type === 'RST') {
+                return [false, 'You are already on the roster and cannot join roster reentry courses.'];
+            }
+            if ($course->type === 'GST') {
+                return [false, 'You are not allowed to join visitor courses.'];
+            }
+        } elseif ($isGerSubdivision && !$isOnRoster) {
+            if ($course->type !== 'RST') {
+                return [false, 'You must complete roster reentry before joining other courses.'];
+            }
+        } else {
+            if ($course->type !== 'GST') {
+                return [false, 'As a visitor, you can only join visitor courses (GST).'];
+            }
+        }
+
+        if (
+            $course->type !== 'GST' &&
+            !($course->min_rating <= $user->rating && $user->rating <= $course->max_rating)
+        ) {
             return [false, 'You do not have the required rating for this course.'];
         }
 
@@ -51,18 +73,12 @@ class CourseValidationService
             }
         }
 
-        if ($user->subdivision === 'GER' && $course->type === 'GST') {
-            return [false, 'You are not allowed to enter the waiting list for a visitor course.'];
-        }
-
-        if ($user->subdivision !== 'GER' && $course->type === 'RTG') {
-            return [false, 'You are not allowed to enter the waiting list for a rating course.'];
-        }
-
-        if ($course->familiarisation_sector_id && 
+        if (
+            $course->familiarisation_sector_id &&
             Familiarisation::where('user_id', $user->id)
                 ->where('familiarisation_sector_id', $course->familiarisation_sector_id)
-                ->exists()) {
+                ->exists()
+        ) {
             return [false, 'You already have a familiarisation for this course.'];
         }
 
@@ -78,23 +94,15 @@ class CourseValidationService
             }
         }
 
-        if (!in_array($user->vatsim_id, $roster) && 
-            $user->subdivision === 'GER' && 
-            $course->type !== 'RST') {
-            return [false, 'You are not on the roster.'];
-        }
-
-        if (in_array($user->vatsim_id, $roster) && $course->type === 'RST') {
-            return [false, 'You are already on the roster.'];
-        }
-
-        if ($user->rating === 3 && 
-            $course->type === 'RTG' && 
-            $course->position === 'APP') {
+        if (
+            $user->rating === 3 &&
+            $course->type === 'RTG' &&
+            $course->position === 'APP'
+        ) {
             $minDays = (int) config('services.training.s3_rating_change_days', 90);
 
             if ($user->last_rating_change) {
-                $daysSinceRatingChange = \Carbon\Carbon::parse($user->last_rating_change)->diffInDays(now());
+                $daysSinceRatingChange = Carbon::parse($user->last_rating_change)->diffInDays(now());
                 if ($daysSinceRatingChange < $minDays) {
                     return [false, 'Your last rating change was less than 3 months ago. You cannot join an S3 course yet.'];
                 }
