@@ -217,23 +217,37 @@ class CheckRosterStatus extends Command
     protected function checkS1Status(int $vatsimId): array
     {
         try {
-            $response = Http::timeout(10)->get("https://api.vatsim.net/api/ratings/{$vatsimId}/");
-            
+            $apiKey = config('services.vatger.api_key');
+
+            if (!$apiKey) {
+                Log::warning('VATGER API key missing');
+                return [false, null];
+            }
+
+            $response = Http::withHeaders([
+                'Authorization' => "Token {$apiKey}",
+                'Accept' => 'application/json',
+            ])->timeout(10)
+                ->get("https://vatsim-germany.org/api/user/{$vatsimId}/");
+
             if (!$response->successful()) {
+                Log::warning('Failed S1 rating fetch', [
+                    'status' => $response->status()
+                ]);
                 return [false, null];
             }
 
             $data = $response->json();
-            $rating = $data['qualification_id'] ?? 0;
+
+            $rating = $data['atc_rating'] ?? null;
 
             if ($rating == 2) { // S1
                 $ratingChange = $data['lastratingchange'] ?? null;
-                
+
                 if ($ratingChange) {
-                    $ratingChangeDate = Carbon::parse($ratingChange)->timezone('UTC');
-                    $isRecent = now()->diffInDays($ratingChangeDate) < (11 * 30);
-                    
-                    return [$isRecent, $ratingChangeDate];
+                    $date = Carbon::parse($ratingChange)->timezone('UTC');
+                    $recent = now()->diffInDays($date) < (11 * 30);
+                    return [$recent, $date];
                 }
             }
 
@@ -253,6 +267,7 @@ class CheckRosterStatus extends Command
      */
     protected function sendRemovalWarning(int $vatsimId): void
     {
+        // TODO: Remove in production
         return;
         $apiKey = config('services.vatger.api_key');
         
