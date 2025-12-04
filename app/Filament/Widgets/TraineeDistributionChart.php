@@ -12,7 +12,7 @@ class TraineeDistributionChart extends ChartWidget
 
     protected int | string | array $columnSpan = 'full';
 
-    protected static ?int $sort = 5;
+    protected static ?int $sort = 4;
 
     protected function getData(): array
     {

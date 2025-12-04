@@ -13,7 +13,7 @@ class EndorsementHealthChart extends ChartWidget
 
     protected ?string $maxHeight = '300px';
 
-    protected static ?int $sort = 4;
+    protected static ?int $sort = 3;
 
     protected function getData(): array
     {

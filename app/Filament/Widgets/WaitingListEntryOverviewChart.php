@@ -14,7 +14,7 @@ class WaitingListEntryOverviewChart extends ChartWidget
         'xl' => 1,
     ];
 
-    protected static ?int $sort = 3;
+    protected static ?int $sort = 2;
 
     protected ?string $maxHeight = '300px';
 
