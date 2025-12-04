@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useState } from 'react';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 
 interface EvaluationCategory {
     name: string;
@@ -120,17 +122,46 @@ const getSessionTypeColor = (type: string): string => {
     }
 };
 
+const ImagePreviewModal = ({ src, alt, isOpen, onClose }: { src: string; alt: string; isOpen: boolean; onClose: () => void }) => {
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="flex h-auto w-auto max-w-none items-center justify-center gap-0 border-none bg-transparent p-0 focus:outline-none [&>button]:hidden">
+                <img
+                    src={src}
+                    alt={alt}
+                    className="h-auto max-h-[95vh] min-h-[80vh] w-auto max-w-[95vw] min-w-[80vw] cursor-pointer object-contain focus:outline-none"
+                    style={{ borderRadius: '10px' }}
+                    onClick={onClose}
+                />
+            </DialogContent>
+        </Dialog>
+    );
+};
+
 const MarkdownContent = ({ content }: { content: string | null }) => {
+    const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
+
     if (!content) {
         return <p className="text-sm text-muted-foreground italic">No feedback provided.</p>;
     }
 
-    // Basic HTML rendering for content that comes from the WYSIWYG editor
     return (
-        <div 
-            className="prose prose-sm max-w-none dark:prose-invert"
-            dangerouslySetInnerHTML={{ __html: content }}
-        />
+        <>
+            <div
+                className="prose prose-sm dark:prose-invert max-w-none"
+                dangerouslySetInnerHTML={{ __html: content }}
+                onClick={(e) => {
+                    const target = e.target as HTMLElement;
+                    if (target.tagName === 'IMG') {
+                        const img = target as HTMLImageElement;
+                        setPreviewImage({ src: img.src, alt: img.alt || 'Training log image' });
+                    }
+                }}
+            />
+            {previewImage && (
+                <ImagePreviewModal src={previewImage.src} alt={previewImage.alt} isOpen={!!previewImage} onClose={() => setPreviewImage(null)} />
+            )}
+        </>
     );
 };
 
@@ -140,7 +171,6 @@ export default function ViewTrainingLog({ log, canEdit, canViewInternal, categor
             <Head title={`Training Log - ${log.position}`} />
 
             <div className="flex h-full flex-1 flex-col gap-6 overflow-x-auto rounded-xl p-4">
-                {/* Header Section */}
                 <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
                         <h1 className="text-3xl font-bold">
@@ -179,9 +209,7 @@ export default function ViewTrainingLog({ log, canEdit, canViewInternal, categor
                     </div>
                 </div>
 
-                {/* Main Content Grid */}
                 <div className="gap-6">
-                    {/* Main Content Area */}
                     <div className="space-y-6">
                         <Card>
                             <CardHeader>
@@ -254,7 +282,6 @@ export default function ViewTrainingLog({ log, canEdit, canViewInternal, categor
                                     </>
                                 )}
 
-                                {/* Additional Details Section */}
                                 {(log.traffic_level ||
                                     log.traffic_complexity ||
                                     log.runway_configuration ||
@@ -316,7 +343,6 @@ export default function ViewTrainingLog({ log, canEdit, canViewInternal, categor
                                 )}
                             </CardContent>
                         </Card>
-                        {/* Final Comments Card */}
                         <Card>
                             <CardHeader>
                                 <CardTitle>Final Comments</CardTitle>
@@ -343,7 +369,6 @@ export default function ViewTrainingLog({ log, canEdit, canViewInternal, categor
                             </CardContent>
                         </Card>
 
-                        {/* Evaluation Categories */}
                         <div>
                             <h2 className="mb-4 text-2xl font-bold">Evaluation Categories</h2>
                             <div className="grid gap-4 md:grid-cols-2">
@@ -452,7 +477,16 @@ export default function ViewTrainingLog({ log, canEdit, canViewInternal, categor
                     .prose img {
                         border-radius: 0.375rem;
                         max-width: 100%;
+                        max-height: 300px;
+                        width: auto;
+                        height: auto;
+                        object-fit: contain;
                         margin: 0.5rem 0;
+                        cursor: pointer;
+                        transition: opacity 0.2s;
+                    }
+                    .prose img:hover {
+                        opacity: 0.8;
                     }
                     .prose code {
                         background-color: rgba(0, 0, 0, 0.05);
