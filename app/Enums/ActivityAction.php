@@ -50,6 +50,9 @@ enum ActivityAction: string
     case CPT_PASSED = 'cpt.graded_passed';
     case CPT_FAILED = 'cpt.graded_failed';
     case CPT_DELETED = 'cpt.deleted';
+    case CPT_UPDATED = 'cpt.updated';
+
+    case ROSTER_REMOVED = 'roster.removed';
 
     case CREATED = 'created';
     case UPDATED = 'updated';
@@ -104,6 +107,9 @@ enum ActivityAction: string
             self::CPT_PASSED => 'CPT Passed',
             self::CPT_FAILED => 'CPT Failed',
             self::CPT_DELETED => 'CPT Deleted',
+            self::CPT_UPDATED => 'CPT Updated',
+
+            self::ROSTER_REMOVED => 'Removed from Roster',
 
             self::CREATED => 'Created',
             self::UPDATED => 'Updated',
@@ -138,6 +144,7 @@ enum ActivityAction: string
             self::MENTOR_REMOVED,
             self::CPT_FAILED,
             self::CPT_DELETED,
+            self::ROSTER_REMOVED,
             self::DELETED => 'danger',
             
             self::SOLO_EXTENDED,
@@ -152,6 +159,7 @@ enum ActivityAction: string
             self::CPT_LOCAL_JOINED,
             self::CPT_LOCAL_LEFT,
             self::CPT_LOG_UPLOADED,
+            self::CPT_UPDATED,
             self::TRAININGLOG_ADDED => 'info',
 
             default => 'info',

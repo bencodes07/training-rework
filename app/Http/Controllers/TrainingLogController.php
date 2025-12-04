@@ -194,7 +194,7 @@ class TrainingLogController extends Controller
             $trainee = User::findOrFail($validated['trainee_id']);
 
             ActivityLogger::log(
-                'training_log.created',
+                'traininglog.added',
                 $log,
                 "{$user->name} created training log for {$trainee->name}",
                 [
@@ -384,7 +384,7 @@ class TrainingLogController extends Controller
             $log->update($validated);
 
             ActivityLogger::log(
-                'training_log.updated',
+                'traininglog.updated',
                 $log,
                 "{$user->name} updated training log for {$log->trainee->name}",
                 [
@@ -437,7 +437,7 @@ class TrainingLogController extends Controller
             $traineeName = $log->trainee->name;
 
             ActivityLogger::log(
-                'training_log.deleted',
+                'traininglog.removed',
                 null,
                 "{$user->name} deleted training log for {$traineeName}",
                 [
