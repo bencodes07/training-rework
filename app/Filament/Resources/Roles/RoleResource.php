@@ -18,7 +18,7 @@ class RoleResource extends Resource
 {
     protected static ?string $model = Role::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::UserGroup;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedUserGroup;
 
     protected static ?string $recordTitleAttribute = 'name';
 
@@ -48,12 +48,12 @@ class RoleResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return 'System';
+        return 'Users & Access';
     }
 
     public static function getNavigationSort(): ?int
     {
-        return 98;
+        return 2;
     }
 
     public static function getNavigationLabel(): string

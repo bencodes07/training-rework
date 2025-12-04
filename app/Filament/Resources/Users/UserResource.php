@@ -17,7 +17,7 @@ class UserResource extends Resource
 {
     protected static ?string $model = User::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::User;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedUser;
 
     protected static ?string $recordTitleAttribute = 'vatsim_id';
 
@@ -50,5 +50,15 @@ class UserResource extends Resource
     public static function canCreate(): bool
     {
         return false;
+    }
+
+    public static function getNavigationGroup(): ?string
+    {
+        return 'Users & Access';
+    }
+
+    public static function getNavigationSort(): ?int
+    {
+        return 1;
     }
 }

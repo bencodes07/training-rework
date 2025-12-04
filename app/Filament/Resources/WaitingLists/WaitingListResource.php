@@ -18,7 +18,7 @@ class WaitingListResource extends Resource
 {
     protected static ?string $model = WaitingListEntry::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::Clock;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentList;
 
     protected static ?string $recordTitleAttribute = 'id';
 
@@ -53,6 +53,11 @@ class WaitingListResource extends Resource
 
     public static function getNavigationSort(): ?int
     {
-        return 2;
+        return 3;
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return 'Waiting Lists';
     }
 }

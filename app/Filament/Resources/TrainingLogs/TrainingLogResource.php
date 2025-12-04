@@ -19,7 +19,7 @@ class TrainingLogResource extends Resource
 {
     protected static ?string $model = TrainingLog::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::ClipboardDocumentList;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentText;
 
     protected static ?string $recordTitleAttribute = 'id';
 
@@ -55,7 +55,7 @@ class TrainingLogResource extends Resource
 
     public static function getNavigationSort(): ?int
     {
-        return 3;
+        return 2;
     }
 
     public static function getNavigationLabel(): string

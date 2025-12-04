@@ -18,7 +18,7 @@ class FamiliarisationSectorResource extends Resource
 {
     protected static ?string $model = FamiliarisationSector::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::MapPin;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedMap;
 
     protected static ?string $recordTitleAttribute = 'name';
 
@@ -48,7 +48,7 @@ class FamiliarisationSectorResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return 'Training';
+        return 'Endorsements & Ratings';
     }
 
     public static function getNavigationSort(): ?int
@@ -58,6 +58,6 @@ class FamiliarisationSectorResource extends Resource
 
     public static function getNavigationLabel(): string
     {
-        return 'FAM Sectors';
+        return 'Familiarisation Sectors';
     }
 }

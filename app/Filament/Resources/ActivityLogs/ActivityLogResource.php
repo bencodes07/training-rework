@@ -15,7 +15,7 @@ class ActivityLogResource extends Resource
 {
     protected static ?string $model = ActivityLog::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::ClipboardDocumentList;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedArchiveBox;
 
     protected static ?string $recordTitleAttribute = 'id';
 
@@ -39,12 +39,12 @@ class ActivityLogResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return 'System';
+        return 'System & Administration';
     }
 
     public static function getNavigationSort(): ?int
     {
-        return 99;
+        return 1;
     }
 
     public static function canCreate(): bool

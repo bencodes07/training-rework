@@ -15,7 +15,7 @@ class EndorsementActivityResource extends Resource
 {
     protected static ?string $model = EndorsementActivity::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::ShieldCheck;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCheckCircle;
 
     protected static ?string $recordTitleAttribute = 'position';
 
@@ -39,17 +39,17 @@ class EndorsementActivityResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return 'Training';
+        return 'Endorsements & Ratings';
     }
 
     public static function getNavigationSort(): ?int
     {
-        return 6;
+        return 1;
     }
 
     public static function getNavigationLabel(): string
     {
-        return 'Endorsements';
+        return 'Endorsement Activities';
     }
 
     public static function canCreate(): bool

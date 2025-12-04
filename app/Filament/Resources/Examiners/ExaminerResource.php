@@ -18,7 +18,7 @@ class ExaminerResource extends Resource
 {
     protected static ?string $model = Examiner::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::AcademicCap;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedAcademicCap;
 
     protected static ?string $recordTitleAttribute = 'callsign';
 
@@ -48,12 +48,12 @@ class ExaminerResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return 'Training';
+        return 'Endorsements & Ratings';
     }
 
     public static function getNavigationSort(): ?int
     {
-        return 4;
+        return 3;
     }
 
     public static function getNavigationLabel(): string
