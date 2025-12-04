@@ -11,10 +11,9 @@ use Illuminate\Support\Facades\Log;
 class SyncWaitingListActivity extends Command
 {
     protected $signature = 'waitinglist:sync-activity 
-                            {--limit=1 : Number of entries to update per run}
-                            {--force : Force update all entries}';
+                            {--batch-size=50 : Size of batches when processing}';
 
-    protected $description = 'Sync waiting list activity from VATSIM (default: updates 1 entry per run)';
+    protected $description = 'Sync waiting list activity from VATSIM for all entries';
 
     protected VatsimActivityService $activityService;
 
@@ -26,14 +25,10 @@ class SyncWaitingListActivity extends Command
 
     public function handle(): int
     {
-        $this->info('Starting waiting list activity sync...');
+        $this->info('Starting waiting list activity sync for ALL entries...');
 
         try {
-            if ($this->option('force')) {
-                $this->updateAllActivities();
-            } else {
-                $this->updateStaleActivities();
-            }
+            $this->updateAllActivities();
 
             $this->info('Waiting list activity sync completed successfully.');
             return 0;
@@ -47,61 +42,42 @@ class SyncWaitingListActivity extends Command
         }
     }
 
-    protected function updateStaleActivities(): void
-    {
-        $limit = (int) $this->option('limit');
-        
-        $entries = WaitingListEntry::whereHas('course', function ($query) {
-            $query->where('type', 'RTG');
-        })
-        ->orderBy('hours_updated', 'asc')
-        ->limit($limit)
-        ->get();
-
-        if ($entries->isEmpty()) {
-            $this->info('No waiting list entries need updating');
-            return;
-        }
-
-        $this->info("Updating activity for {$entries->count()} entry/entries...");
-
-        foreach ($entries as $entry) {
-            $this->updateEntryActivity($entry);
-        }
-    }
-
     protected function updateAllActivities(): void
     {
-        $this->info("Force updating all RTG waiting list activities...");
-        
+        $batchSize = (int) $this->option('batch-size');
+
         $totalCount = WaitingListEntry::whereHas('course', function ($query) {
             $query->where('type', 'RTG');
         })->count();
+
+        if ($totalCount === 0) {
+            $this->info('No RTG waiting list entries to update');
+            return;
+        }
+
+        $this->info("Updating activity for {$totalCount} RTG waiting list entry/entries...");
+
+        $bar = $this->output->createProgressBar($totalCount);
+        $bar->start();
         
         $processedCount = 0;
 
-        $this->info("Total entries to process: {$totalCount}");
-        
         WaitingListEntry::whereHas('course', function ($query) {
             $query->where('type', 'RTG');
         })
         ->orderBy('hours_updated', 'asc')
-        ->chunk(50, function ($entries) use (&$processedCount, $totalCount) {
-            $this->info("Processing batch starting at entry " . ($processedCount + 1));
-            
+            ->chunk($batchSize, function ($entries) use (&$processedCount, &$bar) {
             foreach ($entries as $entry) {
                 $this->updateEntryActivity($entry);
                 $processedCount++;
-                
-                if ($processedCount % 10 === 0) {
-                    $this->info("Progress: {$processedCount}/{$totalCount}");
-                }
+                    $bar->advance();
             }
-            
-            $this->info("Batch complete. Waiting 2 seconds before next batch...");
-            sleep(2);
+
+                sleep(1);
         });
 
+        $bar->finish();
+        $this->newLine(2);
         $this->info("Completed updating {$processedCount} entries.");
     }
 
@@ -112,7 +88,6 @@ class SyncWaitingListActivity extends Command
             $user = $entry->user;
 
             if (!$user->isVatsimUser()) {
-                $this->warn("Skipping non-VATSIM user: {$user->id}");
                 return;
             }
 
@@ -122,10 +97,7 @@ class SyncWaitingListActivity extends Command
             $entry->hours_updated = now();
             $entry->save();
 
-            $this->line("Updated {$course->name} for user {$user->vatsim_id}: {$activityHours} hours");
-
         } catch (\Exception $e) {
-            $this->error("Failed to update entry {$entry->id}: " . $e->getMessage());
             Log::error('Failed to update waiting list activity', [
                 'entry_id' => $entry->id,
                 'error' => $e->getMessage()
@@ -139,7 +111,7 @@ class SyncWaitingListActivity extends Command
         $position = $course->position;
         $fir = substr($course->mentorGroup->name, 0, 4);
 
-        $start = Carbon::now()->subDays(value: 60)->format(format: 'Y-m-d');
+        $start = Carbon::now()->subDays(60)->format('Y-m-d');
         $apiUrl = "https://stats.vatsim-germany.org/api/atc/{$user->vatsim_id}/sessions/?cid={$user->vatsim_id}&start_date={$start}";
 
         try {
@@ -161,7 +133,7 @@ class SyncWaitingListActivity extends Command
             return match($position) {
                 'GND', 'TWR' => $this->calculateS1TowerHours($connections, $fir),
                 'APP' => $this->calculateAppHours($connections, $airport),
-                'CTR' => 10, // TODO: Implement CTR logic
+                'CTR' => 10,
                 default => -1
             };
 

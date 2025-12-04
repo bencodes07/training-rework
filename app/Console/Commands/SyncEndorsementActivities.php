@@ -12,11 +12,9 @@ use Illuminate\Support\Facades\Log;
 class SyncEndorsementActivities extends Command
 {
     protected $signature = 'endorsements:sync-activities 
-                            {--limit=1 : Number of endorsements to update per run}
-                            {--force : Force update all endorsements}
-                            {--batch-size=50 : Size of batches when processing all}';
+                            {--batch-size=50 : Size of batches when processing}';
 
-    protected $description = 'Sync endorsement activities from VATSIM and VatEUD (default: updates 1 endorsement per run, designed for frequent scheduling)';
+    protected $description = 'Sync endorsement activities from VATSIM and VatEUD for all endorsements';
 
     protected VatEudService $vatEudService;
     protected VatsimActivityService $activityService;
@@ -30,16 +28,11 @@ class SyncEndorsementActivities extends Command
 
     public function handle(): int
     {
-        $this->info('Starting endorsement activity sync...');
+        $this->info('Starting endorsement activity sync for ALL endorsements...');
 
         try {
             $this->syncAllTier1Endorsements();
-
-            if ($this->option('force')) {
-                $this->updateAllActivities();
-            } else {
-                $this->updateStaleActivities();
-            }
+            $this->updateAllActivities();
 
             $this->info('Endorsement activity sync completed successfully.');
             return 0;
@@ -112,52 +105,35 @@ class SyncEndorsementActivities extends Command
         }
     }
 
-    protected function updateStaleActivities(): void
-    {
-        $limit = (int) $this->option('limit');
-        
-        $endorsements = EndorsementActivity::orderBy('last_updated', 'asc')
-            ->limit($limit)
-            ->get();
-
-        if ($endorsements->isEmpty()) {
-            $this->info('No endorsements need updating');
-            return;
-        }
-
-        $this->info("Updating activity for {$endorsements->count()} endorsement(s)...");
-
-        foreach ($endorsements as $endorsementActivity) {
-            $this->updateEndorsementActivity($endorsementActivity);
-        }
-    }
-
     protected function updateAllActivities(): void
     {
         $batchSize = (int) $this->option('batch-size');
-        $this->info("Force updating all endorsement activities in batches of {$batchSize}...");
-        
         $totalCount = EndorsementActivity::count();
+
+        if ($totalCount === 0) {
+            $this->info('No endorsements to update');
+            return;
+        }
+
+        $this->info("Updating activity for {$totalCount} endorsement(s) in batches of {$batchSize}...");
+
+        $bar = $this->output->createProgressBar($totalCount);
+        $bar->start();
+        
         $processedCount = 0;
 
-        $this->info("Total endorsements to process: {$totalCount}");
-        
-        EndorsementActivity::chunk($batchSize, function ($endorsements) use (&$processedCount, $totalCount) {
-            $this->info("Processing batch starting at endorsement " . ($processedCount + 1));
-            
+        EndorsementActivity::chunk($batchSize, function ($endorsements) use (&$processedCount, &$bar) {
             foreach ($endorsements as $endorsementActivity) {
                 $this->updateEndorsementActivity($endorsementActivity);
                 $processedCount++;
-                
-                if ($processedCount % 10 === 0) {
-                    $this->info("Progress: {$processedCount}/{$totalCount}");
-                }
+                $bar->advance();
             }
-            
-            $this->info("Batch complete. Waiting 2 seconds before next batch...");
-            sleep(2);
+
+            sleep(1);
         });
 
+        $bar->finish();
+        $this->newLine(2);
         $this->info("Completed updating {$processedCount} endorsements.");
     }
 
@@ -181,7 +157,6 @@ class SyncEndorsementActivities extends Command
 
             if ($activityMinutes >= $minRequiredMinutes) {
                 if ($endorsementActivity->removal_date) {
-                    $this->info("✓ User {$endorsementActivity->vatsim_id} recovered activity for {$endorsementActivity->position}, clearing removal date");
                     $endorsementActivity->removal_date = null;
                     $endorsementActivity->removal_notified = false;
                 }
@@ -189,15 +164,7 @@ class SyncEndorsementActivities extends Command
 
             $endorsementActivity->save();
 
-            $lastActivityStr = $lastActivityDate ? $lastActivityDate->format('Y-m-d') : 'Never';
-            $removalStatus = $endorsementActivity->removal_date
-                ? " [REMOVAL: {$endorsementActivity->removal_date->format('Y-m-d')}]"
-                : '';
-
-            $this->line("Updated {$endorsementActivity->position} for user {$endorsementActivity->vatsim_id}: {$activityMinutes} min, last: {$lastActivityStr}{$removalStatus}");
-
         } catch (\Exception $e) {
-            $this->error("Failed to update endorsement {$endorsementActivity->id}: " . $e->getMessage());
             Log::error('Failed to update endorsement activity', [
                 'endorsement_id' => $endorsementActivity->id,
                 'error' => $e->getMessage()
