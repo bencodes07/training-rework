@@ -52,6 +52,7 @@ class HandleInertiaRequests extends Middleware
                     'email' => $request->user()->email,
                     'rating' => $request->user()->rating,
                     'subdivision' => $request->user()->subdivision,
+                    'solo_days_used' => $request->user()->solo_days_used,
                     'is_staff' => $request->user()->is_staff,
                     'is_superuser' => $request->user()->is_superuser,
                     'is_admin' => $request->user()->is_admin ?? false,
