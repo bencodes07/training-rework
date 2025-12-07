@@ -21,6 +21,7 @@ return new class extends Migration {
             $table->string('subdivision', 10)->nullable();
             $table->integer('rating');
             $table->timestamp('last_rating_change')->nullable();
+            $table->integer('solo_days_used')->default(0);
             $table->boolean('is_staff')->default(false);
             $table->boolean('is_superuser')->default(false);
             $table->boolean('is_admin')->default(false);

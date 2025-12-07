@@ -322,6 +322,7 @@ class UserSearchController extends Controller
                 'is_mentor' => $user->isMentor(),
                 'is_superuser' => $user->is_superuser,
                 'is_admin' => $user->is_admin,
+                'solo_days_used' => $user->solo_days_used,
             ],
             'active_courses' => $activeCourses->values()->toArray(),
             'completed_courses' => $completedCourses->toArray(),

@@ -22,6 +22,7 @@ import {
     ExternalLink,
     XCircle,
     Eye,
+    Plane,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link } from '@inertiajs/react';
@@ -38,6 +39,7 @@ interface UserProfile {
     is_mentor: boolean;
     is_superuser: boolean;
     is_admin: boolean;
+    solo_days_used: number;
 }
 
 interface Course {
@@ -253,6 +255,17 @@ export default function UserProfilePage({ userData }: { userData: UserData }) {
                                     <div>
                                         <p className="text-sm font-medium">Last Rating Change</p>
                                         <p className="text-xs text-muted-foreground">{new Date(user.last_rating_change).toLocaleDateString('de')}</p>
+                                    </div>
+                                </div>
+                            )}
+                            {user.solo_days_used > 0 && (
+                                <div className="flex items-center gap-3 rounded-lg border p-3">
+                                    <Plane className="h-5 w-5 text-muted-foreground" />
+                                    <div className="w-full">
+                                        <p className="text-sm font-medium">Solo Days</p>
+                                        <div className="mt-1 flex items-center gap-2">
+                                            <p className="text-xs text-muted-foreground">{user.solo_days_used} / 90 used</p>
+                                        </div>
                                     </div>
                                 </div>
                             )}
