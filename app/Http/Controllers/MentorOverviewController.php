@@ -62,25 +62,11 @@ class MentorOverviewController extends Controller
             $courseToLoadId = $courses->first()->id;
         }
 
-        $coursesMetadata = $courses->map(function ($course) {
-            return [
-                'id' => $course->id,
-                'name' => $course->name,
-                'position' => $course->position,
-                'type' => $course->type,
-                'soloStation' => $course->solo_station,
-                'activeTrainees' => $course->active_trainees_count,
-                'trainees' => [],
-                'loaded' => false,
-            ];
-        });
-
         if ($courseToLoadId) {
             try {
                 $courseToLoad = \App\Models\Course::find($courseToLoadId);
                 if ($courseToLoad) {
                     $loadedCourseData = $this->loadCourseData($courseToLoad, $user);
-
                     $loadedCourseData['loaded'] = true;
 
                     $coursesMetadata = $coursesMetadata->map(function ($meta) use ($loadedCourseData) {
@@ -110,6 +96,72 @@ class MentorOverviewController extends Controller
         return Inertia::render('training/mentor-overview', [
             'courses' => $coursesMetadata->values(),
             'initialCourseId' => $courseToLoadId,
+            'statistics' => [
+                'activeTrainees' => $totalActiveTrainees,
+                'claimedTrainees' => 0,
+                'trainingSessions' => 0,
+                'waitingList' => 0,
+            ],
+        ]);
+    }
+
+    protected function returnWithRefreshedCourse($courseId, $user)
+    {
+        if ($user->is_superuser || $user->is_admin) {
+            $courses = \App\Models\Course::select(['id', 'name', 'position', 'type', 'solo_station'])
+                ->withCount('activeTrainees')
+                ->get();
+        } else {
+            $courses = $user->mentorCourses()
+                ->select(['courses.id', 'courses.name', 'courses.position', 'courses.type', 'courses.solo_station'])
+                ->withCount('activeTrainees')
+                ->get();
+        }
+
+        $ctrCourses = $courses->filter(fn($c) => $c->position === 'CTR');
+        $nonCtrCourses = $courses->filter(fn($c) => $c->position !== 'CTR');
+
+        $positionOrder = ['GND' => 1, 'TWR' => 2, 'APP' => 3];
+        $nonCtrCourses = $nonCtrCourses
+            ->sortBy(function ($course) use ($positionOrder) {
+                return $positionOrder[$course->position] ?? 999;
+            })
+            ->sortBy('name');
+
+        $ctrCourses = $ctrCourses->sortBy('name');
+        $courses = $nonCtrCourses->concat($ctrCourses)->values();
+
+        $coursesMetadata = $courses->map(function ($course) use ($courseId, $user) {
+            if ($course->id === $courseId) {
+                try {
+                    $fullCourse = \App\Models\Course::find($courseId);
+                    if ($fullCourse) {
+                        $courseData = $this->loadCourseData($fullCourse, $user);
+                        $courseData['loaded'] = true;
+                        return $courseData;
+                    }
+                } catch (\Exception $e) {
+                    \Log::error('Failed to load course', ['course_id' => $courseId, 'error' => $e->getMessage()]);
+                }
+            }
+
+            return [
+                'id' => $course->id,
+                'name' => $course->name,
+                'position' => $course->position,
+                'type' => $course->type,
+                'soloStation' => $course->solo_station,
+                'activeTrainees' => $course->active_trainees_count,
+                'trainees' => [],
+                'loaded' => false,
+            ];
+        });
+
+        $totalActiveTrainees = $courses->sum(fn($c) => $c->active_trainees_count);
+
+        return Inertia::render('training/mentor-overview', [
+            'courses' => $coursesMetadata->values(),
+            'initialCourseId' => $courseId,
             'statistics' => [
                 'activeTrainees' => $totalActiveTrainees,
                 'claimedTrainees' => 0,
@@ -420,17 +472,6 @@ class MentorOverviewController extends Controller
         return strtoupper($firstInitial . $lastInitial);
     }
 
-    protected function returnUpdatedCourse($course, $user)
-    {
-        $courseData = $this->loadCourseData($course, $user);
-        $courseData['loaded'] = true;
-
-        return back()->with([
-            'updatedCourse' => $courseData,
-            'success' => true
-        ]);
-    }
-
     public function getCourseMentors(Request $request, $courseId)
     {
         $user = $request->user();
@@ -489,7 +530,7 @@ class MentorOverviewController extends Controller
 
             ActivityLogger::remarksUpdated($course, $trainee, $user, $request->remark ?? '');
 
-            return $this->returnUpdatedCourse($course, $user);
+            return $this->returnWithRefreshedCourse($course->id, $user);
         } catch (\Exception $e) {
             \Log::error('Error updating trainee remark', [
                 'mentor_id' => $user->id,
@@ -527,7 +568,7 @@ class MentorOverviewController extends Controller
 
             ActivityLogger::traineeRemoved($course, $trainee, $user);
 
-            return $this->returnUpdatedCourse($course, $user);
+            return $this->returnWithRefreshedCourse($course->id, $user);
         } catch (\Exception $e) {
             \Log::error('Error removing trainee from course', [
                 'mentor_id' => $user->id,
@@ -580,7 +621,7 @@ class MentorOverviewController extends Controller
 
             ActivityLogger::traineeClaimed($course, $trainee, $user);
 
-            return $this->returnUpdatedCourse($course, $user);
+            return $this->returnWithRefreshedCourse($course->id, $user);
         } catch (\Exception $e) {
             \Log::error('Error claiming trainee', [
                 'mentor_id' => $user->id,
@@ -639,7 +680,7 @@ class MentorOverviewController extends Controller
 
             ActivityLogger::traineeAssigned($course, $trainee, $newMentor, $user);
 
-            return $this->returnUpdatedCourse($course, $user);
+            return $this->returnWithRefreshedCourse($course->id, $user);
         } catch (\Exception $e) {
             \Log::error('Error assigning trainee', [
                 'mentor_id' => $user->id,
@@ -688,7 +729,7 @@ class MentorOverviewController extends Controller
 
             ActivityLogger::traineeUnclaimed($course, $trainee, $user);
 
-            return $this->returnUpdatedCourse($course, $user);
+            return $this->returnWithRefreshedCourse($course->id, $user);
         } catch (\Exception $e) {
             \Log::error('Error unclaiming trainee', [
                 'mentor_id' => $user->id,
@@ -857,7 +898,7 @@ class MentorOverviewController extends Controller
                     $user,
                 );
 
-                return $this->returnUpdatedCourse($course, $user);
+                return $this->returnWithRefreshedCourse($course->id, $user);
             }
 
             $course->activeTrainees()->attach($trainee->id, [
@@ -896,7 +937,7 @@ class MentorOverviewController extends Controller
                 'course_name' => $course->name
             ]);
 
-            return $this->returnUpdatedCourse($course, $user);
+            return $this->returnWithRefreshedCourse($course->id, $user);
         } catch (\Exception $e) {
             \Log::error('Error adding trainee to course', [
                 'mentor_id' => $user->id,
@@ -982,7 +1023,7 @@ class MentorOverviewController extends Controller
 
             if (!empty($grantedEndorsements) && empty($failedEndorsements)) {
                 $endorsementsList = implode(', ', $grantedEndorsements);
-                return $this->returnUpdatedCourse($course, $user);
+                return $this->returnWithRefreshedCourse($course->id, $user);
             } elseif (!empty($grantedEndorsements) && !empty($failedEndorsements)) {
                 $granted = implode(', ', $grantedEndorsements);
                 $failed = implode(', ', array_column($failedEndorsements, 'name'));
@@ -1056,7 +1097,7 @@ class MentorOverviewController extends Controller
 
             ActivityLogger::courseFinished($course, $trainee, $user);
 
-            return $this->returnUpdatedCourse($course, $user);
+            return $this->returnWithRefreshedCourse($course->id, $user);
         } catch (\Exception $e) {
             \Log::error('Error finishing course', [
                 'mentor_id' => $user->id,
@@ -1163,7 +1204,7 @@ class MentorOverviewController extends Controller
 
             ActivityLogger::traineeReactivated($course, $trainee, $user);
 
-            return $this->returnUpdatedCourse($course, $user);
+            return $this->returnWithRefreshedCourse($course->id, $user);
         } catch (\Exception $e) {
             \Log::error('Error reactivating trainee', [
                 'mentor_id' => $user->id,
