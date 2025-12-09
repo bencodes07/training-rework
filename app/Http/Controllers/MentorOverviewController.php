@@ -190,7 +190,7 @@ class MentorOverviewController extends Controller
         return response()->json($courseData);
     }
 
-    protected function loadCourseData($course, $user): array
+    public function loadCourseData($course, $user): array
     {
         $allSolos = Cache::remember('vateud_solos', 300, function () {
             try {

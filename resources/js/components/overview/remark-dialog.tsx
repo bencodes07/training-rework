@@ -35,6 +35,7 @@ export function RemarkDialog({ trainee, courseId, isOpen, onClose }: RemarkDialo
                 remark: remarkText,
             },
             {
+                preserveScroll: true,
                 onFinish: () => {
                     setIsSaving(false);
                     onClose();
