@@ -39,9 +39,6 @@ export function ClaimConfirmDialog({ trainee, courseId, isOpen, onClose }: Claim
                 course_id: courseId,
             },
             {
-                preserveScroll: true,
-                preserveState: true,
-                only: ['courses'],
                 onFinish: () => {
                     setIsClaiming(false);
                     onClose();
@@ -127,9 +124,6 @@ export function AssignDialog({ trainee, courseId, isOpen, onClose }: AssignDialo
                 mentor_id: parseInt(selectedMentorId),
             },
             {
-                preserveScroll: true,
-                preserveState: true,
-                only: ['courses'],
                 onFinish: () => {
                     setIsAssigning(false);
                     setSelectedMentorId('');

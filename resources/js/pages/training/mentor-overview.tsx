@@ -7,7 +7,7 @@ import { useMentorStorage } from '@/hooks/use-mentor-storage';
 import AppLayout from '@/layouts/app-layout';
 import { BreadcrumbItem } from '@/types';
 import { MentorCourse, MentorStatistics, Trainee } from '@/types/mentor';
-import { Head } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 
@@ -22,9 +22,13 @@ interface Props {
     courses: MentorCourse[];
     statistics: MentorStatistics;
     initialCourseId?: number;
+    flash?: {
+        updatedCourse?: MentorCourse;
+        success?: boolean;
+    };
 }
 
-export default function MentorOverview({ courses: initialCourses, statistics, initialCourseId }: Props) {
+export default function MentorOverview({ courses: initialCourses, statistics, initialCourseId, flash }: Props) {
     const [courses, setCourses] = useState<MentorCourse[]>(initialCourses);
     const [loadingCourses, setLoadingCourses] = useState<Set<number>>(new Set());
 
@@ -35,36 +39,37 @@ export default function MentorOverview({ courses: initialCourses, statistics, in
     const [isClaimDialogOpen, setIsClaimDialogOpen] = useState(false);
     const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
 
-    // FIXED: Preserve loaded course data when Inertia updates
+    // Handle partial course updates from flash (OPTIMIZED APPROACH)
+    useEffect(() => {
+        if (flash?.updatedCourse) {
+            console.log('Received partial update for course:', flash.updatedCourse.id);
+
+            setCourses((prevCourses) => {
+                return prevCourses.map((course) => {
+                    if (course.id === flash.updatedCourse!.id) {
+                        return {
+                            ...flash.updatedCourse!,
+                            loaded: true,
+                        };
+                    }
+                    return course;
+                });
+            });
+
+            // Clear the flash message to prevent re-processing
+            // This is a no-op visit that clears flash without reloading
+            router.reload({ only: [] });
+        }
+    }, [flash?.updatedCourse]);
+
+    // Update courses state when initialCourses changes (from full page loads)
     useEffect(() => {
         console.log('Initial courses received:', {
             count: initialCourses.length,
             loadedCourses: initialCourses.filter((c) => c.loaded).map((c) => ({ id: c.id, name: c.name, trainees: c.trainees?.length || 0 })),
             initialCourseId,
         });
-
-        setCourses((prevCourses) => {
-            return initialCourses.map((newCourse) => {
-                const existingCourse = prevCourses.find((c) => c.id === newCourse.id);
-
-                // If backend sent loaded data with trainees, use it
-                if (newCourse.loaded && newCourse.trainees && newCourse.trainees.length > 0) {
-                    return newCourse;
-                }
-
-                // If we have previously loaded data for this course, preserve it
-                if (existingCourse?.loaded && existingCourse.trainees && existingCourse.trainees.length > 0) {
-                    return {
-                        ...newCourse,
-                        trainees: existingCourse.trainees,
-                        loaded: true,
-                    };
-                }
-
-                // Otherwise use the new course data as-is
-                return newCourse;
-            });
-        });
+        setCourses(initialCourses);
     }, [initialCourses]);
 
     const filteredCourses = courses.filter((course) => {
@@ -191,6 +196,7 @@ export default function MentorOverview({ courses: initialCourses, statistics, in
         setSelectedTrainee(null);
     };
 
+    // Always get the latest course data from the courses array
     const currentCourse = selectedCourse ? courses.find((c) => c.id === selectedCourse.id) || selectedCourse : null;
 
     console.log('Render state:', {
@@ -199,6 +205,7 @@ export default function MentorOverview({ courses: initialCourses, statistics, in
         currentCourseLoaded: currentCourse?.loaded,
         currentCourseTrainees: currentCourse?.trainees?.length || 0,
         isLoading: currentCourse ? loadingCourses.has(currentCourse.id) : false,
+        hasFlashUpdate: !!flash?.updatedCourse,
     });
 
     return (
