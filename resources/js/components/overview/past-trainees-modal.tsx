@@ -84,6 +84,8 @@ export function PastTraineesModal({ course, isOpen, onClose }: PastTraineesModal
             },
             {
                 preserveScroll: true,
+                preserveState: true,
+                only: ['courses'],
                 onSuccess: () => {
                     // Refresh the past trainees list
                     fetch(route('overview.past-trainees', { course: course.id }))
